@@ -9,6 +9,7 @@ import { GameState } from '../game/GameState.js';
 import { EMAILS } from '../data/day1.js';
 import { deliveredEmails } from '../ui/apps/MailApp.js';
 import { PHONE_CALL, USB_DROP } from '../data/day1Talk.js';
+import { debriefLines } from '../game/scoring.js';
 
 const SPEED = 72; // world px per second
 const REACH = 22; // how close (px) you must be to interact
@@ -53,6 +54,10 @@ export class OfficeScene extends Phaser.Scene {
     this.soc = new SocScreen(this);
 
     // Picking up a saved day mid-way: re-arm whatever was in progress.
+    if (this.resume && this.state.dayOver) {
+      this.time.delayedCall(0, () => this.scene.start('Report', { state: this.state }));
+      return;
+    }
     if (this.resume) {
       this.checkPhone();
       if (this.state.phone?.done && !this.state.usb?.done) this.danaPending = true;
@@ -311,6 +316,27 @@ export class OfficeScene extends Phaser.Scene {
     ]);
     if (this.soc?.isOpen) this.soc.render();
     this.updateObjective();
+  }
+
+  // ---------- M6: end of day ----------
+  debrief() {
+    this.faceNpcToPlayer('priya');
+    this.dialog.open('Priya (SOC lead)', debriefLines(this.state), () => this.endDay());
+  }
+
+  endDay() {
+    this.complete('debrief');
+    this.state.dayOver = true;
+    this.state.minutes = 17 * 60;
+    this.state.log('day-over');
+    this.state.save();
+    this.ending = true;
+    const card = this.ui(
+      this.add.text(VIEW_W / 2, VIEW_H / 2, 'Monday, 5:00 PM', { fontFamily: FONT, fontSize: '40px', color: '#e6e6ea' }).setOrigin(0.5).setDepth(1000).setAlpha(0),
+    );
+    const shade = this.ui(this.add.rectangle(0, 0, VIEW_W, VIEW_H, 0x12121c).setOrigin(0).setDepth(999).setAlpha(0));
+    this.tweens.add({ targets: shade, alpha: 1, duration: 700 });
+    this.tweens.add({ targets: card, alpha: 1, delay: 500, duration: 500, hold: 900, yoyo: true, onComplete: () => this.scene.start('Report', { state: this.state }) });
   }
 
   onCaseSubmitted() {
@@ -602,6 +628,8 @@ export class OfficeScene extends Phaser.Scene {
     this.player.setVelocity(0);
     if (t.kind === 'npc' && this.npcInfo?.[t.id]?.walking) return;
 
+    if (t.id === 'priya' && this.currentObjective()?.id === 'debrief') return this.debrief();
+
     if (t.kind === 'npc') {
       const dx = this.player.x - t.px;
       const dy = this.player.y - t.py;
@@ -739,7 +767,7 @@ export class OfficeScene extends Phaser.Scene {
     if (this.queuedDialog && !this.busy() && !this.seated) this.flushQueuedDialog();
     if (this.danaPending && !this.busy() && !this.seated) this.startDanaWalkUp();
 
-    if (!this.busy() && !this.seated) {
+    if (!this.busy() && !this.seated && !this.ending) {
       const k = this.keys;
       if (k.LEFT.isDown || k.A.isDown) vx -= 1;
       if (k.RIGHT.isDown || k.D.isDown) vx += 1;

@@ -311,6 +311,35 @@ await page.waitForTimeout(800);
 s = await state();
 check('Continue restores progress after a reload', s.visited.length === visitedBefore && s.mail['it-reset']?.enteredCreds, `${s.visited.length}/${visitedBefore}`);
 
+// ---------- M6: debrief and the report card (continuing from the restored save) ----------
+s = await state();
+check('objective: debrief with Priya', /Priya/.test(s.goal), s.goal);
+await closeDialog();
+await clickWorld(220, 170);
+await waitArrive();
+await page.waitForTimeout(600);
+await clickWorld(124, 96);
+await waitArrive();
+await page.waitForTimeout(300);
+d = await dlg();
+check('Priya debriefs you and mentions what happened with your password', d.open && /Priya/.test(d.name), d.text);
+const debriefText = await page.evaluate(() => window.__game.scene.getScene('Office').dialog.lines.join(' '));
+check('the debrief reveals consequences (stolen password, USB analysis)', /Russia/.test(debriefText) && /keystroke injector/.test(debriefText), debriefText.slice(0, 120));
+await closeDialog();
+await page.waitForFunction(() => window.__game.scene.isActive('Report'), null, { timeout: 8000 }).catch(() => {});
+await page.waitForTimeout(500);
+check('the day ends with the report card', await visible('#report'));
+const grade = await page.getAttribute('#report .grade', 'data-grade').catch(() => null);
+const reportText = await text('#report');
+check('report: 90% but capped at B (one outright miss)', grade === 'B' && reportText.includes('90%') && reportText.includes('caps the day at B'), `${grade}`);
+check('report: the phishing password is a miss with a cost', (await page.getAttribute('#report [data-item=mail-it-reset]', 'class'))?.includes('bad') && reportText.includes('$10,500'));
+check('report: lists Security+ objectives', /Security\+ 2\.2/.test(reportText) && /Security\+ 4\.9/.test(reportText));
+await page.screenshot({ path: `${out}/12-report.png` });
+await page.click('#report [data-action=play-again]');
+await page.waitForFunction(() => window.__game.scene.isActive('Title'));
+await page.waitForTimeout(300);
+check('Play again clears the save and returns to the title', !(await page.evaluate(() => localStorage.getItem('cyber-office:day1:v1'))) && !(await visible('#report')));
+
 check('no console errors', errors.length === 0, errors.join(' | '));
 const failed = results.filter((r) => !r.ok).length;
 console.log(failed ? `SMOKE FAIL (${failed} of ${results.length})` : `SMOKE PASS (${results.length} checks)`);
