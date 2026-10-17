@@ -8,6 +8,7 @@ import { NavGrid } from '../world/pathfinding.js';
 import { GameState } from '../game/GameState.js';
 import { EMAILS } from '../data/day1.js';
 import { deliveredEmails } from '../ui/apps/MailApp.js';
+import { PHONE_CALL, USB_DROP } from '../data/day1Talk.js';
 
 const SPEED = 72; // world px per second
 const REACH = 22; // how close (px) you must be to interact
@@ -47,8 +48,15 @@ export class OfficeScene extends Phaser.Scene {
 
     this.dialog = new DialogBox(this);
     this.ui(this.dialog.container);
+    this.ui(this.dialog.choiceBox);
     this.computer = new ComputerScreen(this);
     this.soc = new SocScreen(this);
+
+    // Picking up a saved day mid-way: re-arm whatever was in progress.
+    if (this.resume) {
+      this.checkPhone();
+      if (this.state.phone?.done && !this.state.usb?.done) this.danaPending = true;
+    }
 
     this.cameras.main.fadeIn(300, 18, 18, 28);
     const intro = this.resume
@@ -114,12 +122,17 @@ export class OfficeScene extends Phaser.Scene {
       } else if (o.type === 'npc') {
         const def = NPCS[o.name];
         const s = this.world(this.add.sprite(o.x, o.y, p.sprite, 'down-idle').setOrigin(0.5, 1).setDepth(o.y));
-        this.solids.add(this.world(this.add.zone(o.x, o.y - 2.5, 8, 5)));
+        const zone = this.world(this.add.zone(o.x, o.y - 2.5, 8, 5));
+        this.solids.add(zone);
         this.faceSprite(s, p.face || 'down');
         this.tweens.add({ targets: s, scaleY: 0.96, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
         this.npcs[o.name] = s;
-        this.solidRects.push({ x: o.x - 4, y: o.y - 5, w: 8, h: 5 });
-        this.interactables.push({ id: o.name, ...def, kind: 'npc', sprite: s, px: o.x, py: o.y, halfW: 6 });
+        const rect = { x: o.x - 4, y: o.y - 5, w: 8, h: 5 };
+        this.solidRects.push(rect);
+        const inter = { id: o.name, ...def, kind: 'npc', sprite: s, px: o.x, py: o.y, halfW: 6, sheet: p.sprite };
+        this.interactables.push(inter);
+        this.npcInfo = this.npcInfo || {};
+        this.npcInfo[o.name] = { sprite: s, zone, rect, inter };
       } else if (o.type === 'door') {
         const def = DOORS[o.name];
         this.interactables.push({ id: o.name, ...def, sprite: null, px: o.x, py: o.y - 8, halfW: 8, isDoor: true });
@@ -232,6 +245,7 @@ export class OfficeScene extends Phaser.Scene {
     this.state.minutes = this.minutes;
     this.updateClock();
     this.checkAlerts();
+    this.checkPhone();
     const delivered = deliveredEmails(this.minutes);
     if (delivered.length > this.knownMail) {
       const newest = delivered[delivered.length - 1];
@@ -302,6 +316,140 @@ export class OfficeScene extends Phaser.Scene {
   onCaseSubmitted() {
     this.complete('soc');
     this.notify('✔ Case sent to Priya');
+    this.checkPhone();
+  }
+
+  // ---------- M5: the phone call and Dana's USB stick ----------
+  checkPhone() {
+    const ph = this.state.phone;
+    if (ph?.ringingAt != null && !ph.done) return this.showRinging(!ph.answered);
+    if (ph || this.phoneTimer) return;
+    if (this.isDone('soc') || this.minutes >= 10 * 60 + 30) {
+      this.phoneTimer = this.time.delayedCall(4000, () => {
+        this.state.phone = { ringingAt: this.minutes };
+        this.state.log('phone-ringing');
+        this.notify('☎ Your desk phone is ringing');
+        this.showRinging(true);
+        this.updateObjective();
+      });
+    }
+  }
+
+  showRinging(on) {
+    if (!this.ringIcon) {
+      const desk = this.interactables.find((t) => t.id === 'my-desk');
+      this.ringIcon = this.world(
+        this.add.text(desk.px + 12, desk.py - 26, '☎', { fontFamily: FONT, fontSize: '9px', color: '#e8c547' }).setOrigin(0.5).setDepth(5001),
+      );
+      this.ringIcon.setResolution(3);
+      this.tweens.add({ targets: this.ringIcon, angle: { from: -18, to: 18 }, duration: 90, yoyo: true, repeat: -1 });
+    }
+    this.ringIcon.setVisible(on);
+  }
+
+  answerPhone() {
+    this.state.phone.answered = true;
+    this.showRinging(false);
+    this.state.log('phone-answered');
+    this.runConversation('phone', PHONE_CALL, (result) => {
+      this.state.phone = { ...this.state.phone, ...result, done: true };
+      this.state.log('phone-call', { outcome: result.outcome });
+      this.complete('phone');
+      this.danaPending = true; // she comes over as soon as you're free
+    });
+  }
+
+  startDanaWalkUp() {
+    this.danaPending = false;
+    if (this.state.usb?.done) return;
+    this.dialog.open('Dana (IT helpdesk)', ["Hey! Hang on, I'm coming over. Gotta show you something."]);
+    const p = this.player;
+    const spots = [[p.x + 14, p.y], [p.x - 14, p.y], [p.x, p.y + 12], [p.x, p.y - 12]];
+    const [tx, ty] = spots.find(([x, y]) => !this.nav.pointBlocked(x, y)) || spots[0];
+    this.walkNpc('dana', tx, ty, () => {
+      this.faceNpcToPlayer('dana');
+      const go = () => {
+        if (this.busy()) return this.time.delayedCall(300, go);
+        this.runConversation('usb', USB_DROP, (result) => {
+          this.state.usb = { ...result, done: true };
+          this.state.log('usb-drop', { outcome: result.outcome });
+          this.complete('usb');
+          this.time.delayedCall(800, () => this.walkNpc('dana', 348, 154, () => this.faceSprite(this.npcs.dana, 'left')));
+        });
+      };
+      go();
+    });
+  }
+
+  faceNpcToPlayer(id) {
+    const s = this.npcs[id];
+    const dx = this.player.x - s.x;
+    const dy = this.player.y - s.y;
+    this.faceSprite(s, Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : dy < 0 ? 'up' : 'down');
+  }
+
+  // Walk an NPC along a path. Its collision box is lifted while it moves and put back where it stops.
+  walkNpc(id, tx, ty, onArrive) {
+    const info = this.npcInfo[id];
+    const s = info.sprite;
+    info.zone.body.enable = false;
+    const i = this.solidRects.indexOf(info.rect);
+    if (i >= 0) this.solidRects.splice(i, 1);
+    this.rebuildNav();
+    const path = this.nav.findPath(s.x, s.y, tx, ty) || [];
+    info.walking = true;
+    const arrive = () => {
+      s.anims.stop();
+      this.faceSprite(s, 'down');
+      info.zone.body.reset(s.x, s.y - 2.5);
+      info.zone.body.enable = true;
+      info.rect.x = s.x - 4;
+      info.rect.y = s.y - 5;
+      this.solidRects.push(info.rect);
+      this.rebuildNav();
+      info.inter.px = s.x;
+      info.inter.py = s.y;
+      info.walking = false;
+      onArrive?.();
+    };
+    const step = () => {
+      const pt = path.shift();
+      if (!pt) return arrive();
+      const dx = pt.x - s.x;
+      const dy = pt.y - s.y;
+      const dir = Math.abs(dx) > Math.abs(dy) ? 'side' : dy < 0 ? 'up' : 'down';
+      s.setFlipX(dir === 'side' && dx < 0);
+      s.anims.play(`${info.inter.sheet}-walk-${dir}`, true);
+      this.tweens.add({
+        targets: s, x: pt.x, y: pt.y, duration: (Math.hypot(dx, dy) / 55) * 1000,
+        onUpdate: () => s.setDepth(s.y), onComplete: step,
+      });
+    };
+    step();
+  }
+
+  // Play a conversation tree from src/data/day1Talk.js. Choices are logged; the merged result goes to onEnd.
+  runConversation(convId, tree, onEnd) {
+    const result = {};
+    const play = (nodeId) => {
+      const node = tree[nodeId];
+      const segs = [...node.say];
+      const next = () => {
+        const [who, lines] = segs.shift();
+        if (segs.length) return this.dialog.open(who, lines, next);
+        if (node.choices) {
+          this.dialog.ask(who, lines, node.choices, (c) => {
+            Object.assign(result, c.set || {});
+            this.state.log('choice', { conv: convId, node: nodeId, text: c.text });
+            play(c.next);
+          });
+        } else {
+          this.dialog.open(who, lines, () => onEnd(result));
+        }
+      };
+      next();
+    };
+    play('start');
   }
 
   // Show a dialog now, or as soon as the player isn't busy.
@@ -452,6 +600,7 @@ export class OfficeScene extends Phaser.Scene {
     this.path = null;
     this.pending = null;
     this.player.setVelocity(0);
+    if (t.kind === 'npc' && this.npcInfo?.[t.id]?.walking) return;
 
     if (t.kind === 'npc') {
       const dx = this.player.x - t.px;
@@ -465,6 +614,10 @@ export class OfficeScene extends Phaser.Scene {
       return;
     }
 
+    if (t.id === 'my-desk' && this.state.phone?.ringingAt != null && !this.state.phone.done) {
+      // On resume mid-call, answering again just restarts the call from the top.
+      return this.answerPhone();
+    }
     if (t.kind === 'badge') return this.useBadge(t);
     if (t.kind === 'desk') return this.sitAt(t, this.computer);
     if (t.kind === 'soc') return this.sitAt(t, this.soc);
@@ -584,6 +737,7 @@ export class OfficeScene extends Phaser.Scene {
     let vy = 0;
 
     if (this.queuedDialog && !this.busy() && !this.seated) this.flushQueuedDialog();
+    if (this.danaPending && !this.busy() && !this.seated) this.startDanaWalkUp();
 
     if (!this.busy() && !this.seated) {
       const k = this.keys;

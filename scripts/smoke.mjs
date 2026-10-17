@@ -63,6 +63,17 @@ async function closeDialog() {
 }
 
 const W = '#screen-workstation';
+const dlg = () => page.evaluate(() => { const d = window.__game.scene.getScene('Office').dialog; return { open: d.isOpen, choosing: !!d.choosing, name: d.nameText.text, text: d.full }; });
+async function talkUntilChoice(ms = 15000) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < ms) {
+    const d = await dlg();
+    if (d.choosing) return d;
+    if (d.open) await page.keyboard.press('e');
+    await page.waitForTimeout(120);
+  }
+  return dlg();
+}
 const visible = (sel) => page.locator(sel).first().isVisible().catch(() => false);
 const text = (sel) => page.locator(sel).first().innerText().catch(() => '');
 
@@ -252,8 +263,45 @@ await page.keyboard.up('ArrowLeft');
 s = await state();
 check('keyboard movement stops at the outer wall', s.x >= 20 && s.x < 40, `${s.x},${s.y}`);
 
+// ---------- M5: the phone call and the USB stick ----------
+s = await state();
+check('the desk phone is ringing after the case', await page.evaluate(() => { const sc = window.__game.scene.getScene('Office'); return sc.state.phone?.ringingAt != null && sc.ringIcon?.visible; }));
+check('objective: answer your desk phone', /phone/.test(s.goal), s.goal);
+await clickWorld(256, 128);
+await waitArrive();
+let d = await talkUntilChoice();
+check('"Mike from Sales" asks for a password reset, with 4 choices', d.choosing && /Caller/.test(d.name) && (await page.evaluate(() => window.__game.scene.getScene('Office').dialog.choiceItems.length)) === 4, d.name);
+await page.screenshot({ path: `${out}/10-phone.png` });
+await page.keyboard.press('3'); // call back on the directory number
+d = await talkUntilChoice();
+check('the caller pushes back with authority and urgency', /Mark Holloway/.test(d.text), d.text);
+// Click the first choice with the mouse ("Directory number, or it doesn't happen").
+{
+  const pos = await page.evaluate(() => { const t = window.__game.scene.getScene('Office').dialog.choiceItems[0]; return { x: t.x + 30, y: t.y + t.height / 2 }; });
+  const box = await page.locator('canvas').boundingBox();
+  const k = box.width / 960;
+  await page.mouse.click(box.x + pos.x * k, box.y + pos.y * k);
+}
+await page.waitForTimeout(300);
+for (let i = 0; i < 40 && (await dlg()).open && !/Dana/.test((await dlg()).name); i++) { await page.keyboard.press('e'); await page.waitForTimeout(110); }
+s = await state();
+let ph = await page.evaluate(() => window.__game.scene.getScene('Office').state.phone);
+check('calling back exposes the fake; outcome recorded', ph?.outcome === 'callback-verified' && ph.done && s.visited.includes('phone'), JSON.stringify(ph));
+
+// Dana walks over with a USB stick.
+d = await talkUntilChoice(20000);
+const dana = await page.evaluate(() => { const sc = window.__game.scene.getScene('Office'); return { dx: Math.abs(sc.npcs.dana.x - sc.player.x), dy: Math.abs(sc.npcs.dana.y - sc.player.y) }; });
+check('Dana walks up to you and offers the USB stick', d.choosing && /USB|plug/.test(d.text) && dana.dx + dana.dy < 40, `${JSON.stringify(dana)} ${d.text}`);
+await page.screenshot({ path: `${out}/11-usb.png` });
+check('the phone stops ringing once answered', !(await page.evaluate(() => window.__game.scene.getScene('Office').ringIcon.visible)));
+await page.keyboard.press('2');
+await closeDialog();
+await page.waitForTimeout(4000);
+const usb = await page.evaluate(() => { const sc = window.__game.scene.getScene('Office'); return { usb: sc.state.usb, back: Math.hypot(sc.npcs.dana.x - 348, sc.npcs.dana.y - 154) < 3 }; });
+check('handing the USB to the SOC is recorded; Dana goes back to her desk', usb.usb?.outcome === 'handed-to-soc' && usb.back, JSON.stringify(usb));
+
 // ---------- Save / continue ----------
-const visitedBefore = s.visited.length;
+const visitedBefore = (await state()).visited.length;
 await page.reload();
 await page.waitForFunction(() => window.__game?.scene.isActive('Title'));
 await page.waitForTimeout(300);

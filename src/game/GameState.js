@@ -15,7 +15,8 @@ export class GameState {
     this.events = []; // { t: gameMinutes, type, ...details } in order, for the report and consequences
     this.minutes = null;
     this.soc = { alertAt: null, flagged: [], caseFile: null }; // alertAt: in-game minute the alert fired
-    this.phone = null; // M5: the helpdesk call
+    this.phone = null; // M5: the "Mike from Sales" phone call
+    this.usb = null; // M5: Dana's parking-lot USB stick
     this.dayOver = false;
   }
 
@@ -40,8 +41,8 @@ export class GameState {
 
   save() {
     try {
-      const { visited, flags, mail, events, minutes, soc, phone, dayOver } = this;
-      localStorage.setItem(KEY, JSON.stringify({ visited, flags, mail, events, minutes, soc, phone, dayOver }));
+      const { visited, flags, mail, events, minutes, soc, phone, usb, dayOver } = this;
+      localStorage.setItem(KEY, JSON.stringify({ visited, flags, mail, events, minutes, soc, phone, usb, dayOver }));
     } catch {
       // Private mode or storage full: the game still works, it just won't survive a refresh.
     }
@@ -62,6 +63,7 @@ export class GameState {
       this.soc = { ...this.soc, ...(d.soc || {}) };
       if (!Array.isArray(this.soc.flagged)) this.soc.flagged = [];
       this.phone = d.phone && typeof d.phone === 'object' ? d.phone : null;
+      this.usb = d.usb && typeof d.usb === 'object' ? d.usb : null;
       this.dayOver = !!d.dayOver;
       return true;
     } catch {

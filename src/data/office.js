@@ -29,6 +29,8 @@ export const OBJECTIVES = [
   { id: 'inbox', target: 'my-desk', text: 'Go through your email' },
   { id: 'server-door', text: 'Badge into the server room' },
   { id: 'soc', text: 'Investigate the alert at the SOC console' },
+  { id: 'phone', target: 'my-desk', text: 'Answer your desk phone' },
+  { id: 'usb', target: 'dana', text: 'Dana is coming over to you' },
 ];
 export const OBJECTIVES_DONE = 'Explore the office. More coming soon.';
 

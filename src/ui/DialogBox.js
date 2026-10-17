@@ -1,6 +1,7 @@
 import { VIEW_W, VIEW_H, FONT } from '../config.js';
 
 // Bottom-of-screen dialog with a typewriter effect. One short line per page.
+// ask() adds numbered choices after the last line (click them, or press 1-4).
 export class DialogBox {
   constructor(scene) {
     this.scene = scene;
@@ -25,9 +26,30 @@ export class DialogBox {
     scene.tweens.add({ targets: this.hint, alpha: 0.2, duration: 500, yoyo: true, repeat: -1 });
 
     this.container.add([bg, this.nameText, this.bodyText, this.hint]);
+    this.boxX = x;
+    this.boxY = y;
+    this.boxW = w;
+
+    // Choices sit just above the box (or below it, when the box is at the top of the screen).
+    this.choiceBox = scene.add.container(0, 0).setDepth(101).setVisible(false);
+    this.choiceItems = [];
+    scene.input.keyboard.on('keydown', (e) => {
+      if (!this.choosing) return;
+      const n = Number(e.key);
+      if (n >= 1 && n <= this.choices.length) this.pick(n - 1);
+    });
+  }
+
+  ask(name, lines, choices, onPick) {
+    this.open(name, lines, null);
+    this.choices = choices;
+    this.onPick = onPick;
   }
 
   open(name, lines, onClose) {
+    this.choices = null;
+    this.choosing = false;
+    this.choiceBox.setVisible(false);
     this.lines = lines;
     this.index = 0;
     this.onClose = onClose;
@@ -36,6 +58,7 @@ export class DialogBox {
     // If the player is in the bottom part of the screen, show the box at the top so it doesn't cover them.
     const pl = this.scene.player;
     const low = pl && this.scene.toScreen && this.scene.toScreen(pl.x, pl.y).y > VIEW_H - 200;
+    this.atTop = low;
     this.container.setY(low ? 96 - (VIEW_H - 154) : 0);
     this.container.setVisible(true);
     this.showLine();
@@ -54,9 +77,64 @@ export class DialogBox {
       callback: () => {
         i++;
         this.bodyText.setText(full.slice(0, i));
-        if (i >= full.length) this.typing = false;
+        if (i >= full.length) this.finishLine();
       },
     });
+  }
+
+  finishLine() {
+    this.typing = false;
+    if (this.choices && this.index === this.lines.length - 1) this.showChoices();
+  }
+
+  showChoices() {
+    if (this.choosing) return;
+    this.choosing = true;
+    this.hint.setVisible(false);
+    for (const t of this.choiceItems) t.destroy();
+    this.choiceItems = this.choices.map((c, i) => {
+      const t = this.scene.add
+        .text(0, 0, `${i + 1}. ${c.text}`, {
+          fontFamily: FONT, fontSize: '19px', color: '#f4f1e8', backgroundColor: '#2b3f5c',
+          padding: { x: 14, y: 8 }, wordWrap: { width: this.boxW - 60 },
+        })
+        .setInteractive({ useHandCursor: true })
+        .on('pointerover', () => t.setBackgroundColor('#3f7fff'))
+        .on('pointerout', () => t.setBackgroundColor('#2b3f5c'))
+        .on('pointerdown', (_p, _x, _y, e) => {
+          e?.stopPropagation();
+          this.pick(i);
+        });
+      t.setData('choice', i);
+      this.scene.ui?.(t); // keep it off the zoomed world camera (rendering and hit-testing)
+      return t;
+    });
+    // Stack them; measure heights after creation.
+    const gap = 8;
+    const total = this.choiceItems.reduce((sum, t) => sum + t.height + gap, 0);
+    const boxTop = this.boxY + this.container.y;
+    const boxBottom = boxTop + 130;
+    let y = this.atTop ? boxBottom + 10 : boxTop - total - 2;
+    for (const t of this.choiceItems) {
+      t.setPosition(this.boxX + 20, y);
+      y += t.height + gap;
+    }
+    this.choiceBox.removeAll(false);
+    this.choiceBox.add(this.choiceItems).setVisible(true);
+  }
+
+  pick(i) {
+    if (!this.choosing) return;
+    const choice = this.choices[i];
+    this.choosing = false;
+    this.choices = null;
+    this.choiceBox.setVisible(false);
+    this.hint.setVisible(true);
+    const cb = this.onPick;
+    this.onPick = null;
+    this.isOpen = false;
+    this.container.setVisible(false);
+    cb?.(choice, i);
   }
 
   advance() {
@@ -65,9 +143,10 @@ export class DialogBox {
       // First press finishes the line instantly.
       this.typer?.remove();
       this.bodyText.setText(this.full);
-      this.typing = false;
+      this.finishLine();
       return;
     }
+    if (this.choosing) return; // waiting for a choice
     this.index++;
     if (this.index < this.lines.length) {
       this.showLine();
