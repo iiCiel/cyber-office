@@ -48,33 +48,34 @@ Each scenario is one JSON data file (emails, log lines, NPC lines, right calls, 
 - [x] M6: Consequences and the end-of-day report card (done Oct 16, 2026). Priya's debrief reveals what your choices caused (password used from Russia, gift-card scam, Mike's mailbox taken over, USB keystroke injector). Report card: per-item outcome with what/why/cost, grade (one outright miss caps A at B), total cost to the company, skills with Security+ objectives, Day 2 teaser, Play again
 - [ ] M7: Playtest with 2-3 friends, fix what's confusing
 - [ ] Later: Days 2-5 and attacker storyline, sound, original art
-Live: https://iiciel.github.io/cyber-office/ . Repo: https://github.com/iiCiel/cyber-office (public). Latest commit d2862c8.
+Live: https://iiciel.github.io/cyber-office/ . Repo: https://github.com/iiCiel/cyber-office (public). Day 1 vertical slice is complete and playable end to end.
 
 ### Code map (D:\Projects\cyber-office)
-- public/maps/office.tmj: THE MAP (Tiled JSON 32x22). Layers floor, walls (tiles with collides=true block), objects (points: prop + property tex, npc + property sprite, door, spawn). Object names link to text/behavior in src/data/office.js. Edit in Tiled from now on; scripts/bootstrap-map.mjs made it once and refuses to overwrite without --force.
-- public/maps/tiles.png: tileset painted from src/art/tileArt.js by `npm run tiles`.
-- src/data/office.js: FOOTPRINTS, NPCS (talk/again), PROPS (kind talk/desk/soc), DOORS, OBJECTIVES, GAME_DATE.
-- src/scenes/OfficeScene.js: map loading, props/NPCs/doors from the object layer, physics, camera, HUD, prompt, click-to-walk, interactions. flags.badgeActive set by talking to Priya; server door tiles removed on badge and restored (with properties + collision set by hand, because putTileAt drops them) 3s after the doorway is clear.
-- src/world/pathfinding.js: NavGrid (8px cells, feet box 8x5), A*, string-pulling. Unit tests in tests/ (`npm test`).
-- src/ui/: DialogBox (moves to top when the player is low), Overlay (monitor frame, Esc/Stand up), ComputerScreen (Mail/welcome.txt/Terminal/Tickets, keys 1-4), SocScreen (SIEM tiles + live tail: sshd, Windows 4624/4634, postfix, openvpn, smbd).
-- src/art/: pixels.js (player/coworker/manager sprites), textures.js (furniture), tileArt.js (tiles).
-- Two cameras: scene.world(obj) for world objects, scene.ui(obj) for UI. The scene pointerdown handler ignores clicks that hit UI objects.
-- scripts/smoke.mjs: Playwright + installed Chrome, plays the whole loop with clicks, 21 checks. Run: npm run build; npx vite preview --port 4173 --strictPort (background); npm run smoke. Live: node scripts/smoke.mjs https://iiciel.github.io/cyber-office/ smoke-out/live. The camera shows only part of the map, so walk near things before clicking them in tests.
-- Deploy: push to main -> .github/workflows/deploy.yml -> Pages. Vite base /cyber-office/.
-- Git: repo-local user.email 172845298+iiCiel@users.noreply.github.com (GitHub blocks pushes showing his private email).
+- Day flow (objectives in src/data/office.js): Priya -> sit at desk -> read 5 emails -> (SIEM alert fires ~2.5s after inbox done, or 9:40) -> badge into server room -> SOC case -> desk phone rings (vishing call) -> Dana walks over with a USB stick -> debrief with Priya -> 5:00 PM fade -> Report scene -> Play again.
+- public/maps/office.tmj: Tiled map (edit in Tiled). tiles.png painted from src/art/tileArt.js (`npm run tiles`).
+- src/data/: office.js (props, NPC lines, objectives), day1.js (5 emails with raw headers + Explain notes, browser pages, reply drafts), day1Logs.js (seeded log generator, alert + case definitions, IP lookups), day1Talk.js (phone + USB conversation trees).
+- src/game/: GameState.js (all choices + localStorage save, key cyber-office:day1:v1), scoring.js (scoreDay + debriefLines; grade cap: any outright miss caps A at B).
+- src/scenes/: Boot, Title (Continue / New day), Office (everything in the office: map, NPCs, walkNpc, alerts, phone, conversations, debrief), Report (HTML report card).
+- src/ui/: Overlay (pixel monitor bezel + HTML screen scaled over the canvas; disables Phaser keyboard while open), ComputerScreen (desktop: Mail, welcome.txt, Terminal stub, Tickets stub), apps/MailApp + apps/Browser, SocScreen (SIEM: overview, alert detail, search, case), DialogBox (typewriter + choices), dom.js (h() builder, textContent only), screen.css.
+- src/world/pathfinding.js: A* NavGrid.
+- Tests: `npm test` (15 unit tests: pathfinding, logs, scoring). Browser: npm run build; npx vite preview --port 4173 --strictPort (background); `npm run smoke` (64 checks, good-ish path incl. Play again) and `npm run smoke:bad` (15 checks, worst day -> F). Both also run against the live URL: node scripts/smoke.mjs https://iiciel.github.io/cyber-office/ smoke-out/live
+- Gotchas: Phaser reuses the Office scene object on restart, so reset every per-day field at the top of create(). Python edits on Windows write CRLF unless newline='
+' (.gitattributes normalizes to LF). Shell heredocs mangle backslashes; use the Edit tool for strings with 
+.
+- Deploy: push to main -> GitHub Actions -> Pages. Repo-local git email is the GitHub no-reply address.
 
 ### Issues
-- Courier New system font, not a pixel font.
-- Placeholders: Mail (M3), SOC alerts (M4), Terminal, Tickets.
-- NPCs stand still (idle bob only).
-- Not tested on a real phone; there's no on-screen Esc button, but the "Stand up" button works for touch.
-- Gotcha: restart vite preview after changing vite.config.js.
+- Courier New system font for in-world text, not a pixel font.
+- Terminal and Tickets apps are stubs (Terminal: whois/nslookup/grep planned).
+- No sound yet.
+- Not tested on a real phone. Choices and screens work with touch in theory; the HTML screens are scaled, so text is small on phones.
+- Day 1 pacing not playtested by a human yet (M7). The alert fallback is 9:40, the phone fallback 10:30 in-game (1 in-game minute = 4 real seconds).
 
 ### Open questions (for Soliman)
 - Game title (Cyber Office is a placeholder)
-- Own art early, or free packs until Day 1 is fun?
-- Repo is public (needed for free Pages). OK, or private until the vertical slice?
-- Keep the names Halcyon Mutual, Priya, Dana?
+- Own art early, or free packs now that Day 1 is playable?
+- Keep the names Halcyon Mutual, Priya, Dana, Mike Chen, j.alvarez?
+- Who are the 2-3 playtesters for M7?
 
 ### How each run works
 Pick the next unchecked milestone, build it, test in a browser (smoke script, extend it for the new feature), commit, push (redeploys), update PROJECT.md. One milestone per run.
