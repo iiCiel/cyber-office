@@ -53,7 +53,7 @@ One office room, one inbox, one alert, one coworker, one report.
 
 ### Milestones
 - [x] Concept and design decisions agreed
-- [ ] M1: Phaser + Vite project set up, deployed to GitHub Pages (a "hello" room you can walk around)
+- [x] M1: Phaser + Vite project set up, deployed to GitHub Pages (a "hello" room you can walk around). Done Oct 16, 2026. Live: https://iiciel.github.io/cyber-office/ · Repo: https://github.com/iiCiel/cyber-office
 - [ ] M2: Office tilemap in Tiled, player movement and collisions, desk/server room interactions
 - [ ] M3: Mail client UI with the 5 Day 1 emails, link hover and headers
 - [ ] M4: Log viewer with the Day 1 alert
@@ -62,13 +62,28 @@ One office room, one inbox, one alert, one coworker, one report.
 - [ ] M7: Playtest with 2-3 friends, fix what's confusing
 - [ ] Later: Days 2-5 and the attacker storyline, sound, original art
 
+### Where things are (code map)
+- `src/main.js` game config (960x720, pixelArt, Arcade physics). `src/config.js` tile size 16, zoom 3.
+- `src/scenes/` Boot (makes textures + walk anims), Title, Office (room, player, props, coworker, HUD, interactions).
+- `src/data/officeMap.js` hand-written room layout (char grid), props with collision footprints and their dialog lines, coworker Dana, spawn. M2 replaces the grid with a Tiled map.
+- `src/art/` placeholder pixel art drawn in code (character sprites as char grids, furniture as rects). No external assets yet.
+- `src/ui/DialogBox.js` typewriter dialog. Two cameras: main (zoom 3, world) + UI camera (zoom 1, crisp text). New UI objects must go through `scene.ui(obj)`; world objects added after create need `addWorldLate`.
+- `scripts/smoke.mjs` Playwright (playwright-core + installed Chrome) test: title -> office -> walk to desk -> interact -> collision -> click-to-walk. Run `npm run build`, `npx vite preview --port 4173`, then `npm run smoke` (or `node scripts/smoke.mjs <url> <outDir>` for the live site).
+- Deploy: `.github/workflows/deploy.yml` builds and publishes to Pages on every push to main. Vite `base` is `/cyber-office/` (dev URL is http://localhost:5173/cyber-office/).
+- Git: commits use the GitHub no-reply email (172845298+iiCiel@users.noreply.github.com), set in this repo's local git config, because GitHub blocks pushes that expose his private email.
+
 ### Issues / blockers
-None yet.
+- Click-to-walk moves in a straight line and slides along obstacles; no pathfinding. It can give up behind a desk. Add grid A* in M2 once the Tiled map exists.
+- Text uses the Courier New system font; looks fine but not pixel-art. Consider a CC0 pixel font later.
+- Dialog lines on the desk/SOC console say "(next updates)", placeholders to remove in M3/M4.
+- On phones you can walk by tapping, but the room is small on a phone screen. Not a priority before M7.
+- GitHub warns that `ubuntu-latest` moves to Ubuntu 26 on Oct 19, 2026; the workflow should be fine but check the next deploy.
 
 ### Open questions (for Soliman)
 - Game title (Cyber Office is a placeholder)
 - Make our own art early, or stay on free packs until Day 1 is fun?
-- Should the repo be public from day one (portfolio) or after the vertical slice?
+- Repo went public on M1 (the run asked for a GitHub Pages deploy, and free Pages needs a public repo). Flip it to private in GitHub settings if you'd rather wait until the vertical slice.
+- The fictional company is "Halcyon Mutual Insurance" and the coworker is "Dana (IT helpdesk)". OK to keep?
 
 ### How each Continue run works
 Pick the next unchecked milestone, build it, test it in a browser, commit, and update this file (check off what's done, add issues). Keep each run to one milestone.
