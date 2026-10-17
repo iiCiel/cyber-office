@@ -4,9 +4,10 @@ import { run } from '../../game/shell.js';
 // The in-game Terminal: a prompt over the simulated shell in src/game/shell.js.
 // Up/Down walk through history. Every command is logged (the report can tell if you dug in yourself).
 export class TerminalApp {
-  constructor({ state, day }) {
+  constructor({ state, day, changed }) {
     this.state = state;
     this.day = day;
+    this.changed = changed;
     this.cwd = '/home/analyst01';
     this.hIndex = null;
     this.out = h('pre', { class: 'term-out mono', 'aria-live': 'polite' });
@@ -73,6 +74,7 @@ export class TerminalApp {
     }
     this.cwd = res.cwd;
     this.promptEl.textContent = this.prompt();
+    this.changed?.();
     this.out.scrollTop = this.out.scrollHeight;
     this.el.scrollTop = this.el.scrollHeight;
   }

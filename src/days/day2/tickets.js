@@ -1,0 +1,51 @@
+// Day 2 helpdesk tickets (you're covering for Dana).
+export const TICKETS = [
+  {
+    id: 'payroll-access',
+    num: 4512,
+    title: 'Access to the Finance-Payroll share',
+    from: 'Kim Nguyen (Accounting intern)',
+    via: 'Helpdesk portal, from WS-0151, Mon 4:52 PM',
+    priority: 'Normal',
+    facts: [['Group requested', 'FIN-Payroll-RW (read/write)'], ['Manager approval', 'None attached']],
+    body: ["Hi! I'm the new intern in Accounting.", 'My manager said I need the Payroll folder for a project. Can you add me today?', 'Thanks!! Kim'],
+    teaches: { skill: 'Least privilege: access needs an approval', secplus: '4.6 Identity and access management: least privilege' },
+    options: [
+      { id: 'grant', text: 'Add her to FIN-Payroll-RW', outcome: 'bad', points: 0, why: 'No approval, and read/write to every paycheck in the company. If her account is ever phished, so is payroll. Access needs the data owner\'s approval and only as much as the job needs.', reply: 'Kim: Yay, thank you!!' },
+      { id: 'approval', text: 'Ask her manager to approve in the ticket, then grant read-only to the project folder if approved', outcome: 'good', points: 10, why: 'Right: approval from the person who owns the data, and least privilege (read-only, one folder).', reply: 'Kim: Okay! Asking Marcus to approve now.' },
+      { id: 'deny', text: "Close it: interns don't get payroll access, period", outcome: 'ok', points: 5, why: 'Safe, but she may have a real need. The fix is an approval process, not a flat no.', reply: 'Kim: Oh. Okay. :(' },
+    ],
+  },
+  {
+    id: 'okafor-reset',
+    num: 4515,
+    title: 'Locked out after vacation',
+    from: 'Sade Okafor (Claims)',
+    via: "Phone call to helpdesk. Dana's note: verified by calling back her desk extension (2241) from the directory.",
+    priority: 'High',
+    facts: [['Identity check', 'Callback to directory number: done']],
+    body: ['Back from two weeks off and my password expired. Locked out of everything. Help!'],
+    teaches: { skill: 'Reset passwords safely', secplus: '4.6 Identity and access management: password policy' },
+    options: [
+      { id: 'temp', text: 'Set a one-time temporary password, tell her in person, and force a change at first login', outcome: 'good', points: 10, why: 'Textbook: identity already verified, the temp password works once, and only she knows the final one.', reply: 'Sade: In! Thank you!' },
+      { id: 'email', text: 'Reset it to Welcome123! and email it to her', outcome: 'bad', points: 0, why: 'A guessable password, sent in plain text to a mailbox anyone with her old password could read. Never email passwords.', reply: 'Sade: (from her phone) Thanks!' },
+      { id: 'same', text: 'Set it back to her old password so she does not have to learn a new one', outcome: 'bad', points: 2, why: 'Reusing an expired password defeats the point of expiring it, and old passwords are what attackers try first.', reply: 'Sade: Oh nice, easy.' },
+    ],
+  },
+  {
+    id: 'teamviewer',
+    num: 4519,
+    title: 'Install TeamViewer on my laptop',
+    from: 'Mike Chen (Sales)',
+    via: 'Helpdesk portal, from WS-0131, Tue 8:44 AM',
+    priority: 'Low',
+    facts: [['Software', 'TeamViewer (not on the approved list)']],
+    body: ['Excel keeps crashing. My nephew is good with computers.', 'Can you install TeamViewer so he can log in and fix it tonight?'],
+    teaches: { skill: 'No unapproved remote access tools', secplus: '2.1 Threat actors: shadow IT' },
+    options: [
+      { id: 'install', text: 'Install TeamViewer and send Mike the access ID', outcome: 'bad', points: 0, why: 'An unmanaged remote-access tool, on a sales laptop, controlled by an outsider. Attackers love TeamViewer for exactly this reason.', reply: 'Mike: Awesome, thanks!' },
+      { id: 'help', text: "Decline outside remote access; offer to fix Excel yourself through IT's approved remote tool", outcome: 'good', points: 10, why: 'Right: solve the real problem (Excel) without opening a door nobody monitors.', reply: "Mike: Oh, even better. It's the add-in thing again." },
+      { id: 'temp', text: 'Install it just for tonight, then uninstall it tomorrow', outcome: 'ok', points: 3, why: 'Still an unmanaged door into the network for a night, and "temporary" installs tend to stay.', reply: 'Mike: Deal!' },
+    ],
+  },
+];

@@ -11,7 +11,8 @@
     "smoke": "node scripts/smoke.mjs",
     "test": "node --test \"tests/**/*.test.js\"",
     "tiles": "node scripts/make-tileset.mjs",
-    "smoke:bad": "node scripts/smoke-bad.mjs"
+    "smoke:bad": "node scripts/smoke-bad.mjs",
+    "smoke:week": "node scripts/smoke-week.mjs"
   },
   "dependencies": {
     "phaser": "3.90.0"

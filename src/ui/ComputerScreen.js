@@ -20,7 +20,7 @@ export class ComputerScreen extends Overlay {
         scene.onStateChanged();
       },
     });
-    this.terminal = new TerminalApp({ state: scene.state, day: () => scene.day });
+    this.terminal = new TerminalApp({ state: scene.state, day: () => scene.day, changed: () => scene.onStateChanged() });
     this.ticketsApp = new TicketsApp({
       state: scene.state,
       day: () => scene.day,

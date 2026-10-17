@@ -6,7 +6,7 @@ import { ComputerScreen } from '../ui/ComputerScreen.js';
 import { SocScreen } from '../ui/SocScreen.js';
 import { NavGrid } from '../world/pathfinding.js';
 import { GameState } from '../game/GameState.js';
-import { getDay } from '../days/index.js';
+import { loadDay } from '../days/index.js';
 import { deliveredEmails } from '../ui/apps/MailApp.js';
 
 // The office, and the engine that runs a day. Everything that happens on a given day comes from its
@@ -37,7 +37,7 @@ export class OfficeScene extends Phaser.Scene {
       GameState.clearSave();
       this.state.startDay(1);
     }
-    this.day = getDay(this.state.day);
+    this.day = loadDay(this.state.day, this.state);
     if (this.day.badgeAtStart) this.state.flags.badgeActive = true;
 
     this.worldLayer = [];
@@ -325,6 +325,7 @@ export class OfficeScene extends Phaser.Scene {
       if (this.isDone(o.id)) continue;
       if (o.type === 'inbox' && this.isDone('my-desk') && this.inboxProgress().done) this.complete(o.id);
       if (o.type === 'tickets' && this.ticketProgress().done) this.complete(o.id);
+      if (o.type === 'terminal' && this.state.events.some((e) => e.type === 'terminal-cmd' && o.match.test(e.cmd))) this.complete(o.id);
     }
     this.updateObjective();
     this.checkTriggers();
@@ -421,7 +422,7 @@ export class OfficeScene extends Phaser.Scene {
     es.answered = true;
     this.showRinging(false);
     this.state.log('phone-answered', { id: enc.id });
-    this.runConversation(enc.id, enc.conv, (result) => {
+    this.runConversation(enc.id, this.convOf(enc), (result) => {
       this.state.enc[enc.id] = { ...es, ...result, done: true };
       this.state.log('conversation', { id: enc.id, outcome: result.outcome });
       this.complete(enc.id);
@@ -442,7 +443,7 @@ export class OfficeScene extends Phaser.Scene {
       this.faceNpcToPlayer(npc);
       const go = () => {
         if (this.busy() || this.seated) return this.time.delayedCall(300, go);
-        this.runConversation(enc.id, enc.conv, (result) => {
+        this.runConversation(enc.id, this.convOf(enc), (result) => {
           this.state.enc[enc.id] = { ...this.state.enc[enc.id], ...result, done: true };
           this.state.log('conversation', { id: enc.id, outcome: result.outcome });
           this.complete(enc.id);
@@ -459,6 +460,10 @@ export class OfficeScene extends Phaser.Scene {
       };
       go();
     });
+  }
+
+  convOf(enc) {
+    return typeof enc.conv === 'function' ? enc.conv(this.state.campaign.carry || {}, this.state) : enc.conv;
   }
 
   faceNpcToPlayer(id) {
@@ -602,7 +607,7 @@ export class OfficeScene extends Phaser.Scene {
 
   // ---------- end of day ----------
   readyForDebrief() {
-    return this.day.objectives.filter((o) => ['inbox', 'tickets', 'case', 'encounter'].includes(o.type)).every((o) => this.isDone(o.id));
+    return this.day.objectives.filter((o) => ['inbox', 'tickets', 'case', 'encounter', 'terminal'].includes(o.type)).every((o) => this.isDone(o.id));
   }
 
   debrief() {
@@ -654,7 +659,7 @@ export class OfficeScene extends Phaser.Scene {
     let cur = this.currentObjective();
     // Waiting for something that hasn't happened yet (a call, a visit)? Say so instead of pointing nowhere.
     if (cur?.type === 'encounter' && !this.state.enc[cur.id]) cur = { ...cur, text: cur.waitText || 'Keep an eye out. Something will come up.', target: null, waiting: true };
-    if (cur?.type === 'case') {
+    if (cur?.type === 'case' || cur?.waitFor === 'alert') {
       const main = this.day.alerts.find((a) => a.main);
       if (main && this.state.soc.alerts[main.id] == null) cur = { ...cur, text: cur.waitText || 'Waiting on the SIEM. Look around.', target: null, waiting: true };
     }
@@ -775,7 +780,7 @@ export class OfficeScene extends Phaser.Scene {
       const lines = this.isDone(t.id) && t.again ? t.again : t.talk;
       this.dialog.open(t.name, lines, () => {
         if (t.effect) Object.assign(this.state.flags, t.effect);
-        this.complete(t.id);
+        if (this.objective(t.id)?.type === 'talk') this.complete(t.id);
       });
       return;
     }
@@ -787,7 +792,9 @@ export class OfficeScene extends Phaser.Scene {
     if (t.kind === 'soc') return this.sitAt(t, this.soc);
 
     const lines = this.isDone(t.id) && t.again ? t.again : t.talk;
-    this.dialog.open(t.name, lines, () => this.complete(t.id));
+    this.dialog.open(t.name, lines, () => {
+      if (this.objective(t.id)?.type === 'talk') this.complete(t.id);
+    });
   }
 
   sitAt(t, overlay) {

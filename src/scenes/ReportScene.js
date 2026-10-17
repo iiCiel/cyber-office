@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { VIEW_W, VIEW_H } from '../config.js';
 import { h } from '../ui/dom.js';
 import { GameState } from '../game/GameState.js';
-import { getDay, LAST_DAY } from '../days/index.js';
+import { getDay, loadDay, LAST_DAY } from '../days/index.js';
 import { money } from '../game/scoring.js';
 import '../ui/screen.css';
 
@@ -26,7 +26,7 @@ export class ReportScene extends Phaser.Scene {
     const st = this.gameState || new GameState();
     if (!this.gameState) st.load();
     this.gameState = st;
-    const day = getDay(st.day);
+    const day = loadDay(st.day, st);
     const r = day.score(st, st.campaign);
     // Record the day in the week (idempotent: replaying a day replaces its entry).
     st.recordDay(r, day.carry ? day.carry(st, r) : {});

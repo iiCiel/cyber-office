@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { run, tokenize } from '../src/game/shell.js';
 
 const log = [
-  '198.51.100.23 - - [21/Oct/2026:03:10:01 -0400] "GET /api/claims?id=1%27 HTTP/1.1" 500 312 "-" "sqlmap/1.8"',
+  '198.51.100.23 - - [21/Oct/2026:03:10:01 -0400] "GET /api/claims?id=CLM-10001[REDACTED-SQL-40-chars] HTTP/1.1" 500 312 "-" "python-requests/2.32.3"',
   '10.0.4.51 - - [21/Oct/2026:08:30:00 -0400] "GET /claims/status HTTP/1.1" 200 1840 "-" "Mozilla/5.0"',
-  '198.51.100.23 - - [21/Oct/2026:03:12:44 -0400] "GET /api/claims?id=1+UNION+SELECT+username,password_hash+FROM+portal_users-- HTTP/1.1" 200 1843221 "-" "sqlmap/1.8"',
+  '198.51.100.23 - - [21/Oct/2026:03:12:44 -0400] "GET /api/claims?id=CLM-10001[REDACTED-SQL-118-chars] HTTP/1.1" 200 1843221 "-" "python-requests/2.32.3"',
   '10.0.4.51 - - [21/Oct/2026:08:31:00 -0400] "GET /claims/status HTTP/1.1" 200 1840 "-" "Mozilla/5.0"',
 ].join('\n') + '\n';
 
@@ -22,9 +22,9 @@ test('tokenize respects quotes', () => {
   assert.deepEqual(tokenize(`cut -d ' ' -f 1 "a b.log"`), ['cut', '-d', ' ', '-f', '1', 'a b.log']);
 });
 
-test('grep finds the injection and counts it', () => {
-  assert.equal(run(`grep -c UNION ${A}`, ctx()).out, '1\n');
-  assert.equal(run(`grep -i union ${A} | wc -l`, ctx()).out, '1\n');
+test('grep finds the attack requests and counts them', () => {
+  assert.equal(run(`grep -c REDACTED ${A}`, ctx()).out, '2\n');
+  assert.equal(run(`grep -i redacted ${A} | grep 1843221 | wc -l`, ctx()).out, '1\n');
   assert.equal(run(`grep -v 198.51.100.23 ${A} | wc -l`, ctx()).out, '2\n');
 });
 
