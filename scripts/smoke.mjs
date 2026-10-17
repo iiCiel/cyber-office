@@ -356,6 +356,28 @@ await page.waitForTimeout(4800);
 check('Play again: the phone still rings on day two', await page.evaluate(() => window.__game.scene.getScene('Office').state.enc.phone?.ringingAt != null));
 check('only one set of computer screens exists after a restart', (await page.locator('#screen-workstation').count()) === 1 && (await page.locator('#screen-soc').count()) === 1);
 
+// Glossary survives a day restart (regression: a stale DOM ref used to break it).
+{
+  await page.keyboard.press('p');
+  await page.waitForTimeout(150);
+  await page.evaluate(() => window.__game.scene.getScene('Menu').openGlossary());
+  await page.waitForTimeout(150);
+  await page.keyboard.press('Escape'); // glossary back to menu
+  await page.waitForTimeout(120);
+  await page.evaluate(() => window.__game.scene.getScene('Menu').restartDay());
+  await page.waitForFunction(() => window.__game.scene.isActive('Office'));
+  await page.waitForTimeout(400);
+  await page.keyboard.press('p');
+  await page.waitForTimeout(150);
+  await page.evaluate(() => window.__game.scene.getScene('Menu').openGlossary());
+  await page.waitForTimeout(200);
+  const ok = (await page.locator('#glossary.open').isVisible()) && (await page.locator('#glossary .g').count()) >= 20 && (await page.locator('#glossary').count()) === 1;
+  check('glossary still opens after Restart this day', ok);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(200);
+}
+
 // Pause menu: opens (pausing the office), resumes with Esc.
 {
   await page.keyboard.press('p');

@@ -53,9 +53,15 @@ async function closeOverlay() {
 // Answer a ringing phone: clear any chat first, then interact at the desk.
 async function answerDesk() {
   await waitRing();
-  await drain();
-  await teleUse(256, 146);
-  return drain(true);
+  // A queued chat (e.g. an alert that became ready at the same time) can block the first try; retry.
+  for (let i = 0; i < 4; i++) {
+    await drain();
+    await teleUse(256, 146);
+    const s = await drain(true, 6000);
+    if (s.choosing) return s;
+    if (!(await sc((o) => !!o.ringingEncounter()))) return s; // phone already answered/gone
+  }
+  return st();
 }
 async function teleUse(x, y) {
   await sc((s, [px, py]) => { s.path = null; s.pending = null; s.player.setPosition(px, py); s.player.body.reset(px, py); }, [x, y]);

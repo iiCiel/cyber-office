@@ -16,6 +16,9 @@ export class MenuScene extends Phaser.Scene {
   create() {
     this.sound2 = this.game.registry.get('sound');
     this.showHelp = false;
+    // MenuScene is a persistent singleton; a glossary node from a previous launch (removed on
+    // shutdown via Restart/Quit) must not be reused, so start fresh each time.
+    this.glossaryEl = null;
     this.add.rectangle(0, 0, VIEW_W, VIEW_H, 0x05050a, 0.78).setOrigin(0).setInteractive();
     this.panel = this.add.container(VIEW_W / 2, VIEW_H / 2);
     this.render();
@@ -108,6 +111,7 @@ export class MenuScene extends Phaser.Scene {
       this.events.once('shutdown', () => {
         window.removeEventListener('resize', this.layoutGlossary);
         this.glossaryEl?.remove();
+        this.glossaryEl = null;
       });
     }
     this.layoutGlossary();
