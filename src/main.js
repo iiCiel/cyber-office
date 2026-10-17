@@ -3,6 +3,7 @@ import { BootScene } from './scenes/BootScene.js';
 import { TitleScene } from './scenes/TitleScene.js';
 import { OfficeScene } from './scenes/OfficeScene.js';
 import { ReportScene } from './scenes/ReportScene.js';
+import { MenuScene } from './scenes/MenuScene.js';
 import { VIEW_W, VIEW_H } from './config.js';
 import { Sound } from './game/sound.js';
 
@@ -16,7 +17,7 @@ const game = new Phaser.Game({
   roundPixels: true,
   physics: { default: 'arcade', arcade: { debug: false } },
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-  scene: [BootScene, TitleScene, OfficeScene, ReportScene],
+  scene: [BootScene, TitleScene, OfficeScene, ReportScene, MenuScene],
 });
 
 // One shared sound engine; scenes read game.registry for it.

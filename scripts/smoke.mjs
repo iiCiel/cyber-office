@@ -356,6 +356,17 @@ await page.waitForTimeout(4800);
 check('Play again: the phone still rings on day two', await page.evaluate(() => window.__game.scene.getScene('Office').state.enc.phone?.ringingAt != null));
 check('only one set of computer screens exists after a restart', (await page.locator('#screen-workstation').count()) === 1 && (await page.locator('#screen-soc').count()) === 1);
 
+// Pause menu: opens (pausing the office), resumes with Esc.
+{
+  await page.keyboard.press('p');
+  await page.waitForTimeout(250);
+  const paused = await page.evaluate(() => window.__game.scene.isActive('Menu') && window.__game.scene.getScene('Office').scene.isPaused());
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(250);
+  const resumed = await page.evaluate(() => !window.__game.scene.isActive('Menu') && !window.__game.scene.getScene('Office').scene.isPaused());
+  check('pause menu opens and resumes', paused && resumed);
+}
+
 // Sound: the engine initializes and the mute toggle works.
 {
   const r = await page.evaluate(() => { const s = window.__sound; s.resume(); s.play('click'); const was = s.muted; const o = window.__game.scene.getScene('Office'); o.toggleMute(); const m = s.muted; o.toggleMute(); return { ctx: !!s.ctx, toggled: m !== was, label: o.muteBtn.text }; });

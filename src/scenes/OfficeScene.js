@@ -298,7 +298,28 @@ export class OfficeScene extends Phaser.Scene {
     );
     this.refreshMute();
 
+    this.pauseBtn = this.ui(
+      this.add
+        .text(16, VIEW_H - 40, '☰ Menu', { fontFamily: FONT, fontSize: '16px', color: '#9aa3b8', backgroundColor: '#12121caa', padding: { x: 8, y: 4 } })
+        .setOrigin(0, 1)
+        .setDepth(40)
+        .setInteractive({ useHandCursor: true })
+        .on('pointerdown', () => this.openMenu()),
+    );
+
     this.updateObjective();
+  }
+
+  openMenu() {
+    // Don't pause over a computer/SOC screen (Esc handles those) or during the end-of-day fade.
+    if (this.overlayOpen() || this.ending || this.scene.isActive('Menu')) return;
+    this.sound?.play('select');
+    this.scene.launch('Menu', { from: 'Office' });
+    this.scene.pause();
+  }
+
+  onMenuClosed() {
+    this.refreshMute();
   }
 
   toggleMute() {
@@ -717,6 +738,7 @@ export class OfficeScene extends Phaser.Scene {
   buildInput() {
     this.keys = this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,E,SPACE,ENTER,ESC,M');
     this.keys.M.on('down', () => this.toggleMute());
+    this.input.keyboard.addKey('P').on('down', () => this.openMenu());
     const act = () => {
       if (this.overlayOpen() || this.ending) return;
       if (this.dialog.isOpen) this.dialog.advance();
