@@ -1,0 +1,26 @@
+// Plain-language glossary of the security terms the week teaches. Shown from the pause menu.
+// Each: term, short (one line), secplus (SY0-701 objective it maps to).
+export const GLOSSARY = [
+  { term: 'Phishing', short: 'A fake email (or text, or call) that tricks you into clicking, logging in, or paying.', secplus: '2.2' },
+  { term: 'Lookalike / typosquat domain', short: 'A domain that looks almost right (halcyonmutual-support.com vs halcyonmutual.com) to fool you.', secplus: '2.2' },
+  { term: 'SPF / DKIM / DMARC', short: 'Email checks that prove a message really came from the domain it claims. They can all "pass" for a domain the ATTACKER owns, so a pass only tells you who sent it, not that they are friendly.', secplus: '4.5' },
+  { term: 'Reply-To mismatch', short: 'The "From" looks like your CEO, but replies secretly go to a personal Gmail. A classic impersonation tell.', secplus: '2.2' },
+  { term: 'BEC (Business Email Compromise)', short: 'Fraud that impersonates an executive or vendor to get a payment or gift cards. Always verify money changes by phone, on a number you already have.', secplus: '2.2' },
+  { term: 'MFA (multi-factor auth)', short: 'A second step beyond your password, usually a tap or a code on your phone.', secplus: '4.6' },
+  { term: 'MFA fatigue / push bombing', short: 'An attacker with your password spams approval prompts until you tap "Approve" to make them stop. Use number matching and always Deny prompts you did not start.', secplus: '2.4' },
+  { term: 'Quishing (QR phishing)', short: 'A phishing link hidden in a QR code, so it dodges email filters and moves you to your phone where you cannot hover the link.', secplus: '2.2' },
+  { term: 'Macro malware', short: 'A document that asks you to "Enable Content" so a hidden script can run. Real invoices do not need macros.', secplus: '2.4' },
+  { term: 'Brute force / password spraying', short: 'Guessing passwords over and over. In the logs: many failed logons (Event 4625), then a success (4624).', secplus: '2.4' },
+  { term: 'SQL injection', short: 'Feeding a web form evil input so the database coughs up data it should not. In logs: errors, then a response far bigger than normal.', secplus: '2.3' },
+  { term: 'Data exfiltration', short: 'Stealing data OUT of the company, e.g. a big upload to personal cloud storage at 2 AM.', secplus: '2.4' },
+  { term: 'Service account', short: 'A login used by software, not a person. It should never use the VPN or log on interactively, so when it does, worry.', secplus: '4.6' },
+  { term: 'C2 (command and control)', short: 'The attacker\'s server that malware "phones home" to. Seeing the same C2 IP across days means one group.', secplus: '2.4' },
+  { term: 'IOC (indicator of compromise)', short: 'A clue that an attack happened, like a bad IP, file hash, or domain. You reuse them to connect incidents.', secplus: '4.9' },
+  { term: 'Ransomware', short: 'Malware that encrypts your files and demands payment. The best defense is a tested backup you can restore from.', secplus: '2.4' },
+  { term: 'Backups (3-2-1, tested)', short: 'A backup you have never restored is just a hope. Test restores so they work when you need them.', secplus: '3.4' },
+  { term: 'Least privilege', short: 'Give each person the minimum access for their job, and no more. Fewer doors for an attacker.', secplus: '4.6' },
+  { term: 'Social engineering (vishing/baiting)', short: 'Hacking the human, not the computer: a fake "IT" phone call (vishing) or a "found" USB stick (baiting). Verify people before you act.', secplus: '2.2' },
+  { term: 'Incident response (isolate, investigate, recover)', short: 'When something is on fire: ISOLATE to stop the spread, INVESTIGATE what happened, RECOVER from clean backups. Paying a ransom is a last resort.', secplus: '4.8' },
+  { term: 'WAF (web application firewall)', short: 'A shield in front of a web app that blocks attack patterns, but only if it is set to block, not just watch.', secplus: '3.2' },
+  { term: 'Change management', short: 'Security controls change through a recorded, approved process, not a quick favor, even under deadline pressure.', secplus: '1.3' },
+];

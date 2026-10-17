@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { VIEW_W, VIEW_H, FONT } from '../config.js';
-import { GameState } from '../game/GameState.js';
+import { h, clear } from '../ui/dom.js';
+import { GLOSSARY } from '../data/glossary.js';
 
 // A pause menu, launched on top of a paused Office scene. Works with mouse, touch and keyboard.
 export class MenuScene extends Phaser.Scene {
@@ -26,8 +27,8 @@ export class MenuScene extends Phaser.Scene {
 
   render() {
     this.panel.removeAll(true);
-    const h = this.showHelp ? 420 : 400;
-    this.panel.add(this.add.rectangle(0, 0, 520, h, 0x12121c, 0.96).setStrokeStyle(2, 0x3fe07a));
+    const ph = this.showHelp ? 420 : 480;
+    this.panel.add(this.add.rectangle(0, 0, 520, ph, 0x12121c, 0.96).setStrokeStyle(2, 0x3fe07a));
     const add = (y, label, fn, color = '#e8c547') => {
       const t = this.add
         .text(0, y, label, { fontFamily: FONT, fontSize: '24px', color })
@@ -63,9 +64,10 @@ export class MenuScene extends Phaser.Scene {
     add(-90, 'Resume', () => this.resume(), '#3fe07a');
     this.muteItem = add(-40, '', () => this.toggleMute());
     add(10, 'How to play', () => { this.showHelp = true; this.render(); });
-    add(60, 'Restart this day', () => this.restartDay());
-    add(110, 'Quit to title', () => this.quit(), '#ff8a8a');
-    add(170, '[ Esc or P to resume ]', () => this.resume(), '#6c7590');
+    add(60, 'Security glossary', () => this.openGlossary());
+    add(110, 'Restart this day', () => this.restartDay());
+    add(160, 'Quit to title', () => this.quit(), '#ff8a8a');
+    add(210, '[ Esc or P to resume ]', () => this.resume(), '#6c7590');
     this.refreshMute();
   }
 
@@ -78,8 +80,51 @@ export class MenuScene extends Phaser.Scene {
     if (this.muteItem) this.muteItem.setText(this.sound2?.muted ? '🔇 Sound: off' : '🔊 Sound: on');
   }
 
-  resume() {
+  openGlossary() {
+    if (!this.glossaryEl) {
+      this.glossaryEl = h(
+        'div',
+        { class: 'glossary', id: 'glossary' },
+        h(
+          'div',
+          { class: 'wrap' },
+          h('div', { class: 'back' }, h('button', { type: 'button', 'data-action': 'glossary-back', onclick: () => this.closeGlossary() }, '< Back to menu')),
+          h('h1', {}, 'Security glossary'),
+          h('p', { class: 'sub' }, 'Every term this week teaches, in plain words. The code is the CompTIA Security+ (SY0-701) objective.'),
+          GLOSSARY.map((g) => h('div', { class: 'g' }, h('span', { class: 'sp' }, `SY0-701 ${g.secplus}`), h('b', {}, g.term), h('p', {}, g.short))),
+        ),
+      );
+      document.body.append(this.glossaryEl);
+      this.layoutGlossary = () => {
+        const r = this.game.canvas.getBoundingClientRect();
+        const k = r.width / VIEW_W;
+        this.glossaryEl.style.left = `${r.left}px`;
+        this.glossaryEl.style.top = `${r.top}px`;
+        this.glossaryEl.style.width = `${VIEW_W}px`;
+        this.glossaryEl.style.height = `${VIEW_H}px`;
+        this.glossaryEl.style.transform = `scale(${k})`;
+      };
+      window.addEventListener('resize', this.layoutGlossary);
+      this.events.once('shutdown', () => {
+        window.removeEventListener('resize', this.layoutGlossary);
+        this.glossaryEl?.remove();
+      });
+    }
+    this.layoutGlossary();
+    this.glossaryEl.classList.add('open');
+    this.glossaryEl.scrollTop = 0;
+  }
+
+  closeGlossary() {
     this.sound2?.play('back');
+    this.glossaryEl?.classList.remove('open');
+  }
+
+  resume() {
+    if (this.glossaryEl?.classList.contains('open')) return this.closeGlossary();
+    this.sound2?.play('back');
+    this.glossaryEl?.remove();
+    this.glossaryEl = null;
     this.scene.stop();
     this.scene.resume(this.fromKey);
     this.scene.get(this.fromKey)?.onMenuClosed?.();

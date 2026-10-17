@@ -322,3 +322,16 @@
 .week .ending p { margin: 0 0 6px; color: #c8cbd6; }
 .weekt th { text-align: left; color: #9aa3b8; font-weight: 400; padding: 4px 0; }
 .weekt th.amt { text-align: right; }
+
+/* ---------- glossary ---------- */
+.glossary { position: fixed; inset: 0; background: #0d0f16; color: #e6e6ea; overflow: auto; display: none; z-index: 20; transform-origin: 0 0; font: 14px/1.5 'Segoe UI', system-ui, sans-serif; }
+.glossary.open { display: block; }
+.glossary .wrap { max-width: 760px; margin: 0 auto; padding: 24px 28px 48px; }
+.glossary h1 { color: #3fe07a; font-size: 26px; margin: 0 0 4px; }
+.glossary .sub { color: #9aa3b8; margin: 0 0 18px; }
+.glossary .g { border-left: 3px solid #2b3f5c; padding: 8px 14px; margin-bottom: 10px; background: #151824; }
+.glossary .g b { color: #e8c547; font-size: 15px; }
+.glossary .g .sp { float: right; color: #6c7590; font: 12px Consolas, monospace; }
+.glossary .g p { margin: 4px 0 0; color: #c8cbd6; }
+.glossary .back { position: sticky; top: 0; background: #0d0f16; padding: 8px 0; }
+.glossary .back button { background: #3fe07a; color: #12121c; border: none; font-weight: 700; padding: 8px 18px; border-radius: 4px; cursor: pointer; font-size: 15px; }

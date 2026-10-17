@@ -412,6 +412,10 @@ export class OfficeScene extends Phaser.Scene {
     this.state.soc.alerts[a.id] = this.minutes;
     this.state.log('alert-fired', { id: a.id });
     this.sound?.play(a.main && this.day.crisis ? 'crisis' : 'alert');
+    this.cameras.main.shake(a.main && this.day.crisis ? 500 : 220, a.main && this.day.crisis ? 0.006 : 0.003);
+    // A quick red flash for urgency.
+    const flash = this.ui(this.add.rectangle(0, 0, VIEW_W, VIEW_H, 0xff3b3b, 0.22).setOrigin(0).setDepth(900));
+    this.tweens.add({ targets: flash, alpha: 0, duration: 400, onComplete: () => flash.destroy() });
     this.notify(a.notice || `🚨 SIEM alert: ${a.title}`);
     if (a.chat) this.say(a.chatFrom || 'Priya (chat)', a.chat);
     if (a.main && this.day.crisis) this.startCrisis();
