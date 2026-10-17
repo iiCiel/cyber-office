@@ -28,7 +28,8 @@ Day 1 vertical slice COMPLETE and live: https://iiciel.github.io/cyber-office/ .
 - [x] M6 Priya debrief reveals consequences; report card (grade, per-item what/why/cost, total cost, skills with Security+ SY0-701 objectives, Day 2 teaser, Play again). One outright miss caps A at B
 - [x] Days 2-5: full week vertical slice (done Oct 17, 2026). Refactored into a data-driven day engine (src/days/dayN). Tue: MFA fatigue + macro invoice + QR phish + tickets. Wed: SQL injection on the portal, investigated in SIEM + Terminal (real shell: grep/awk/sort/whois). Thu: vendor BEC + svc_backup data theft + failing backups. Fri: ransomware finale with a live damage counter; the week's backup choices decide one of 3 endings. Choices carry across days; report chains day-to-day + a week summary. Security note: attack payloads are redacted in-game.
 - [ ] M7 Playtest with 2-3 people (needs Soliman to pick testers)
-- [ ] Later: sound, original art, more weeks, difficulty settings, mobile polish
+- [x] Polish pass (Oct 17, 2026): procedural sound (Web Audio, mute + M key), pause menu (P/Esc/button: resume, restart day, quit, how-to-play), in-game security glossary (22 terms mapped to Security+), screen shake + red flash on alerts/crisis, mobile rotate hint + touch viewport.
+- [ ] Later: original art, a pixel font, music, more weeks, difficulty settings, real-device mobile testing
 
 ### Code map (D:\Projects\cyber-office)
 - THE GAME IS NOW A 5-DAY CAMPAIGN. Each day is a data file in src/days/dayN/ (index.js = the day definition: emails, pages, logs, alerts, tickets, encounters, objectives, score, debrief, carry, teaser, prepare).
@@ -39,19 +40,21 @@ Day 1 vertical slice COMPLETE and live: https://iiciel.github.io/cyber-office/ .
 - src/game/shell.js: a real-ish Unix shell (ls/cd/cat/grep/wc/sort/uniq/cut/awk/head/tail/whois/nslookup, pipes) for the Terminal. Pure, unit-tested (tests/shell.test.js). Attack request bodies are REDACTED (e.g. [REDACTED-SQL-118-chars]) on purpose.
 - src/scenes/OfficeScene.js: the day engine. Objective types talk/sit/inbox/tickets/terminal/badge/case/encounter/debrief. Alerts fire on trigger.after (an objective) or trigger.when(state). Encounters are phone (desk rings) or walkup (NPC pathfinds to you). Day 5 crisis = a live file-encryption counter that stops when the case is contained.
 - src/scenes/ReportScene.js: records the day into the campaign, chains to the next day / replay / play-again, and after Friday shows the week summary + ending (day.weekEnding).
+- src/game/sound.js: procedural Web Audio synth (named effects, mute persisted). Shared instance in game.registry/window.__sound; scenes read this.sound. Unit tested (tests/sound.test.js).
+- src/scenes/MenuScene.js: pause menu (launched over a paused Office). Resume/restart-day/quit/how-to-play + the glossary (src/data/glossary.js, HTML panel).
 - src/ui/: ComputerScreen (desktop: Mail, welcome.txt, Terminal, Tickets), apps/MailApp (+ attachments, QR codes), apps/Browser (login page / macro doc / PDF viewer), apps/TerminalApp, apps/TicketsApp, SocScreen (day-driven SIEM), DialogBox (choices), Overlay (HTML over the pixel monitor).
 - Days/story: Mon brute-force (Tor) + USB bait; Tue MFA fatigue + macro + QR (203.0.113.45 C2); Wed SQL injection on portal (ShadowHost 198.51.100.x); Thu vendor BEC + svc_backup exfil to Mega + backups; Fri ransomware. One attacker group all week; IOCs recur.
-- Tests: `npm test` (22 unit: pathfinding, logs, scoring, shell). Browser: npm run build; npx vite preview --port 4173 --strictPort (bg); `npm run smoke` (Day 1, 64), `npm run smoke:bad` (worst Day 1, 15), `npm run smoke:week` (all 5 days, 37). Live: append the URL + out dir.
+- Tests: `npm test` (26 unit: pathfinding, logs, scoring, shell). Browser: npm run build; npx vite preview --port 4173 --strictPort (bg); `npm run smoke` (Day 1, 66), `npm run smoke:bad` (worst Day 1, 15), `npm run smoke:week` (all 5 days, 37). Live: append the URL + out dir.
 - Gotchas: Phaser reuses the Office scene between days/replay/play-again, so create() resets every per-day field. Python edits on Windows: write with newline='
 '. Shell heredocs mangle backslashes in JS strings; use the Edit tool for strings with 
  or 	. Restart vite preview after vite.config.js changes.
 - Deploy: push to main -> GitHub Actions -> Pages. Repo-local git email = GitHub no-reply.
 
 ### Issues
-- In-world dialog uses Courier New, not a true pixel font. No sound yet.
+- In-world dialog uses Courier New, not a true pixel font (readable, just not pixel-styled). No music yet (sound effects are in).
 - Pacing not playtested by a human. Alert/phone fallbacks exist so a day can't stall.
-- Not tested on a real phone; HTML screens are scaled, so text is small on phones.
-- The week test plays a "good mechanics" run (reads mail but doesn't report every phish), so its grades are B/C, not A. The game itself scores A for a clean day.
+- On phones: a rotate-to-landscape hint shows in portrait; touch works, but the in-game HTML screens are small on tiny phones. Not tested on a real device.
+- smoke-week.mjs can flake on a slow connection at the Day 4 phone/debrief timing (passes on rerun); the game itself is fine.
 
 ### Open questions (for Soliman)
 - Game title (Cyber Office is a placeholder)
