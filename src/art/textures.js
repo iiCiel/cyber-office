@@ -1,5 +1,4 @@
-import { TILE } from '../config.js';
-import { PLAYER_FRAMES, PLAYER_PALETTE, COWORKER_PALETTE } from './pixels.js';
+import { PLAYER_FRAMES, PLAYER_PALETTE, COWORKER_PALETTE, MANAGER_PALETTE } from './pixels.js';
 
 // Draw a palette-keyed pixel grid onto a 2D canvas context at (ox, oy).
 function paint(ctx, rows, palette, ox = 0, oy = 0) {
@@ -37,47 +36,7 @@ function canvasTexture(scene, key, w, h, draw) {
 export function generateTextures(scene) {
   makeCharacterSheet(scene, 'player', PLAYER_PALETTE);
   makeCharacterSheet(scene, 'coworker', COWORKER_PALETTE);
-
-  // --- Tiles ---
-  canvasTexture(scene, 'floor', TILE, TILE, (_, r) => {
-    r(0, 0, 16, 16, '#4a5470');
-    r(0, 0, 16, 1, '#434c66');
-    r(0, 0, 1, 16, '#434c66');
-    r(4, 5, 1, 1, '#56617f');
-    r(11, 10, 1, 1, '#56617f');
-    r(8, 2, 1, 1, '#3f475f');
-    r(2, 12, 1, 1, '#3f475f');
-  });
-  canvasTexture(scene, 'floor-server', TILE, TILE, (_, r) => {
-    r(0, 0, 16, 16, '#2f3640');
-    r(0, 0, 16, 1, '#3d4552');
-    r(0, 0, 1, 16, '#3d4552');
-    r(1, 1, 14, 14, '#323a45');
-    r(7, 7, 2, 2, '#262c35'); // vent hole
-  });
-  canvasTexture(scene, 'wall-top', TILE, TILE, (_, r) => {
-    r(0, 0, 16, 16, '#262636');
-    r(0, 15, 16, 1, '#1b1b28');
-  });
-  canvasTexture(scene, 'wall-face', TILE, TILE, (_, r) => {
-    r(0, 0, 16, 16, '#c9c2b2');
-    r(0, 0, 16, 2, '#b3ab99');
-    r(0, 13, 16, 3, '#8a8170'); // baseboard
-  });
-  canvasTexture(scene, 'window', TILE, TILE, (_, r) => {
-    r(0, 0, 16, 16, '#c9c2b2');
-    r(0, 13, 16, 3, '#8a8170');
-    r(2, 2, 12, 10, '#5d4a3a');
-    r(3, 3, 10, 8, '#7fb7e6');
-    r(3, 3, 10, 2, '#a9d3f2');
-    r(7, 3, 1, 8, '#5d4a3a');
-  });
-  canvasTexture(scene, 'door', TILE, TILE, (_, r) => {
-    r(0, 0, 16, 16, '#4a5470');
-    r(1, 0, 14, 16, '#8b5a2b');
-    r(2, 1, 12, 14, '#a0693a');
-    r(11, 8, 2, 2, '#e8c547');
-  });
+  makeCharacterSheet(scene, 'manager', MANAGER_PALETTE);
 
   // --- Furniture (sizes in px; bottom part is the collision footprint) ---
   // Desk with monitor + keyboard, 32x24
@@ -140,6 +99,79 @@ export function generateTextures(scene) {
     r(3, 0, 16, 5, '#f4f4f4'); // paper
     r(15, 8, 4, 2, '#ff4f4f'); // error light
     r(2, 12, 18, 2, '#9a9aa2');
+  });
+
+
+  canvasTexture(scene, 'bookshelf', 28, 30, (_, r) => {
+    r(0, 0, 28, 30, '#5d3a1a');
+    r(2, 2, 24, 26, '#3a2410');
+    const books = ['#b4643c', '#3b6fb6', '#e8c547', '#4fa84f', '#7a3e8f', '#d8d8d8'];
+    for (let shelf = 0; shelf < 3; shelf++) {
+      const y = 3 + shelf * 9;
+      for (let i = 0; i < 7; i++) r(3 + i * 3, y + (i % 3 === 0 ? 1 : 0), 2, 7 - (i % 3 === 0 ? 1 : 0), books[(i + shelf) % books.length]);
+      r(2, y + 7, 24, 1, '#5d3a1a');
+    }
+  });
+
+  canvasTexture(scene, 'coffee', 20, 22, (_, r) => {
+    r(0, 8, 20, 14, '#8b5a2b'); // counter
+    r(0, 8, 20, 2, '#a0693a');
+    r(4, 0, 10, 12, '#2d2d3a'); // machine
+    r(5, 1, 8, 3, '#3a3a4a');
+    r(6, 6, 6, 4, '#15151f');
+    r(8, 8, 3, 2, '#f4f1e8'); // cup
+    r(11, 2, 1, 1, '#3fe07a');
+  });
+
+  canvasTexture(scene, 'fridge', 16, 30, (_, r) => {
+    r(0, 0, 16, 30, '#d8d8de');
+    r(1, 1, 14, 28, '#ececf0');
+    r(1, 11, 14, 1, '#b8b8c0');
+    r(12, 4, 1, 5, '#9a9aa2');
+    r(12, 14, 1, 8, '#9a9aa2');
+    r(3, 15, 4, 4, '#ffe680'); // sticky note
+  });
+
+  canvasTexture(scene, 'table', 40, 18, (_, r) => {
+    r(0, 0, 40, 12, '#a0693a');
+    r(0, 0, 40, 2, '#b47c4a');
+    r(2, 12, 3, 6, '#5d3a1a');
+    r(35, 12, 3, 6, '#5d3a1a');
+    r(8, 3, 5, 4, '#f4f1e8'); // mug
+    r(24, 4, 8, 5, '#e8c547'); // donut box
+  });
+
+  canvasTexture(scene, 'table-long', 64, 22, (_, r) => {
+    r(0, 0, 64, 16, '#5d3a1a');
+    r(1, 1, 62, 14, '#7a4a24');
+    r(1, 1, 62, 2, '#8b5a2b');
+    r(3, 16, 3, 6, '#3a2410');
+    r(58, 16, 3, 6, '#3a2410');
+    r(28, 5, 8, 6, '#1b1b2a'); // conference phone
+    r(31, 7, 2, 1, '#3fe07a');
+  });
+
+  canvasTexture(scene, 'reception', 48, 24, (_, r) => {
+    r(0, 6, 48, 18, '#5b6577');
+    r(0, 6, 48, 3, '#7a869a');
+    r(2, 10, 44, 1, '#4a5466');
+    r(30, 0, 12, 8, '#1b1b2a');
+    r(31, 1, 10, 6, '#2b3f5c');
+    r(6, 3, 6, 4, '#f4f1e8'); // visitor log
+    r(14, 4, 4, 3, '#3b6fb6');
+  });
+
+  canvasTexture(scene, 'whiteboard', 48, 22, (_, r) => {
+    r(0, 0, 48, 20, '#9a9aa2');
+    r(1, 1, 46, 18, '#f4f4f4');
+    r(4, 4, 18, 1, '#3f7fff');
+    r(4, 7, 26, 1, '#3f7fff');
+    r(4, 11, 12, 1, '#ff4f4f');
+    r(32, 4, 10, 10, '#3fe07a'); // little bar chart
+    r(32, 4, 10, 6, '#f4f4f4');
+    r(34, 9, 2, 5, '#ff4f4f');
+    r(38, 12, 2, 2, '#3f7fff');
+    r(2, 20, 44, 2, '#7a7a82');
   });
 
   // UI: the little "E" prompt bubble (drawn at UI scale)

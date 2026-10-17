@@ -97,3 +97,14 @@ export const COWORKER_PALETTE = {
   B: '#5a2c6b',
   l: '#e8c547',
 };
+
+// Manager (Priya, SOC lead): dark hair, blazer.
+export const MANAGER_PALETTE = {
+  ...PLAYER_PALETTE,
+  h: '#1b1410',
+  s: '#a8754a',
+  S: '#8e5f3a',
+  b: '#3a3a4a',
+  B: '#2a2a36',
+  l: '#3fe07a',
+};

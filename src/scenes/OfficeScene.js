@@ -1,10 +1,18 @@
 import Phaser from 'phaser';
-import { TILE, ZOOM, COLS, ROWS, VIEW_W, VIEW_H, FONT } from '../config.js';
-import { MAP, TILE_TEXTURE, SOLID, PROPS, CHAIRS, COWORKER, DOOR, SPAWN } from '../data/officeMap.js';
+import { ZOOM, VIEW_W, VIEW_H, FONT } from '../config.js';
+import { FOOTPRINTS, NPCS, PROPS, DOORS, OBJECTIVES, OBJECTIVES_DONE, GAME_DATE } from '../data/office.js';
 import { DialogBox } from '../ui/DialogBox.js';
+import { ComputerScreen } from '../ui/ComputerScreen.js';
+import { SocScreen } from '../ui/SocScreen.js';
+import { NavGrid } from '../world/pathfinding.js';
 
-const SPEED = 70; // world px per second
+const SPEED = 72; // world px per second
 const REACH = 22; // how close (px) you must be to interact
+const PLAYER_BODY = { halfW: 4, h: 5 };
+const DOOR_CLOSE_MS = 3000;
+
+// Tiled stores custom properties as [{name, value}]; turn them into a plain object.
+const propsOf = (o) => Object.fromEntries((o.properties || []).map((p) => [p.name, p.value]));
 
 export class OfficeScene extends Phaser.Scene {
   constructor() {
@@ -14,26 +22,35 @@ export class OfficeScene extends Phaser.Scene {
   create() {
     this.worldLayer = [];
     this.uiLayer = [];
+    this.uiCam = null;
+    this.visited = new Set();
+    this.flags = { badgeActive: false, serverOpen: false };
+    this.path = null;
+    this.pending = null;
 
-    this.buildRoom();
-    this.buildProps();
+    this.buildMap();
+    this.buildObjects();
     this.buildPlayer();
+    this.buildNav();
     this.buildCameras();
     this.buildHud();
     this.buildInput();
 
     this.dialog = new DialogBox(this);
     this.ui(this.dialog.container);
+    this.computer = new ComputerScreen(this);
+    this.soc = new SocScreen(this);
 
     this.cameras.main.fadeIn(300, 18, 18, 28);
     this.time.delayedCall(450, () =>
-      this.dialog.open('You', ['First day. Badge works. Coffee in hand.', 'Find your desk. Say hi to someone.']),
+      !this.dialog.isOpen && this.dialog.open('You', ['First day. Badge works. Coffee in hand.', 'Priya, your manager, should be in her office. Top left.']),
     );
   }
 
-  // Track which camera draws what: world objects are zoomed, UI objects are not.
+  // ---------- camera bookkeeping: world objects are zoomed, UI objects are not ----------
   world(obj) {
     this.worldLayer.push(obj);
+    if (this.uiCam) this.uiCam.ignore(obj);
     return obj;
   }
 
@@ -43,67 +60,98 @@ export class OfficeScene extends Phaser.Scene {
     return obj;
   }
 
-  buildRoom() {
-    this.walls = this.physics.add.staticGroup();
-    MAP.forEach((row, ty) => {
-      [...row].forEach((ch, tx) => {
-        const x = tx * TILE;
-        const y = ty * TILE;
-        this.world(this.add.image(x, y, TILE_TEXTURE[ch]).setOrigin(0).setDepth(-1000));
-        if (SOLID.has(ch)) {
-          const wall = this.add.zone(x + TILE / 2, y + TILE / 2, TILE, TILE);
-          this.walls.add(wall);
-          this.world(wall);
-        }
-      });
+  // ---------- map ----------
+  buildMap() {
+    const map = (this.map = this.make.tilemap({ key: 'office' }));
+    const ts = map.addTilesetImage('office', 'tiles');
+    this.world(map.createLayer('floor', ts).setDepth(-1000));
+    this.wallsLayer = this.world(map.createLayer('walls', ts).setDepth(-999));
+    this.wallsLayer.setCollisionByProperty({ collides: true });
+    this.physics.world.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
+
+    // Remember where the server room door tiles are, so badging in can open/close them.
+    this.serverDoorTiles = [];
+    this.wallsLayer.forEachTile((t) => {
+      if (t.properties?.name === 'server-door') this.serverDoorTiles.push({ x: t.x, y: t.y, index: t.index, props: { ...t.properties } });
     });
-    this.physics.world.setBounds(0, 0, COLS * TILE, ROWS * TILE);
   }
 
-  buildProps() {
+  buildObjects() {
     this.interactables = [];
     this.solids = this.physics.add.staticGroup();
+    this.solidRects = [];
+    this.npcs = {};
 
-    for (const c of CHAIRS) {
-      this.world(this.add.image(c.x, c.y, 'chair').setOrigin(0.5, 1).setDepth(c.y - 6));
+    for (const o of this.map.getObjectLayer('objects').objects) {
+      const p = propsOf(o);
+      if (o.type === 'spawn') {
+        this.spawn = { x: o.x, y: o.y };
+      } else if (o.type === 'prop') {
+        const def = PROPS[o.name] || { name: o.name, talk: ['...'] };
+        let sprite = null;
+        let halfW = 8;
+        if (p.tex) {
+          if (p.tex.startsWith('desk')) {
+            this.world(this.add.image(o.x, o.y + 12, 'chair').setOrigin(0.5, 1).setDepth(o.y + 6));
+          }
+          sprite = this.world(this.add.image(o.x, o.y, p.tex).setOrigin(0.5, 1).setDepth(o.y));
+          const [fw, fh] = FOOTPRINTS[p.tex] || [sprite.width, 6];
+          this.solids.add(this.world(this.add.zone(o.x, o.y - fh / 2, fw, fh)));
+          this.solidRects.push({ x: o.x - fw / 2, y: o.y - fh, w: fw, h: fh });
+          halfW = fw / 2;
+        }
+        this.interactables.push({ id: o.name, ...def, sprite, px: o.x, py: o.y, halfW });
+      } else if (o.type === 'npc') {
+        const def = NPCS[o.name];
+        const s = this.world(this.add.sprite(o.x, o.y, p.sprite, 'down-idle').setOrigin(0.5, 1).setDepth(o.y));
+        this.solids.add(this.world(this.add.zone(o.x, o.y - 2.5, 8, 5)));
+        this.faceSprite(s, p.face || 'down');
+        this.tweens.add({ targets: s, scaleY: 0.96, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+        this.npcs[o.name] = s;
+        this.solidRects.push({ x: o.x - 4, y: o.y - 5, w: 8, h: 5 });
+        this.interactables.push({ id: o.name, ...def, kind: 'npc', sprite: s, px: o.x, py: o.y, halfW: 6 });
+      } else if (o.type === 'door') {
+        const def = DOORS[o.name];
+        this.interactables.push({ id: o.name, ...def, sprite: null, px: o.x, py: o.y - 8, halfW: 8, isDoor: true });
+      }
     }
+  }
 
-    for (const p of PROPS) {
-      const img = this.world(this.add.image(p.x, p.y, p.tex).setOrigin(0.5, 1).setDepth(p.y));
-      const [fw, fh] = p.foot;
-      const zone = this.world(this.add.zone(p.x, p.y - fh / 2, fw, fh));
-      this.solids.add(zone);
-      this.interactables.push({ ...p, sprite: img, px: p.x, py: p.y, halfW: fw / 2 });
-    }
-
-    // Coworker
-    this.coworker = this.world(
-      this.physics.add.staticSprite(COWORKER.x, COWORKER.y, 'coworker', 'down-idle').setOrigin(0.5, 1),
-    );
-    this.coworker.setDepth(COWORKER.y);
-    this.coworker.body.setSize(8, 5).setOffset(2, 11);
-    this.tweens.add({ targets: this.coworker, y: COWORKER.y - 1, duration: 900, yoyo: true, repeat: -1 });
-    this.interactables.push({
-      id: 'coworker', ...COWORKER, sprite: this.coworker, px: COWORKER.x, py: COWORKER.y, halfW: 6, isNpc: true,
-    });
-
-    this.interactables.push({ id: 'door', ...DOOR, px: DOOR.x, py: DOOR.y - 8, halfW: 8 });
+  faceSprite(s, dir) {
+    if (dir === 'left' || dir === 'right') s.setFrame('side-idle').setFlipX(dir === 'left');
+    else s.setFrame(`${dir}-idle`).setFlipX(false);
   }
 
   buildPlayer() {
-    this.player = this.world(this.physics.add.sprite(SPAWN.x, SPAWN.y, 'player', 'up-idle').setOrigin(0.5, 1));
+    const { x, y } = this.spawn;
+    this.player = this.world(this.physics.add.sprite(x, y, 'player', 'up-idle').setOrigin(0.5, 1));
     this.player.body.setSize(8, 5).setOffset(2, 11);
     this.player.setCollideWorldBounds(true);
     this.facing = 'up';
-    this.physics.add.collider(this.player, this.walls);
+    this.physics.add.collider(this.player, this.wallsLayer);
     this.physics.add.collider(this.player, this.solids);
-    this.physics.add.collider(this.player, this.coworker);
   }
 
+  // ---------- pathfinding grid ----------
+  buildNav() {
+    this.nav = new NavGrid(this.map.widthInPixels, this.map.heightInPixels, 8, PLAYER_BODY);
+    this.rebuildNav();
+  }
+
+  rebuildNav() {
+    const rects = [...this.solidRects];
+    this.wallsLayer.forEachTile((t) => {
+      if (t.index > 0 && t.collides) rects.push({ x: t.pixelX, y: t.pixelY, w: t.width, h: t.height });
+    });
+    this.nav.setSolids(rects);
+  }
+
+  // ---------- cameras ----------
   buildCameras() {
     const cam = this.cameras.main;
     cam.setZoom(ZOOM);
-    cam.centerOn((COLS * TILE) / 2, (ROWS * TILE) / 2);
+    cam.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
+    cam.startFollow(this.player, true, 0.12, 0.12);
     cam.roundPixels = true;
 
     this.uiCam = this.cameras.add(0, 0, VIEW_W, VIEW_H);
@@ -111,95 +159,268 @@ export class OfficeScene extends Phaser.Scene {
     for (const obj of this.uiLayer) cam.ignore(obj);
   }
 
-  // Anything added to the world after cameras exist must be hidden from the UI camera.
-  addWorldLate(obj) {
-    this.world(obj);
-    this.uiCam.ignore(obj);
-    return obj;
-  }
-
+  // ---------- HUD ----------
   buildHud() {
-    const panel = this.ui(this.add.rectangle(12, 12, 250, 64, 0x12121c, 0.8).setOrigin(0).setStrokeStyle(2, 0x3fe07a));
-    panel.setDepth(10);
+    this.ui(this.add.rectangle(12, 12, 400, 64, 0x12121c, 0.82).setOrigin(0).setStrokeStyle(2, 0x3fe07a).setDepth(10));
     this.clockText = this.ui(this.add.text(24, 20, '', { fontFamily: FONT, fontSize: '20px', color: '#3fe07a' }).setDepth(11));
+    this.stepText = this.ui(
+      this.add.text(400, 22, '', { fontFamily: FONT, fontSize: '14px', color: '#6c7590' }).setOrigin(1, 0).setDepth(11),
+    );
     this.objectiveText = this.ui(
       this.add.text(24, 48, '', { fontFamily: FONT, fontSize: '15px', color: '#e6e6ea' }).setDepth(11),
     );
 
-    this.minutes = 8 * 60 + 57;
+    this.minutes = GAME_DATE.startMinutes;
     this.updateClock();
-    // One in-game minute every 4 real seconds (the full day will be paced in M6).
+    // One in-game minute every 4 real seconds (the full day gets paced in M6).
     this.time.addEvent({ delay: 4000, loop: true, callback: () => { this.minutes++; this.updateClock(); } });
 
-    this.visited = new Set();
-    this.setObjective();
+    const hint = this.ui(
+      this.add.text(VIEW_W - 16, VIEW_H - 14, 'Move: WASD / arrows / click   ·   Use: E   ·   Back: Esc', {
+        fontFamily: FONT, fontSize: '14px', color: '#9aa3b8', backgroundColor: '#12121caa', padding: { x: 8, y: 4 },
+      }).setOrigin(1, 1).setDepth(10),
+    );
+    this.time.delayedCall(15000, () => this.tweens.add({ targets: hint, alpha: 0, duration: 800 }));
 
-    // Floating "E" prompt above whatever you can interact with.
+    // Floating "E" prompt above whatever you can use, plus its name.
     this.prompt = this.ui(this.add.container(0, 0).setDepth(20).setVisible(false));
     const bubble = this.add.image(0, 0, 'prompt').setOrigin(0.5, 1).setScale(1.2);
     const key = this.add.text(0, -19, 'E', { fontFamily: FONT, fontSize: '20px', fontStyle: 'bold', color: '#1b1b2a' }).setOrigin(0.5);
     this.prompt.add([bubble, key]);
     this.tweens.add({ targets: this.prompt, scale: 1.1, duration: 500, yoyo: true, repeat: -1 });
-
     this.nameTag = this.ui(
       this.add.text(0, 0, '', {
         fontFamily: FONT, fontSize: '14px', color: '#e6e6ea', backgroundColor: '#12121ccc', padding: { x: 6, y: 3 },
       }).setOrigin(0.5, 1).setDepth(20).setVisible(false),
     );
+
+    // Yellow arrow over the current objective (world space, bobs up and down).
+    this.marker = this.world(this.add.triangle(0, 0, 0, 0, 8, 0, 4, 5, 0xe8c547).setOrigin(0.5, 1).setDepth(5000));
+    this.marker.setStrokeStyle(1, 0x1b1b2a);
+
+    // Little ring where you clicked.
+    this.clickRing = this.world(this.add.circle(0, 0, 3).setStrokeStyle(1, 0xe8c547).setDepth(-500).setVisible(false));
+
+    this.updateObjective();
   }
 
-  updateClock() {
+  clockString() {
     const h24 = Math.floor(this.minutes / 60) % 24;
     const m = String(this.minutes % 60).padStart(2, '0');
     const h12 = ((h24 + 11) % 12) + 1;
-    this.clockText.setText(`MON  ${h12}:${m} ${h24 < 12 ? 'AM' : 'PM'}`);
+    return `${h12}:${m} ${h24 < 12 ? 'AM' : 'PM'}`;
   }
 
-  setObjective() {
-    let goal;
-    if (!this.visited.has('my-desk')) goal = 'Find your desk';
-    else if (!this.visited.has('coworker')) goal = 'Say hi to a coworker';
-    else if (!this.visited.has('soc')) goal = 'Find the SOC console';
-    else goal = 'Explore. More coming soon!';
-    this.objectiveText.setText(`> ${goal}`);
+  updateClock() {
+    this.clockText.setText(`${GAME_DATE.weekday}  ${this.clockString()}`);
   }
 
+  objectiveList() {
+    return OBJECTIVES.map((o) => ({ ...o, done: this.visited.has(o.id) }));
+  }
+
+  currentObjective() {
+    return OBJECTIVES.find((o) => !this.visited.has(o.id)) || null;
+  }
+
+  updateObjective() {
+    const cur = this.currentObjective();
+    const done = OBJECTIVES.filter((o) => this.visited.has(o.id)).length;
+    this.objectiveText.setText(`> ${cur ? cur.text : OBJECTIVES_DONE}`);
+    this.stepText.setText(cur ? `${done + 1}/${OBJECTIVES.length}` : 'done');
+    this.markerTarget = cur ? this.interactables.find((t) => t.id === cur.id) : null;
+  }
+
+  complete(id) {
+    if (this.visited.has(id)) return;
+    this.visited.add(id);
+    this.updateObjective();
+  }
+
+  // ---------- input ----------
   buildInput() {
-    this.keys = this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,E,SPACE,ENTER');
-    const act = () => (this.dialog.isOpen ? this.dialog.advance() : this.tryInteract());
+    this.keys = this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,E,SPACE,ENTER,ESC');
+    const act = () => {
+      if (this.overlayOpen()) return;
+      if (this.dialog.isOpen) this.dialog.advance();
+      else this.tryInteract();
+    };
     this.keys.E.on('down', act);
     this.keys.SPACE.on('down', act);
     this.keys.ENTER.on('down', act);
+    this.keys.ESC.on('down', () => {
+      const o = this.activeOverlay();
+      if (o) o.back();
+    });
 
-    // Click / tap: advance dialog, interact with the highlighted thing, or walk to the spot.
-    this.moveTarget = null;
-    this.input.on('pointerdown', (pointer) => {
+    this.input.on('pointerdown', (pointer, over) => {
+      // Clicks on UI buttons (or while sitting down / looking at a screen) never walk the player.
+      if (this.overlayOpen() || this.seated || over.length) return;
       if (this.dialog.isOpen) return this.dialog.advance();
       const wp = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
-      const near = this.nearest;
-      if (near && Phaser.Math.Distance.Between(wp.x, wp.y, near.px, near.py - 8) < 16) return this.tryInteract();
-      this.moveTarget = new Phaser.Math.Vector2(wp.x, wp.y);
-      this.stuckMs = 0;
-      this.lastX = undefined;
+      const hit = this.interactableAt(wp.x, wp.y);
+      if (hit) {
+        if (hit === this.nearest) return this.tryInteract();
+        this.walkTo(...this.approachPoint(hit), hit);
+      } else {
+        this.walkTo(wp.x, wp.y, null);
+      }
     });
   }
 
+  activeOverlay() {
+    return [this.computer, this.soc].find((o) => o?.isOpen) || null;
+  }
+
+  overlayOpen() {
+    return !!this.activeOverlay();
+  }
+
+  busy() {
+    return this.dialog.isOpen || this.overlayOpen();
+  }
+
+  interactableAt(x, y) {
+    for (const t of this.interactables) {
+      if (t.sprite) {
+        const b = t.sprite.getBounds();
+        if (b.contains(x, y)) return t;
+      } else if (Math.abs(x - t.px) < 10 && Math.abs(y - (t.py - 6)) < 12) {
+        return t;
+      }
+    }
+    return null;
+  }
+
+  approachPoint(t) {
+    if (t.isDoor && t.id === 'server-door') {
+      // Stand on whichever side of the door you're on.
+      return [this.player.x < t.px ? t.px - 12 : t.px + 14, t.py + 6];
+    }
+    if (t.kind === 'npc') return [t.px + (this.player.x < t.px ? -12 : 12), t.py];
+    return [t.px, t.py + 9];
+  }
+
+  walkTo(x, y, target) {
+    const path = this.nav.findPath(this.player.x, this.player.y, x, y);
+    this.pending = target;
+    this.stuckMs = 0;
+    this.repathed = false;
+    if (!path) {
+      this.path = null;
+      // Probably behind the closed server room door: walk to the door instead and badge in.
+      const door = this.interactables.find((t) => t.id === 'server-door');
+      const otherSide = x > door.px !== this.player.x > door.px;
+      if (!this.flags.serverOpen && door && target !== door && otherSide) this.walkTo(...this.approachPoint(door), door);
+      return;
+    }
+    this.path = path;
+    const end = path[path.length - 1];
+    this.clickRing.setPosition(end.x, end.y - 1).setVisible(true).setScale(1).setAlpha(1);
+    this.tweens.add({ targets: this.clickRing, scale: 2, alpha: 0, duration: 450, onComplete: () => this.clickRing.setVisible(false) });
+  }
+
+  // ---------- interactions ----------
   tryInteract() {
     const t = this.nearest;
     if (!t) return;
-    this.moveTarget = null;
+    this.path = null;
+    this.pending = null;
     this.player.setVelocity(0);
-    if (t.isNpc) {
-      // Coworker turns to face you.
+
+    if (t.kind === 'npc') {
       const dx = this.player.x - t.px;
       const dy = this.player.y - t.py;
-      if (Math.abs(dx) > Math.abs(dy)) this.coworker.setFrame('side-idle').setFlipX(dx < 0);
-      else this.coworker.setFrame(dy < 0 ? 'up-idle' : 'down-idle').setFlipX(false);
+      this.faceSprite(t.sprite, Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : dy < 0 ? 'up' : 'down');
+      const lines = this.visited.has(t.id) && t.again ? t.again : t.talk;
+      this.dialog.open(t.name, lines, () => {
+        if (t.id === 'priya') this.flags.badgeActive = true;
+        this.complete(t.id);
+      });
+      return;
     }
-    this.dialog.open(t.name, t.talk, () => {
-      this.visited.add(t.id);
-      this.setObjective();
+
+    if (t.kind === 'badge') return this.useBadge(t);
+    if (t.kind === 'desk') return this.sitAt(t, this.computer);
+    if (t.kind === 'soc') return this.sitAt(t, this.soc);
+
+    const lines = this.visited.has(t.id) && t.again ? t.again : t.talk;
+    this.dialog.open(t.name, lines, () => this.complete(t.id));
+  }
+
+  sitAt(t, overlay) {
+    // Slide into the chair, face the screen, then show it.
+    const seat = { x: t.px, y: t.py + 10 };
+    this.seated = true;
+    this.path = null;
+    this.pending = null;
+    this.tweens.add({
+      targets: this.player,
+      x: seat.x,
+      y: seat.y,
+      duration: 160,
+      onComplete: () => {
+        this.facing = 'up';
+        this.player.anims.stop();
+        this.player.setFrame('up-idle').setFlipX(false);
+        overlay.open(() => {
+          this.seated = false;
+          this.complete(t.id);
+        });
+      },
     });
+  }
+
+  useBadge(t) {
+    if (!this.flags.badgeActive) {
+      this.flashDoorLight(0xff4f4f);
+      this.dialog.open(t.name, t.locked);
+      return;
+    }
+    if (this.flags.serverOpen) {
+      this.dialog.open(t.name, ['The door is already open. It closes by itself behind you.']);
+      return;
+    }
+    this.flashDoorLight(0x3fe07a);
+    this.setServerDoor(true);
+    this.dialog.open(t.name, t.opened, () => this.complete(t.id));
+  }
+
+  flashDoorLight(color) {
+    const d = this.serverDoorTiles[0];
+    if (!d) return;
+    const light = this.world(this.add.rectangle(d.x * 16 + 11, d.y * 16 + 4, 3, 2, color).setDepth(6000));
+    this.tweens.add({ targets: light, alpha: 0, duration: 250, yoyo: true, repeat: 2, onComplete: () => light.destroy() });
+  }
+
+  setServerDoor(open) {
+    this.flags.serverOpen = open;
+    for (const d of this.serverDoorTiles) {
+      if (open) {
+        this.wallsLayer.removeTileAt(d.x, d.y);
+      } else {
+        // putTileAt doesn't copy the tileset's properties, so restore them and the collision by hand.
+        const tile = this.wallsLayer.putTileAt(d.index, d.x, d.y);
+        tile.properties = { ...d.props };
+        tile.setCollision(true, true, true, true);
+      }
+    }
+    this.doorClearMs = 0;
+    this.rebuildNav();
+  }
+
+  // Doors close behind you (no propping the server room open). Only closes once the doorway is clear.
+  updateDoor(delta) {
+    if (!this.flags.serverOpen || !this.serverDoorTiles.length) return;
+    const d = this.serverDoorTiles;
+    const left = d[0].x * 16 - 6;
+    const right = d[0].x * 16 + 22;
+    const top = Math.min(...d.map((t) => t.y)) * 16 - 2;
+    const bottom = (Math.max(...d.map((t) => t.y)) + 1) * 16 + 6;
+    const p = this.player;
+    const inDoorway = p.x > left && p.x < right && p.y > top && p.y < bottom;
+    this.doorClearMs = inDoorway || this.busy() ? 0 : this.doorClearMs + delta;
+    if (this.doorClearMs > DOOR_CLOSE_MS) this.setServerDoor(false);
   }
 
   findNearest() {
@@ -208,7 +429,7 @@ export class OfficeScene extends Phaser.Scene {
     let best = null;
     let bestD = Infinity;
     for (const t of this.interactables) {
-      // Distance to the object's footprint edge, so wide desks are easy to reach.
+      // Distance to the object's footprint edge, so wide things are easy to reach.
       const dx = Math.max(0, Math.abs(fx - t.px) - t.halfW);
       const dy = Math.max(0, Math.abs(fy - (t.py - 4)) - 6);
       const d = Math.hypot(dx, dy);
@@ -225,12 +446,17 @@ export class OfficeScene extends Phaser.Scene {
     return { x: (wx - v.x) * ZOOM, y: (wy - v.y) * ZOOM };
   }
 
-  update() {
+  topOf(t) {
+    return t.sprite ? t.sprite.getTopCenter().y : t.py - 14;
+  }
+
+  // ---------- frame loop ----------
+  update(_, delta) {
     const p = this.player;
     let vx = 0;
     let vy = 0;
 
-    if (!this.dialog.isOpen) {
+    if (!this.busy() && !this.seated) {
       const k = this.keys;
       if (k.LEFT.isDown || k.A.isDown) vx -= 1;
       if (k.RIGHT.isDown || k.D.isDown) vx += 1;
@@ -238,33 +464,15 @@ export class OfficeScene extends Phaser.Scene {
       if (k.DOWN.isDown || k.S.isDown) vy += 1;
 
       if (vx || vy) {
-        this.moveTarget = null;
-      } else if (this.moveTarget) {
-        const dx = this.moveTarget.x - p.x;
-        const dy = this.moveTarget.y - p.y;
-        const b = p.body;
-        const hit = (side) => b.blocked[side] || b.touching[side];
-        vx = dx;
-        vy = dy;
-        // Bumped into something: slide along it on the free axis instead of pushing into it.
-        if ((hit('left') && dx < 0) || (hit('right') && dx > 0)) { vx = 0; vy = Math.sign(dy) || 0; }
-        if ((hit('up') && dy < 0) || (hit('down') && dy > 0)) { vy = 0; vx = Math.sign(dx) || 0; }
-        // Give up if we've arrived, or haven't made progress for a while (no pathfinding yet: M2).
-        this.stuckMs = Math.hypot(p.x - (this.lastX ?? p.x), p.y - (this.lastY ?? p.y)) < 0.3
-          ? (this.stuckMs || 0) + this.game.loop.delta : 0;
-        this.lastX = p.x;
-        this.lastY = p.y;
-        if (Math.hypot(dx, dy) < 2 || this.stuckMs > 300 || (!vx && !vy)) {
-          this.moveTarget = null;
-          this.stuckMs = 0;
-          vx = 0;
-          vy = 0;
-        }
+        this.path = null;
+        this.pending = null;
+      } else if (this.path) {
+        [vx, vy] = this.followPath(delta);
       }
     }
 
     const len = Math.hypot(vx, vy);
-    if (len) {
+    if (len && !this.seated) {
       p.setVelocity((vx / len) * SPEED, (vy / len) * SPEED);
       if (Math.abs(vx) > Math.abs(vy)) this.facing = vx < 0 ? 'left' : 'right';
       else this.facing = vy < 0 ? 'up' : 'down';
@@ -281,17 +489,62 @@ export class OfficeScene extends Phaser.Scene {
     }
     p.setDepth(p.y);
 
+    this.updateDoor(delta);
+
     // Interaction prompt
-    this.nearest = this.dialog.isOpen ? null : this.findNearest();
+    this.nearest = this.busy() || this.seated ? null : this.findNearest();
     if (this.nearest) {
       const t = this.nearest;
-      const top = t.sprite ? t.sprite.getTopCenter().y : t.py - 16;
-      const s = this.toScreen(t.px, top);
+      const s = this.toScreen(t.px, this.topOf(t));
       this.prompt.setPosition(s.x, s.y - 4).setVisible(true);
       this.nameTag.setText(t.name).setPosition(s.x, s.y - 50).setVisible(true);
     } else {
       this.prompt.setVisible(false);
       this.nameTag.setVisible(false);
     }
+
+    // Objective marker (hidden while the E prompt is already on that thing)
+    const mt = this.markerTarget;
+    if (mt && mt !== this.nearest && !this.busy()) {
+      const bob = Math.sin(this.time.now / 250) * 1.5;
+      this.marker.setPosition(mt.px, this.topOf(mt) - 3 + bob).setVisible(true);
+    } else {
+      this.marker.setVisible(false);
+    }
+  }
+
+  // Walk along the current path. Returns the desired velocity direction.
+  followPath(delta) {
+    const p = this.player;
+    // A waypoint counts as reached within one frame's worth of movement, so low frame rates can't overshoot forever.
+    const reach = Math.max(1.5, (SPEED * delta) / 1000);
+    while (this.path.length && Math.hypot(this.path[0].x - p.x, this.path[0].y - p.y) <= reach) this.path.shift();
+    if (!this.path.length) {
+      this.path = null;
+      const t = this.pending;
+      this.pending = null;
+      if (t && this.findNearest() === t) this.tryInteract();
+      return [0, 0];
+    }
+    const moved = Math.hypot(p.x - (this.lastX ?? p.x + 1), p.y - (this.lastY ?? p.y + 1));
+    this.lastX = p.x;
+    this.lastY = p.y;
+    this.stuckMs = moved < 0.2 ? this.stuckMs + delta : 0;
+    if (this.stuckMs > 350) {
+      // Bumped into something the grid didn't know about: try once more, then give up.
+      const end = this.path[this.path.length - 1];
+      if (!this.repathed) {
+        this.repathed = true;
+        this.stuckMs = 0;
+        this.path = this.nav.findPath(p.x, p.y, end.x, end.y);
+        if (!this.path) return [0, 0];
+      } else {
+        this.path = null;
+        this.pending = null;
+        return [0, 0];
+      }
+    }
+    const next = this.path[0];
+    return [next.x - p.x, next.y - p.y];
   }
 }

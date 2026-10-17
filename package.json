@@ -8,7 +8,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "test": "node --test \"tests/**/*.test.js\"",
+    "tiles": "node scripts/make-tileset.mjs"
   },
   "dependencies": {
     "phaser": "3.90.0"

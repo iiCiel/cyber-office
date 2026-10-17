@@ -6,10 +6,16 @@ export class BootScene extends Phaser.Scene {
     super('Boot');
   }
 
+  preload() {
+    // Paths are relative to the page, so they work under /cyber-office/ on GitHub Pages.
+    this.load.tilemapTiledJSON('office', 'maps/office.tmj');
+    this.load.image('tiles', 'maps/tiles.png');
+  }
+
   create() {
     generateTextures(this);
 
-    for (const who of ['player', 'coworker']) {
+    for (const who of ['player', 'coworker', 'manager']) {
       for (const dir of ['down', 'up', 'side']) {
         this.anims.create({
           key: `${who}-walk-${dir}`,

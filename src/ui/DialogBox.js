@@ -33,6 +33,10 @@ export class DialogBox {
     this.onClose = onClose;
     this.isOpen = true;
     this.nameText.setText(name);
+    // If the player is in the bottom part of the screen, show the box at the top so it doesn't cover them.
+    const pl = this.scene.player;
+    const low = pl && this.scene.toScreen && this.scene.toScreen(pl.x, pl.y).y > VIEW_H - 200;
+    this.container.setY(low ? 96 - (VIEW_H - 154) : 0);
     this.container.setVisible(true);
     this.showLine();
   }
