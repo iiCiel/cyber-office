@@ -15,7 +15,7 @@ export class BootScene extends Phaser.Scene {
   create() {
     generateTextures(this);
 
-    for (const who of ['player', 'coworker', 'manager']) {
+    for (const who of ['player', 'coworker', 'manager', 'mike', 'theo', 'carla']) {
       for (const dir of ['down', 'up', 'side']) {
         this.anims.create({
           key: `${who}-walk-${dir}`,

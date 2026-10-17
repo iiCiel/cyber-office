@@ -190,7 +190,7 @@ await page.waitForTimeout(500);
 await closeDialog();
 s = await state();
 check('the brute-force alert fired', s.events.filter((e) => e === 'alert-fired').length >= 1);
-check('consequence: the stolen-password alert fired too', await page.evaluate(() => window.__game.scene.getScene('Office').state.soc.stolenAlertAt != null));
+check('consequence: the stolen-password alert fired too', await page.evaluate(() => window.__game.scene.getScene('Office').state.soc.alerts['analyst01-foreign'] != null));
 
 // ---------- M2: server room ----------
 await clickWorld(300, 150);
@@ -234,7 +234,7 @@ for (const a of ['disable', 'block', 'scope', 'mfa']) await page.check(`${S} inp
 await page.screenshot({ path: `${out}/9-case.png` });
 await page.click(`${S} [data-action=submit-case]`);
 s = await state();
-const cf = await page.evaluate(() => window.__game.scene.getScene('Office').state.soc.caseFile);
+const cf = await page.evaluate(() => window.__game.scene.getScene('Office').state.soc.cases['bruteforce-jalvarez']);
 check('submitting the case completes the objective', cf?.verdict === 'compromised' && cf.evidence.length === 3 && s.visited.includes('soc'), s.goal);
 await page.keyboard.press('Escape');
 await page.keyboard.press('Escape');
@@ -265,7 +265,7 @@ check('keyboard movement stops at the outer wall', s.x >= 20 && s.x < 40, `${s.x
 
 // ---------- M5: the phone call and the USB stick ----------
 s = await state();
-check('the desk phone is ringing after the case', await page.evaluate(() => { const sc = window.__game.scene.getScene('Office'); return sc.state.phone?.ringingAt != null && sc.ringIcon?.visible; }));
+check('the desk phone is ringing after the case', await page.evaluate(() => { const sc = window.__game.scene.getScene('Office'); return sc.state.enc.phone?.ringingAt != null && sc.ringIcon?.visible; }));
 check('objective: answer your desk phone', /phone/.test(s.goal), s.goal);
 await clickWorld(256, 128);
 await waitArrive();
@@ -285,7 +285,7 @@ check('the caller pushes back with authority and urgency', /Mark Holloway/.test(
 await page.waitForTimeout(300);
 for (let i = 0; i < 40 && (await dlg()).open && !/Dana/.test((await dlg()).name); i++) { await page.keyboard.press('e'); await page.waitForTimeout(110); }
 s = await state();
-let ph = await page.evaluate(() => window.__game.scene.getScene('Office').state.phone);
+let ph = await page.evaluate(() => window.__game.scene.getScene('Office').state.enc.phone);
 check('calling back exposes the fake; outcome recorded', ph?.outcome === 'callback-verified' && ph.done && s.visited.includes('phone'), JSON.stringify(ph));
 
 // Dana walks over with a USB stick.
@@ -297,7 +297,7 @@ check('the phone stops ringing once answered', !(await page.evaluate(() => windo
 await page.keyboard.press('2');
 await closeDialog();
 await page.waitForTimeout(4000);
-const usb = await page.evaluate(() => { const sc = window.__game.scene.getScene('Office'); return { usb: sc.state.usb, back: Math.hypot(sc.npcs.dana.x - 348, sc.npcs.dana.y - 154) < 3 }; });
+const usb = await page.evaluate(() => { const sc = window.__game.scene.getScene('Office'); return { usb: sc.state.enc.usb, back: Math.hypot(sc.npcs.dana.x - 348, sc.npcs.dana.y - 154) < 3 }; });
 check('handing the USB to the SOC is recorded; Dana goes back to her desk', usb.usb?.outcome === 'handed-to-soc' && usb.back, JSON.stringify(usb));
 
 // ---------- Save / continue ----------
@@ -338,7 +338,7 @@ await page.screenshot({ path: `${out}/12-report.png` });
 await page.click('#report [data-action=play-again]');
 await page.waitForFunction(() => window.__game.scene.isActive('Title'));
 await page.waitForTimeout(300);
-check('Play again clears the save and returns to the title', !(await page.evaluate(() => localStorage.getItem('cyber-office:day1:v1'))) && !(await visible('#report')));
+check('Play again clears the save and returns to the title', !(await page.evaluate(() => localStorage.getItem('cyber-office:save:v2'))) && !(await visible('#report')));
 
 // A second day after "Play again" must work too (the scene object is reused by Phaser).
 await page.keyboard.press('Enter');
@@ -353,7 +353,7 @@ const y1 = (await state()).y;
 check('Play again: the new day starts fresh and you can move', y1 < y0 - 10 && (await state()).visited.length === 0, `${y0} -> ${y1}`);
 await page.evaluate(() => window.__game.scene.getScene('Office').onCaseSubmitted());
 await page.waitForTimeout(4800);
-check('Play again: the phone still rings on day two', await page.evaluate(() => window.__game.scene.getScene('Office').state.phone?.ringingAt != null));
+check('Play again: the phone still rings on day two', await page.evaluate(() => window.__game.scene.getScene('Office').state.enc.phone?.ringingAt != null));
 check('only one set of computer screens exists after a restart', (await page.locator('#screen-workstation').count()) === 1 && (await page.locator('#screen-soc').count()) === 1);
 
 check('no console errors', errors.length === 0, errors.join(' | '));

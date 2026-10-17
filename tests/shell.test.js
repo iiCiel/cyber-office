@@ -1,0 +1,63 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { run, tokenize } from '../src/game/shell.js';
+
+const log = [
+  '198.51.100.23 - - [21/Oct/2026:03:10:01 -0400] "GET /api/claims?id=1%27 HTTP/1.1" 500 312 "-" "sqlmap/1.8"',
+  '10.0.4.51 - - [21/Oct/2026:08:30:00 -0400] "GET /claims/status HTTP/1.1" 200 1840 "-" "Mozilla/5.0"',
+  '198.51.100.23 - - [21/Oct/2026:03:12:44 -0400] "GET /api/claims?id=1+UNION+SELECT+username,password_hash+FROM+portal_users-- HTTP/1.1" 200 1843221 "-" "sqlmap/1.8"',
+  '10.0.4.51 - - [21/Oct/2026:08:31:00 -0400] "GET /claims/status HTTP/1.1" 200 1840 "-" "Mozilla/5.0"',
+].join('\n') + '\n';
+
+const ctx = (extra = {}) => ({
+  cwd: '/home/analyst01',
+  fs: { '/var/log/remote/web01/nginx/access.log': log, '/home/analyst01/notes.txt': 'hello\n' },
+  whois: { '198.51.100.23': 'OrgName: Bulletproof Hosting Ltd' },
+  dns: { 'evil.example': 'Name: evil.example\nAddress: 198.51.100.23' },
+  ...extra,
+});
+const A = '/var/log/remote/web01/nginx/access.log';
+
+test('tokenize respects quotes', () => {
+  assert.deepEqual(tokenize(`cut -d ' ' -f 1 "a b.log"`), ['cut', '-d', ' ', '-f', '1', 'a b.log']);
+});
+
+test('grep finds the injection and counts it', () => {
+  assert.equal(run(`grep -c UNION ${A}`, ctx()).out, '1\n');
+  assert.equal(run(`grep -i union ${A} | wc -l`, ctx()).out, '1\n');
+  assert.equal(run(`grep -v 198.51.100.23 ${A} | wc -l`, ctx()).out, '2\n');
+});
+
+test('top talkers pipeline: cut | sort | uniq -c | sort -rn | head', () => {
+  const out = run(`cut -d ' ' -f 1 ${A} | sort | uniq -c | sort -rn | head -n 1`, ctx()).out;
+  assert.match(out, /^\s+2 (10\.0\.4\.51|198\.51\.100\.23)\n$/);
+});
+
+test("awk '{print $1}' and sort -n on a byte column", () => {
+  assert.equal(run(`awk '{print $1}' ${A} | sort | uniq | wc -l`, ctx()).out, '2\n');
+  const biggest = run(`awk '{print $10}' ${A} | sort -n | tail -n 1`, ctx()).out;
+  assert.equal(biggest, '1843221\n');
+});
+
+test('ls, cd, cat, relative paths', () => {
+  assert.equal(run('ls /var/log/remote', ctx()).out, 'web01/\n');
+  const c = run('cd /var/log/remote/web01/nginx', ctx());
+  assert.equal(c.cwd, '/var/log/remote/web01/nginx');
+  assert.equal(run('head -n 1 access.log', ctx({ cwd: c.cwd })).out.split(' ')[0], '198.51.100.23');
+  assert.equal(run('cat notes.txt', ctx()).out, 'hello\n');
+});
+
+test('whois and nslookup use the day data', () => {
+  assert.match(run('whois 198.51.100.23', ctx()).out, /Bulletproof/);
+  assert.match(run('nslookup evil.example', ctx()).out, /198\.51\.100\.23/);
+  assert.match(run('nslookup nope.example', ctx()).out, /NXDOMAIN/);
+});
+
+test('helpful errors, never throws', () => {
+  assert.match(run('rm -rf /', ctx()).out, /read-only/);
+  assert.match(run('frobnicate', ctx()).out, /command not found/);
+  assert.match(run('cat nope.txt', ctx()).out, /No such file/);
+  assert.match(run('grep', ctx()).out, /usage/);
+  assert.match(run('echo "unterminated', ctx()).out, /unterminated/);
+  assert.match(run('cat |', ctx()).out, /syntax error/);
+});

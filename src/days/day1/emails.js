@@ -1,4 +1,4 @@
-// Day 1 scenario: the emails (M3). Later milestones add the alert, the phone call and the report.
+// Day 1 emails.
 //
 // Each email: id, at (in-game minutes since midnight it arrives), from {name, address}, replyTo, to,
 // subject, external (gets the "outside your organization" banner), phish (true/false), body blocks
@@ -171,6 +171,11 @@ export const EMAILS = [
     subject: 'Quick favor - confidential',
     external: true,
     phish: true,
+    replyTrap: {
+      what: 'You replied and agreed to buy the gift cards.',
+      why: 'Your reply went to a Gmail address, not the CEO. Gift cards are untraceable cash for scammers.',
+      cost: { amount: 500, text: '5 Apple gift cards' },
+    },
     body: [
       'Are you at your desk? I need a quick favor and I\'m stuck in back-to-back meetings with the board.',
       'I need 5 Apple gift cards ($100 each) for a client appreciation thing. Buy them on the company card, scratch the backs and email me photos of the codes.',

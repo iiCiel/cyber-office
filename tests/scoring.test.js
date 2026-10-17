@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { scoreDay, debriefLines } from '../src/game/scoring.js';
+import { scoreDay1 as scoreDay, debrief1 as debriefLines } from '../src/days/day1/score.js';
 
 const perfect = {
   mail: {
@@ -11,14 +11,13 @@ const perfect = {
     'ceo-giftcards': { read: true, reported: true, clicked: [] },
   },
   soc: {
-    caseFile: {
+    cases: { 'bruteforce-jalvarez': {
       verdict: 'compromised',
       actions: ['disable', 'block', 'scope', 'mfa'],
       evidence: [{ key: 'success' }, { key: 'exfil' }, { key: 'real-jalvarez' }],
-    },
+    } },
   },
-  phone: { outcome: 'callback-verified', done: true },
-  usb: { outcome: 'handed-to-soc', done: true },
+  enc: { phone: { outcome: 'callback-verified', done: true }, usb: { outcome: 'handed-to-soc', done: true } },
 };
 
 const worst = {
@@ -29,9 +28,8 @@ const worst = {
     'it-reset': { read: true, clicked: ['reset'], enteredCreds: true },
     'ceo-giftcards': { read: true, replied: true },
   },
-  soc: { caseFile: { verdict: 'forgot', actions: ['close', 'reboot'], evidence: [{ key: null }] } },
-  phone: { outcome: 'reset', askedId: true, done: true },
-  usb: { outcome: 'plugged', done: true },
+  soc: { cases: { 'bruteforce-jalvarez': { verdict: 'forgot', actions: ['close', 'reboot'], evidence: [{ key: null }] } } },
+  enc: { phone: { outcome: 'reset', askedId: true, done: true }, usb: { outcome: 'plugged', done: true } },
 };
 
 test('a perfect day is an A with only the contained-incident cost', () => {
@@ -73,7 +71,7 @@ test('the debrief mentions the consequences that actually happened', () => {
 });
 
 test('one outright miss caps an A at B', () => {
-  const oneMiss = { ...perfect, usb: { outcome: 'plugged', done: true } };
+  const oneMiss = { ...perfect, enc: { ...perfect.enc, usb: { outcome: 'plugged', done: true } } };
   const r = scoreDay(oneMiss);
   assert.ok(r.pct >= 90, `pct ${r.pct}`);
   assert.equal(r.grade, 'B');

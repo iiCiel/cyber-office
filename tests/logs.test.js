@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { generateLogs, ATTACKER_IP, PHISH_IP } from '../src/data/day1Logs.js';
+import { generateLogs, ATTACKER_IP, PHISH_IP } from '../src/days/day1/logs.js';
 
 test('logs are identical on every run', () => {
   assert.deepEqual(generateLogs({ nowMinutes: 600 }), generateLogs({ nowMinutes: 600 }));

@@ -1,5 +1,7 @@
 import { h, clear } from '../dom.js';
-import { EMAILS, REPLY_DRAFTS, PLAYER_EMAIL } from '../../data/day1.js';
+
+const PLAYER_EMAIL = 'analyst01@halcyonmutual.com';
+const DATE_OF = (day) => `${day.date.weekday.charAt(0)}${day.date.weekday.slice(1).toLowerCase()} 10/${day.date.day}/2026`;
 
 // Outlook-ish mail client. Every security-relevant action is recorded in GameState
 // (read, hover, click, report, delete, reply, view headers) for consequences and the report card.
@@ -10,8 +12,8 @@ const fmtTime = (m) => {
   return `${h12}:${String(m % 60).padStart(2, '0')} ${h24 < 12 ? 'AM' : 'PM'}`;
 };
 
-export function deliveredEmails(minutes) {
-  return EMAILS.filter((e) => e.at <= minutes);
+export function deliveredEmails(day, minutes) {
+  return day.emails.filter((e) => e.at <= minutes);
 }
 
 export function folderOf(state, id) {
@@ -21,8 +23,8 @@ export function folderOf(state, id) {
   return 'inbox';
 }
 
-export function unreadCount(state, minutes) {
-  return deliveredEmails(minutes).filter((e) => folderOf(state, e.id) === 'inbox' && !state.mail[e.id]?.read).length;
+export function unreadCount(state, day, minutes) {
+  return deliveredEmails(day, minutes).filter((e) => folderOf(state, e.id) === 'inbox' && !state.mail[e.id]?.read).length;
 }
 
 export class MailApp {
@@ -30,6 +32,7 @@ export class MailApp {
    * @param {object} o
    * @param {import('../../game/GameState.js').GameState} o.state
    * @param {() => number} o.minutes  current in-game time
+   * @param {() => object} o.day      the current day definition (src/days)
    * @param {(pageId: string, emailId: string) => void} o.openLink
    * @param {(title: string, text: string) => void} o.toast
    * @param {() => void} o.changed  called after anything changes (badge counts, objectives)
@@ -40,14 +43,14 @@ export class MailApp {
     this.selected = null;
     this.view = 'body'; // body | headers | compose
     this.explain = false;
-    this.known = new Set(deliveredEmails(this.minutes()).map((e) => e.id));
+    this.known = new Set(deliveredEmails(this.day(), this.minutes()).map((e) => e.id));
     this.el = h('div', { class: 'mail' });
   }
 
   // Called every second while the mail window is open; shows new arrivals.
   tick() {
     if (this.view === 'compose') return; // don't rebuild the page (and lose the draft) while typing
-    const fresh = deliveredEmails(this.minutes()).filter((e) => !this.known.has(e.id));
+    const fresh = deliveredEmails(this.day(), this.minutes()).filter((e) => !this.known.has(e.id));
     if (!fresh.length) return;
     for (const e of fresh) this.known.add(e.id);
     this.freshIds = new Set(fresh.map((e) => e.id));
@@ -55,7 +58,7 @@ export class MailApp {
   }
 
   emailsIn(folder) {
-    return deliveredEmails(this.minutes())
+    return deliveredEmails(this.day(), this.minutes())
       .filter((e) => folderOf(this.state, e.id) === folder)
       .sort((a, b) => b.at - a.at);
   }
@@ -77,7 +80,7 @@ export class MailApp {
   }
 
   current() {
-    return EMAILS.find((e) => e.id === this.selected) || null;
+    return this.day().emails.find((e) => e.id === this.selected) || null;
   }
 
   // ---------- actions ----------
@@ -279,6 +282,7 @@ export class MailApp {
 
     const body = e.body.map((b) => {
       if (typeof b === 'string') return h('p', {}, b);
+      if (b.qr) return this.renderQr(e, b);
       const isButton = !/^https?:|\./.test(b.text) || b.text.includes(' ');
       const link = h(
         'button',
@@ -310,11 +314,76 @@ export class MailApp {
         { class: 'head' },
         h('h2', {}, e.subject),
         h('div', { class: 'from' }, h('span', { class: 'name' }, e.from.name), h('span', { class: 'addr' }, `<${e.from.address}>`)),
-        h('div', { class: 'meta' }, h('b', {}, 'To: '), e.to, '   ', h('b', {}, 'Sent: '), `Mon 10/19/2026 ${fmtTime(e.at)}`),
+        h('div', { class: 'meta' }, h('b', {}, 'To: '), e.to, '   ', h('b', {}, 'Sent: '), `${DATE_OF(this.day())} ${fmtTime(e.at)}`),
         e.replyTo ? h('div', { class: 'meta' }, h('b', {}, 'Reply-To: '), e.replyTo) : null,
+        e.attachments?.length
+          ? h(
+              'div',
+              { class: 'attachments' },
+              e.attachments.map((a) =>
+                h(
+                  'button',
+                  { type: 'button', class: 'attachment', 'data-attachment': a.page, title: `Open ${a.name}`, onclick: () => this.openAttachment(e, a) },
+                  h('span', { class: 'aicon' }, a.icon || '📄'),
+                  h('span', { class: 'aname' }, a.name),
+                  h('span', { class: 'asize' }, a.size),
+                ),
+              ),
+            )
+          : null,
       ),
       h('div', { class: 'body' }, body),
     ];
+  }
+
+  openAttachment(e, a) {
+    const ms = this.state.mailState(e.id);
+    ms.openedAttachment = true;
+    this.state.log('attachment-opened', { id: e.id, name: a.name, phish: e.phish });
+    this.openLink(a.page, e.id);
+  }
+
+  // A QR code in the email body. "Scanning" it (clicking) opens where it points, like a phone camera would.
+  renderQr(e, b) {
+    let seed = 0;
+    for (const ch of b.href) seed = (seed * 31 + ch.charCodeAt(0)) >>> 0;
+    const N = 25;
+    const cells = [];
+    const finder = (x, y, ox, oy) => {
+      const dx = x - ox;
+      const dy = y - oy;
+      if (dx < 0 || dy < 0 || dx > 6 || dy > 6) return null;
+      return dx === 0 || dy === 0 || dx === 6 || dy === 6 || (dx >= 2 && dx <= 4 && dy >= 2 && dy <= 4);
+    };
+    for (let y = 0; y < N; y++) {
+      for (let x = 0; x < N; x++) {
+        let on = finder(x, y, 0, 0) ?? finder(x, y, N - 7, 0) ?? finder(x, y, 0, N - 7);
+        if (on === null) {
+          seed = (seed * 1103515245 + 12345) >>> 0;
+          on = (seed >>> 16) % 2 === 0;
+        }
+        cells.push(h('i', { class: on ? 'on' : '' }));
+      }
+    }
+    return h(
+      'div',
+      { class: 'qrwrap' },
+      h(
+        'button',
+        {
+          type: 'button',
+          class: 'qr',
+          'data-link': b.link,
+          title: 'Scan with your phone',
+          onclick: () => {
+            this.status.replaceChildren('Your phone camera reads: ', h('span', { class: 'url' }, b.href));
+            this.clickLink(e, b);
+          },
+        },
+        cells,
+      ),
+      h('div', { class: 'qrhint' }, b.text || 'Scan with your phone camera'),
+    );
   }
 
   renderHeaders(e) {
@@ -360,7 +429,7 @@ export class MailApp {
   renderCompose(e) {
     const to = e.replyTo || e.from.address;
     const text = h('textarea', { 'aria-label': 'Message' });
-    text.value = `${REPLY_DRAFTS[e.id] || ''}\n\n----- Original message -----\nFrom: ${e.from.name} <${e.from.address}>\nSubject: ${e.subject}`;
+    text.value = `${this.day().replyDrafts?.[e.id] || ''}\n\n----- Original message -----\nFrom: ${e.from.name} <${e.from.address}>\nSubject: ${e.subject}`;
     return h(
       'div',
       { class: 'compose' },

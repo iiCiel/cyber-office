@@ -19,44 +19,17 @@ export const FOOTPRINTS = {
   whiteboard: [48, 4],
 };
 
-// The in-game date, used by the clock and by fake log timestamps.
-export const GAME_DATE = { weekday: 'MON', month: 'Oct', day: 19, startMinutes: 8 * 60 + 57 };
+// People in the office. Priya and Dana come from the Tiled map; the rest are placed by the days that need them
+// (day.cast). Their lines for each day live in the day's npcLines.
+export const NPC_NAMES = {
+  priya: 'Priya (SOC lead)',
+  dana: 'Dana (IT helpdesk)',
+};
 
-// Objectives, in order. `id` is the object you must use to complete it.
-export const OBJECTIVES = [
-  { id: 'priya', text: 'Check in with Priya, your manager' },
-  { id: 'my-desk', text: 'Sit down at your desk' },
-  { id: 'inbox', target: 'my-desk', text: 'Go through your email' },
-  { id: 'server-door', text: 'Badge into the server room' },
-  { id: 'soc', text: 'Investigate the alert at the SOC console' },
-  { id: 'phone', target: 'my-desk', text: 'Answer your desk phone' },
-  { id: 'usb', target: 'dana', text: 'Dana is coming over to you' },
-  { id: 'debrief', target: 'priya', text: 'Debrief with Priya before you head home' },
-];
-export const OBJECTIVES_DONE = 'Explore the office. More coming soon.';
-
-export const NPCS = {
-  priya: {
-    name: 'Priya (SOC lead)',
-    talk: [
-      'Morning! Welcome to the SOC. Well, the SOC is mostly you and me.',
-      'I just activated your badge, so the server room should let you in now.',
-      'Get settled at your desk first. Then go look at the SOC console in there.',
-      'Rule one: if something looks weird, it probably is. Come ask me.',
-    ],
-    again: ['Desk, then the SOC console. Shout if anything looks off.'],
-  },
-  dana: {
-    name: 'Dana (IT helpdesk)',
-    talk: [
-      'Oh hey, you must be the new analyst!',
-      "I'm Dana. Helpdesk. I reset about forty passwords a day.",
-      'Your desk is the one with the bright blue screen. Middle row.',
-      'I set up your laptop at 6 this morning, so you might get a sign-in alert email. That was me.',
-      'Server room is the metal door on the right. Badge reader is picky.',
-    ],
-    again: ['Forty-one passwords now. It is 9 AM.'],
-  },
+export const CAST = {
+  mike: { name: 'Mike Chen (Sales)', sprite: 'mike', x: 288, y: 88, face: 'down' },
+  theo: { name: 'Theo Okoye (Developer)', sprite: 'theo', x: 224, y: 88, face: 'down' },
+  carla: { name: 'Carla Reyes (Finance)', sprite: 'carla', x: 166, y: 150, face: 'right' },
 };
 
 // kind: 'talk' (default) just shows lines. 'desk' opens your computer. 'soc' opens the SOC console.

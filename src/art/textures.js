@@ -1,4 +1,4 @@
-import { PLAYER_FRAMES, PLAYER_PALETTE, COWORKER_PALETTE, MANAGER_PALETTE } from './pixels.js';
+import { PLAYER_FRAMES, PLAYER_PALETTE, COWORKER_PALETTE, MANAGER_PALETTE, MIKE_PALETTE, THEO_PALETTE, CARLA_PALETTE } from './pixels.js';
 
 // Draw a palette-keyed pixel grid onto a 2D canvas context at (ox, oy).
 function paint(ctx, rows, palette, ox = 0, oy = 0) {
@@ -37,6 +37,9 @@ export function generateTextures(scene) {
   makeCharacterSheet(scene, 'player', PLAYER_PALETTE);
   makeCharacterSheet(scene, 'coworker', COWORKER_PALETTE);
   makeCharacterSheet(scene, 'manager', MANAGER_PALETTE);
+  makeCharacterSheet(scene, 'mike', MIKE_PALETTE);
+  makeCharacterSheet(scene, 'theo', THEO_PALETTE);
+  makeCharacterSheet(scene, 'carla', CARLA_PALETTE);
 
   // --- Furniture (sizes in px; bottom part is the collision footprint) ---
   // Desk with monitor + keyboard, 32x24

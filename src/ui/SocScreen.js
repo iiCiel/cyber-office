@@ -1,19 +1,21 @@
 import { Overlay } from './Overlay.js';
 import { h, clear } from './dom.js';
-import { generateLogs, ALERT, ALERT_STOLEN, CASE, ipInfo, hms } from '../data/day1Logs.js';
+import { ipLookup, hms } from '../game/logkit.js';
 
 // The SOC console (M4): a small SIEM.
 //   Overview: stats, open alerts, live tail.  Alert: details with pivots (click a value to search it).
 //   Search:   filter every log line, expand raw events, flag the lines that matter.
 //   Case:     your verdict, your evidence (flagged lines) and your response. Priya reads it.
-const SOURCES = [
-  ['', 'All sources'],
-  ['dc01', 'dc01 (Windows Security)'],
-  ['vpn01', 'vpn01 (OpenVPN)'],
-  ['file01', 'file01 (file shares)'],
-  ['web01', 'web01 (SSH)'],
-  ['mail01', 'mail01 (mail)'],
-];
+const SOURCE_LABELS = {
+  dc01: 'dc01 (Windows Security)',
+  vpn01: 'vpn01 (OpenVPN)',
+  file01: 'file01 (file shares)',
+  web01: 'web01 (web + SSH)',
+  mail01: 'mail01 (mail)',
+  idp: 'idp (sign-ins + MFA)',
+  fw01: 'fw01 (firewall / proxy)',
+  edr: 'edr (endpoint)',
+};
 const IP_RE = /\b(?:\d{1,3}\.){3}\d{1,3}\b/g;
 const compact = (e) => `${hms(e.t)} ${e.host.padEnd(6)} ${e.short}`;
 
@@ -39,8 +41,9 @@ export class SocScreen extends Overlay {
   // Each alert shows up on its own schedule (the stolen-password one can come first).
   alerts() {
     const list = [];
-    if (this.st.soc.stolenAlertAt != null) list.push(ALERT_STOLEN);
-    if (this.st.soc.alertAt != null) list.push(ALERT);
+    const fired = this.st.soc.alerts;
+    for (const a of this.scene.day.alerts) if (fired[a.id] != null) list.push(a);
+    list.sort((a, b) => fired[b.id] - fired[a.id]);
     return list;
   }
 
@@ -50,7 +53,16 @@ export class SocScreen extends Overlay {
   }
 
   logs() {
-    return generateLogs({ nowMinutes: this.scene.minutes, phishedAt: this.st.phishedAt() });
+    return this.scene.day.logs(this.st);
+  }
+
+  get mainAlert() {
+    return this.scene.day.alerts.find((a) => a.main);
+  }
+
+  get caseFile() {
+    const m = this.mainAlert;
+    return m ? this.st.soc.cases[m.id] : null;
   }
 
   go(view, opts = {}) {
@@ -62,7 +74,7 @@ export class SocScreen extends Overlay {
   render() {
     const tab = (id, label) =>
       h('button', { type: 'button', role: 'tab', class: `tab${this.view === id || (id === 'overview' && this.view === 'alert') ? ' on' : ''}`, 'data-tab': id, onclick: () => this.go(id) }, label);
-    clear(this.tabs).append(tab('overview', 'Overview'), tab('search', 'Search logs'), tab('case', this.st.soc.caseFile ? 'Case ✓' : 'Case'));
+    clear(this.tabs).append(tab('overview', 'Overview'), tab('search', 'Search logs'), tab('case', this.caseFile ? 'Case ✓' : 'Case'));
     clear(this.main);
     if (this.view === 'overview') this.renderOverview();
     else if (this.view === 'alert') this.renderAlert();
@@ -73,12 +85,13 @@ export class SocScreen extends Overlay {
   // ---------- overview ----------
   renderOverview() {
     const alerts = this.alerts();
-    const open = this.st.soc.caseFile ? alerts.filter((a) => a.id !== ALERT.id) : alerts;
+    const open = this.caseFile ? alerts.filter((a) => !a.main) : alerts;
     const logs = this.logs();
     const failed24 = logs.filter((e) => e.msg.includes('EventID=4625') || e.msg.includes('Failed password')).length;
     this.epm = h('div', { class: 'val' }, String(38 + Math.floor(Math.random() * 14)));
     this.tail = h('pre', { class: 'soc-tail mono' });
     this.main.append(
+      this.crisisBanner() || '',
       h(
         'div',
         { class: 'tiles' },
@@ -97,7 +110,7 @@ export class SocScreen extends Overlay {
                 { type: 'button', class: 'alert-row', 'data-alert': a.id, onclick: () => this.go('alert', { alertId: a.id }) },
                 h('span', { class: `sev ${a.severity.toLowerCase()}` }, a.severity),
                 h('span', { class: 'atitle' }, a.title),
-                h('span', { class: 'astatus' }, a.id === ALERT.id && this.st.soc.caseFile ? 'Closed by you' : 'New'),
+                h('span', { class: 'astatus' }, a.main && this.caseFile ? 'Closed by you' : 'New'),
               ),
             ),
           )
@@ -116,7 +129,7 @@ export class SocScreen extends Overlay {
 
   // ---------- one alert ----------
   renderAlert() {
-    const a = [ALERT, ALERT_STOLEN].find((x) => x.id === this.alertId) || ALERT;
+    const a = this.scene.day.alerts.find((x) => x.id === this.alertId) || this.mainAlert;
     if (!this.st.soc.viewed?.includes(a.id)) {
       this.st.soc.viewed = [...(this.st.soc.viewed || []), a.id];
       this.st.log('alert-viewed', { id: a.id });
@@ -139,19 +152,13 @@ export class SocScreen extends Overlay {
         h('p', { class: 'rule' }, h('b', {}, 'Rule: '), a.rule),
         h('table', { class: 'fields' }, a.fields.map(([k, v]) => h('tr', {}, h('th', {}, k), h('td', {}, valueCell(v))))),
         h('p', { class: 'hint' }, 'Tip: click a value to search the logs for it. Click 🔎 next to an IP to look it up.'),
-        a.id === ALERT_STOLEN.id
-          ? h(
-              'div',
-              { class: 'callout bad' },
-              'That is your account, logging in from Russia, a few minutes after you typed your password into that "IT Support" page. ',
-              'Report it to Priya right away (she has been notified) and change your password.',
-            )
-          : null,
+        a.callout ? h('div', { class: 'callout bad' }, a.callout) : null,
+        this.crisisBanner(),
         h(
           'div',
           { class: 'actions' },
           h('button', { type: 'button', class: 'primary', 'data-action': 'investigate', onclick: () => this.go('search', { query: '', source: '', onlyFlagged: false }) }, 'Search the logs'),
-          a.id === ALERT.id ? h('button', { type: 'button', 'data-action': 'open-case', onclick: () => this.go('case') }, 'Write up the case') : null,
+          a.main && a.case ? h('button', { type: 'button', 'data-action': 'open-case', onclick: () => this.go('case') }, 'Write up the case') : null,
         ),
         this.ipPanel = h('div', { class: 'ip-panel' }),
       ),
@@ -176,7 +183,7 @@ export class SocScreen extends Overlay {
   }
 
   showIp(ip) {
-    const info = ipInfo(ip);
+    const info = ipLookup(ip, this.scene.day.ipInfo);
     if (!this.st.soc.lookups?.includes(ip)) {
       this.st.soc.lookups = [...(this.st.soc.lookups || []), ip];
       this.st.log('ip-lookup', { ip });
@@ -225,7 +232,8 @@ export class SocScreen extends Overlay {
       }, 150);
     });
     const select = h('select', { 'aria-label': 'Source', onchange: () => { this.source = select.value; this.renderResults(); } },
-      SOURCES.map(([v, label]) => h('option', { value: v, selected: v === this.source }, label)));
+      [['', 'All sources'], ...[...new Set(this.logs().map((e) => e.host))].sort().map((x) => [x, SOURCE_LABELS[x] || x])].map(([v, label]) =>
+        h('option', { value: v, selected: v === this.source }, label)));
     const flaggedToggle = h('label', { class: 'chk' },
       h('input', { type: 'checkbox', checked: this.onlyFlagged, onchange: (e) => { this.onlyFlagged = e.target.checked; this.renderResults(); } }),
       ' Only flagged');
@@ -278,8 +286,10 @@ export class SocScreen extends Overlay {
 
   // ---------- case write-up ----------
   renderCase() {
-    const cf = this.st.soc.caseFile;
-    if (this.st.soc.alertAt == null) {
+    const cf = this.caseFile;
+    const main = this.mainAlert;
+    const CASE = main?.case;
+    if (!CASE || this.st.soc.alerts[main.id] == null) {
       this.main.append(h('div', { class: 'quiet' }, 'No open cases.'));
       return;
     }
@@ -305,14 +315,14 @@ export class SocScreen extends Overlay {
           if (!verdict) return void (msg.textContent = 'Pick what you think happened.');
           if (!flaggedLines.length) return void (msg.textContent = 'Flag at least one log line as evidence first (Search logs → ⚑).');
           if (!chosen.length) return void (msg.textContent = 'Pick at least one response.');
-          this.st.soc.caseFile = { verdict, actions: chosen, evidence: flaggedLines.map((e) => ({ id: e.id, key: e.key || null, attack: !!e.attack })), at: this.scene.minutes };
+          this.st.soc.cases[main.id] = { verdict, actions: chosen, evidence: flaggedLines.map((e) => ({ id: e.id, key: e.key || null, attack: !!e.attack })), at: this.scene.minutes };
           this.st.log('case-submitted', { verdict, actions: chosen });
           this.scene.onCaseSubmitted();
           this.render();
         },
       },
-      h('h2', {}, `Case: ${ALERT.title}`),
-      h('fieldset', {}, h('legend', {}, '1. What happened?'), verdicts),
+      h('h2', {}, `Case: ${main.title}`),
+      h('fieldset', {}, h('legend', {}, `1. ${CASE.question || 'What happened?'}`), verdicts),
       h(
         'fieldset',
         {},
@@ -329,11 +339,24 @@ export class SocScreen extends Overlay {
     this.main.append(form);
   }
 
+  // Day 5: a live counter while the ransomware is still running.
+  crisisBanner() {
+    const c = this.scene.crisisStatus?.();
+    if (!c) return null;
+    this.crisisEl = h('div', { class: `crisis ${c.stopped ? 'stopped' : ''}`, 'data-crisis': '' }, c.text);
+    return this.crisisEl;
+  }
+
   // ---------- lifecycle ----------
   onOpen() {
     if (this.view === 'alert' && !this.alertId) this.view = 'overview';
     this.render();
     this.timer = setInterval(() => {
+      const c = this.scene.crisisStatus?.();
+      if (c && this.crisisEl) {
+        this.crisisEl.textContent = c.text;
+        this.crisisEl.classList.toggle('stopped', !!c.stopped);
+      }
       if (this.view === 'overview') {
         this.renderTail();
         if (this.epm) this.epm.textContent = String(38 + Math.floor(Math.random() * 14));

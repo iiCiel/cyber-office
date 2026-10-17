@@ -2,15 +2,28 @@ import { Overlay } from './Overlay.js';
 import { h, clear } from './dom.js';
 import { MailApp, unreadCount } from './apps/MailApp.js';
 import { renderBrowser } from './apps/Browser.js';
+import { TerminalApp } from './apps/TerminalApp.js';
+import { TicketsApp } from './apps/TicketsApp.js';
 
-// Your workstation: a small desktop with apps. Mail is real (M3); Terminal and Tickets come later.
+// Your workstation: a small desktop with apps. Mail every day; Tickets and Terminal on the days that use them.
 export class ComputerScreen extends Overlay {
   constructor(scene) {
     super(scene, { name: 'workstation' });
     this.mail = new MailApp({
       state: scene.state,
       minutes: () => scene.minutes,
+      day: () => scene.day,
       openLink: (pageId, emailId) => this.openBrowser(pageId, emailId),
+      toast: (title, text) => this.toast(title, text),
+      changed: () => {
+        this.renderIcons();
+        scene.onStateChanged();
+      },
+    });
+    this.terminal = new TerminalApp({ state: scene.state, day: () => scene.day });
+    this.ticketsApp = new TicketsApp({
+      state: scene.state,
+      day: () => scene.day,
       toast: (title, text) => this.toast(title, text),
       changed: () => {
         this.renderIcons();
@@ -33,7 +46,7 @@ export class ComputerScreen extends Overlay {
             [
               'Welcome to Halcyon Mutual!',
               '',
-              'Day 1 checklist:',
+              `${scene.day.date.name} checklist:`,
               ...scene.objectiveList().map((o) => `  [${o.done ? 'x' : ' '}] ${o.text}`),
               '',
               'Tip: never click a link before you hover it.',
@@ -44,18 +57,27 @@ export class ComputerScreen extends Overlay {
         id: 'terminal',
         label: 'Terminal',
         glyph: '>_',
-        title: 'Terminal',
-        size: 'small',
-        render: () =>
-          h('pre', { class: 'notes-text mono' }, 'analyst01@HALCYON-WS-0142:~$ _\n\nAccess pending approval (ticket #4471).\nComing later: whois, nslookup, grep.'),
+        title: 'Terminal - analyst01@HALCYON-WS-0142',
+        size: 'max',
+        render: () => {
+          if (!scene.day.terminal) {
+            return h('pre', { class: 'notes-text mono' }, 'analyst01@HALCYON-WS-0142:~$ _\n\nAccess pending approval (ticket #4471).');
+          }
+          this.terminal.focus();
+          return this.terminal.el;
+        },
       },
       {
         id: 'tickets',
         label: 'Tickets',
         glyph: '#',
         title: 'Helpdesk Tickets',
-        size: 'small',
-        render: () => h('pre', { class: 'notes-text' }, 'No tickets assigned to you yet.\n\nEnjoy it. It will not last.'),
+        size: 'max',
+        render: () => {
+          if (!scene.day.tickets?.length) return h('pre', { class: 'notes-text' }, 'No tickets assigned to you today.\n\nEnjoy it. It will not last.');
+          this.ticketsApp.render();
+          return this.ticketsApp.el;
+        },
       },
     ];
 
@@ -88,7 +110,7 @@ export class ComputerScreen extends Overlay {
   }
 
   renderIcons() {
-    const unread = unreadCount(this.scene.state, this.scene.minutes);
+    const unread = unreadCount(this.scene.state, this.scene.day, this.scene.minutes);
     clear(this.icons).append(
       ...this.APPS.map((app, i) =>
         h(
@@ -97,9 +119,14 @@ export class ComputerScreen extends Overlay {
           h('span', { class: 'glyph' }, app.glyph),
           app.label,
           app.id === 'mail' && unread ? h('span', { class: 'badge' }, unread) : null,
+          app.id === 'tickets' && this.openTickets() ? h('span', { class: 'badge' }, this.openTickets()) : null,
         ),
       ),
     );
+  }
+
+  openTickets() {
+    return (this.scene.day.tickets || []).filter((t) => !this.scene.state.tickets[t.id]).length;
   }
 
   openApp(id) {
@@ -129,7 +156,7 @@ export class ComputerScreen extends Overlay {
   }
 
   openBrowser(pageId, emailId) {
-    const el = renderBrowser({ pageId, emailId, state: this.scene.state, onClose: () => this.closeBrowser() });
+    const el = renderBrowser({ pageId, emailId, state: this.scene.state, pages: this.scene.day.pages, onClose: () => this.closeBrowser() });
     if (el) clear(this.browserHost).append(el);
   }
 
@@ -155,7 +182,7 @@ export class ComputerScreen extends Overlay {
   tick() {
     this.clock.textContent = this.scene.clockString();
     const before = this.lastUnread;
-    this.lastUnread = unreadCount(this.scene.state, this.scene.minutes);
+    this.lastUnread = unreadCount(this.scene.state, this.scene.day, this.scene.minutes);
     if (before !== undefined && this.lastUnread > before) {
       this.toast('New email', 'You have new mail.');
       this.renderIcons();

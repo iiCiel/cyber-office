@@ -97,7 +97,7 @@ check('case form refuses to submit without a response action', (await page.locat
 await page.check(`${S} input[name=action][value=close]`);
 await page.check(`${S} input[name=action][value=reboot]`);
 await page.click(`${S} [data-action=submit-case]`);
-check('wrong case submitted', await sc((s) => s.state.soc.caseFile?.verdict === 'forgot'));
+check('wrong case submitted', await sc((s) => s.state.soc.cases['bruteforce-jalvarez']?.verdict === 'forgot'));
 await page.keyboard.press('Escape');
 await page.keyboard.press('Escape');
 await page.waitForTimeout(4500);
@@ -109,13 +109,13 @@ let d = await drain(true);
 check('phone call offers choices', d.choosing, d.name);
 await page.keyboard.press('1');
 await drain();
-check('password reset given away', await sc((s) => s.state.phone?.outcome === 'reset'));
+check('password reset given away', await sc((s) => s.state.enc.phone?.outcome === 'reset'));
 // USB: plug it in.
 d = await drain(true, 20000);
 check('Dana offers the USB stick', d.choosing && /USB|plug/.test(d.text));
 await page.keyboard.press('1');
 await drain();
-check('USB plugged in', await sc((s) => s.state.usb?.outcome === 'plugged'));
+check('USB plugged in', await sc((s) => s.state.enc.usb?.outcome === 'plugged'));
 await page.waitForTimeout(2500);
 
 // Debrief + report.

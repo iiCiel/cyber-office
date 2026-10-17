@@ -108,3 +108,10 @@ export const MANAGER_PALETTE = {
   B: '#2a2a36',
   l: '#3fe07a',
 };
+
+// Mike Chen (Sales): short black hair, light blue shirt.
+export const MIKE_PALETTE = { ...PLAYER_PALETTE, h: '#141414', s: '#e8c39e', S: '#cfa37c', b: '#8fb6e8', B: '#6a90c4', l: '#3b6fb6' };
+// Theo Okoye (developer): green hoodie.
+export const THEO_PALETTE = { ...PLAYER_PALETTE, h: '#2a1a12', s: '#7a4f30', S: '#633f26', b: '#3f8f5a', B: '#2f6f44', l: '#e6e6ea', p: '#3a3a4a' };
+// Carla Reyes (Finance): blond, red blouse.
+export const CARLA_PALETTE = { ...PLAYER_PALETTE, h: '#d8b25a', s: '#f1c9a5', S: '#d9a987', b: '#c43c3c', B: '#962c2c', l: '#e8c547', p: '#1b1b2a' };

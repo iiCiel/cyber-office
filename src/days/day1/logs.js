@@ -1,4 +1,4 @@
-// Day 1 logs (M4). Generated deterministically (seeded), so every playthrough sees the same story:
+// Day 1 logs. Generated deterministically (seeded), so every playthrough sees the same story:
 //
 //   02:00  svc_backup runs the nightly backup (normal: service accounts work at night)
 //   03:12  38 failed VPN logons for j.alvarez from 185.220.101.47 (a Tor exit node)
@@ -8,123 +8,25 @@
 //   08:47  the real j.alvarez badges in and logs on from his own desk (WS-0112)
 //
 // If the player typed their password into the phishing page, the attacker uses it a few minutes later.
-//
-// Formats: Windows Security events (4624/4625/4634) as a SIEM shows them (one line, key=value) with
-// the full raw event on expand; OpenVPN and sshd lines in their real syslog format; Samba full_audit.
 
-import { GAME_DATE } from './office.js';
+import { T, logBuilder, finishLogs, STAFF } from '../../game/logkit.js';
 
+export const DATE = { weekday: 'MON', name: 'Monday', month: 'Oct', day: 19 };
 export const ATTACKER_IP = '185.220.101.47';
 export const PHISH_IP = '91.215.85.17';
 
-// What a quick IP lookup (whois / threat intel) says. Shown when you click an IP.
 export const IP_INFO = {
   '185.220.101.47': { where: 'Germany', owner: 'AS205100 F3 Netze e.V.', note: 'Known Tor exit node. Used to hide where an attacker really is.', external: true },
   '91.215.85.17': { where: 'Russia', owner: 'AS49505 Selectel', note: 'Hosting provider. Same IP that sent the fake "IT Support" email this morning.', external: true },
-  '45.95.147.236': { where: 'Netherlands', owner: 'AS49870 Alsycon B.V.', note: 'Mass internet scanner. Tries common usernames on every server it finds.', external: true },
-  '193.32.162.157': { where: 'Romania', owner: 'AS47890 Unmanaged Ltd', note: 'Mass internet scanner.', external: true },
 };
-export function ipInfo(ip) {
-  if (IP_INFO[ip]) return IP_INFO[ip];
-  if (/^10\.|^172\.16\./.test(ip)) return { where: 'Internal', owner: 'Halcyon Mutual network', note: 'One of our own addresses (10.x office, 172.16.x VPN users).', external: false };
-  return { where: 'Unknown', owner: 'Unknown', note: 'No information.', external: true };
-}
-
-const WS = {
-  'priya.r': ['WS-0107', '10.0.4.17'],
-  'j.alvarez': ['WS-0112', '10.0.4.33'],
-  'dana.k': ['WS-0120', '10.0.4.40'],
-  'm.chen': ['WS-0131', '10.0.4.51'],
-  's.okafor': ['WS-0138', '10.0.4.62'],
-  analyst01: ['WS-0142', '10.0.4.142'],
-};
-
-// Small seeded PRNG (mulberry32) so logs are identical on every run.
-function rng(seed) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-const EVENT_LABEL = { 4624: 'LOGON OK', 4625: 'LOGON FAILED', 4634: 'LOGOFF' };
-
-export const hms = (sec) =>
-  [Math.floor(sec / 3600), Math.floor((sec % 3600) / 60), sec % 60].map((n) => String(n).padStart(2, '0')).join(':');
-export const stamp = (sec) => `${GAME_DATE.month} ${GAME_DATE.day} ${hms(sec)}`;
-const T = (h, m, s = 0) => h * 3600 + m * 60 + s;
-
-const win4625 = (user, ip, ws, port) => [
-  'An account failed to log on.',
-  '',
-  'Subject:',
-  '\tSecurity ID:\t\tNULL SID',
-  '\tAccount Name:\t\t-',
-  '',
-  'Logon Type:\t\t\t3',
-  '',
-  'Account For Which Logon Failed:',
-  `\tAccount Name:\t\t${user}`,
-  '\tAccount Domain:\t\tHALCYON',
-  '',
-  'Failure Information:',
-  '\tFailure Reason:\t\tUnknown user name or bad password.',
-  '\tStatus:\t\t\t0xC000006D',
-  '\tSub Status:\t\t0xC000006A',
-  '',
-  'Network Information:',
-  `\tWorkstation Name:\t${ws}`,
-  `\tSource Network Address:\t${ip}`,
-  `\tSource Port:\t\t${port}`,
-].join('\n');
-
-const win4624 = (user, ip, ws, type, logonId) => [
-  'An account was successfully logged on.',
-  '',
-  `Logon Type:\t\t\t${type}`,
-  '',
-  'New Logon:',
-  `\tAccount Name:\t\t${user}`,
-  '\tAccount Domain:\t\tHALCYON',
-  `\tLogon ID:\t\t${logonId}`,
-  '',
-  'Network Information:',
-  `\tWorkstation Name:\t${ws}`,
-  `\tSource Network Address:\t${ip}`,
-  '',
-  'Authentication Information:',
-  `\tLogon Process:\t\t${type === 2 ? 'User32' : 'NtLmSsp'}`,
-  `\tAuthentication Package:\t${type === 2 ? 'Negotiate' : 'NTLM'}`,
-].join('\n');
 
 /**
  * All log events up to `nowMinutes` (in-game time), oldest first.
- * @param {{ phishedAt?: number|null }} opts phishedAt = in-game minute the player gave away their password
+ * @param {{ nowMinutes?: number, phishedAt?: number|null }} opts phishedAt = minute the player gave away their password
  */
 export function generateLogs({ nowMinutes = 24 * 60, phishedAt = null } = {}) {
-  const r = rng(1019);
-  const ev = [];
-  let logonSeq = 0x3e7a00;
-  // ids are assigned in creation order, so they stay stable no matter which optional events get added.
-  const add = (t, host, source, msg, extra = {}) => ev.push({ id: `E${ev.length}`, t, host, source, msg, ...extra });
-  const logonId = () => `0x${(logonSeq += 0x1f + Math.floor(r() * 0x40)).toString(16).toUpperCase()}`;
-
-  const fail = (t, user, ip, ws, extra) => {
-    const port = 49152 + Math.floor(r() * 16000);
-    add(t, 'dc01', 'Security', `EventID=4625 An account failed to log on. user=${user} logon_type=3 src_ip=${ip} workstation=${ws} sub_status=0xC000006A`, {
-      raw: win4625(user, ip, ws, port), user, ip, ...extra,
-    });
-    return port;
-  };
-  const ok = (t, user, ip, ws, type, extra) =>
-    add(t, 'dc01', 'Security', `EventID=4624 An account was successfully logged on. user=${user} logon_type=${type} src_ip=${ip} workstation=${ws}`, {
-      raw: win4624(user, ip, ws, type, logonId()), user, ip, ...extra,
-    });
-  const logoff = (t, user, type = 3) => add(t, 'dc01', 'Security', `EventID=4634 An account was logged off. user=${user} logon_type=${type}`, { user });
+  const b = logBuilder(1019);
+  const { r, add, fail, ok, logoff } = b;
 
   // Nightly backup (normal).
   ok(T(2, 0, 3), 'svc_backup', '10.0.3.30', 'BACKUP01', 3);
@@ -172,7 +74,7 @@ export function generateLogs({ nowMinutes = 24 * 60, phishedAt = null } = {}) {
     ['j.alvarez', T(8, 47)],
   ];
   for (const [user, at] of arrivals) {
-    const [ws, ip] = WS[user];
+    const [ws, ip] = STAFF[user];
     if (user === 's.okafor') {
       fail(at, user, ip, ws);
       ok(at + 31, user, ip, ws, 2);
@@ -189,58 +91,26 @@ export function generateLogs({ nowMinutes = 24 * 60, phishedAt = null } = {}) {
     add(at + 1, 'vpn01', 'openvpn', `openvpn[1187]: ${PHISH_IP}:40211 [analyst01] Peer Connection Initiated with [AF_INET]${PHISH_IP}:40211`, { ip: PHISH_IP, user: 'analyst01', attack: true });
   }
 
-  const nowSec = nowMinutes * 60;
-  return ev
-    .filter((e) => e.t <= nowSec)
-    .sort((a, b) => a.t - b.t)
-    .map((e) => ({
-      ...e,
-      time: stamp(e.t),
-      // Full syslog-style line (what search matches against).
-      line: `${stamp(e.t)} ${e.host} ${e.source === 'Security' ? 'Microsoft-Windows-Security-Auditing: ' : ''}${e.msg}`,
-      // Compact version for narrow tables: the key=value fields first, the English sentence last.
-      short: e.source === 'Security' ? e.msg.replace(/^EventID=(\d+) (.+?)\. (.*)$/, (_, id, _s, rest) => `${id} ${EVENT_LABEL[id] || ''}  ${rest}`) : e.msg,
-    }));
+  return finishLogs(b.ev, { nowMinutes, date: DATE });
 }
 
-// The SIEM alert. It fires once the player is done with email (or at 9:40 at the latest).
-export const ALERT = {
-  id: 'bruteforce-jalvarez',
-  title: 'Multiple failed logons followed by a success',
-  severity: 'High',
-  rule: 'More than 20 failed logons (4625) for one account within 5 minutes, followed by a successful logon (4624) from the same source.',
-  fields: [
-    ['Account', 'j.alvarez'],
-    ['Source IP', ATTACKER_IP],
-    ['Host', 'dc01 (via VPN01)'],
-    ['Failed logons', '38'],
-    ['Window', '03:12:07 to 03:14:52'],
-  ],
-  pivots: ['j.alvarez', ATTACKER_IP, '4625', '4624'],
-};
-
-// The extra alert you only get if you typed your password into the phishing page.
-export const ALERT_STOLEN = {
-  id: 'analyst01-foreign',
-  title: 'Logon from a new country for analyst01',
-  severity: 'High',
-  rule: 'First successful logon for this account from a country never seen before.',
-  fields: [
-    ['Account', 'analyst01 (that\'s you)'],
-    ['Source IP', PHISH_IP],
-    ['Country', 'Russia'],
-  ],
-  pivots: ['analyst01', PHISH_IP],
-};
-
-// The case write-up questions. Scored by src/game/scoring.js.
+// The case write-up questions and how they're scored (see scoreCase in src/game/scoring.js).
 export const CASE = {
+  id: 'case',
+  area: 'SOC alert',
+  title: 'Brute force on j.alvarez (3 AM)',
+  max: 30,
+  teaches: { skill: 'Read a failed-logon burst and spot the success after it', secplus: '4.9 Use data sources to support an investigation' },
   verdicts: [
     { id: 'forgot', text: 'j.alvarez forgot his password, kept trying, and finally got it right.' },
     { id: 'compromised', text: "Someone guessed j.alvarez's password and logged in. The account is compromised." },
     { id: 'noise', text: 'Internet noise: lots of failures, but nobody actually got in.' },
   ],
   correctVerdict: 'compromised',
+  wrongVerdictNotes: {
+    forgot: "It wasn't j.alvarez: the 3 AM logons came from a Tor exit node, and the real j.alvarez logged on from his own desk at 8:47.",
+    default: 'Somebody did get in: look for the 4624 (success) right after the 4625s, from the same IP.',
+  },
   actions: [
     { id: 'disable', text: "Disable j.alvarez's account and reset his password", good: true },
     { id: 'block', text: `Block ${ATTACKER_IP} on the VPN / firewall`, good: true },
@@ -250,6 +120,58 @@ export const CASE = {
     { id: 'email-pw', text: 'Email j.alvarez his new password', good: false, why: 'Never send passwords by email. If his mailbox is compromised too, the attacker gets the new one.' },
     { id: 'close', text: 'Close the alert. He is at his desk now, so it is fine.', good: false, why: 'He is at his desk now, but the 3 AM session came from a Tor exit node and read payroll files. That wasn\'t him.' },
   ],
-  // Lines that count as strong evidence if you flag them.
+  primaryEvidence: { key: 'success', note: 'The key evidence is the successful logon (4624) from the attacker\'s IP at 03:14:52.' },
   keyEvidence: ['success', 'vpn-up', 'exfil', 'real-jalvarez'],
+  containedRequires: ['disable', 'block'],
+  costs: {
+    contained: { amount: 6000, text: 'Incident response the same morning (contained)' },
+    breach: { amount: 86000, text: 'Payroll, bank details and SSNs for 214 employees: notification and credit monitoring' },
+  },
+  perfectWhy: 'Spot on: 38 failures, then a success from a Tor exit node, then payroll files read. Contained before lunch.',
+  notSubmittedWhy: `The 3 AM success came from a Tor exit node (${ATTACKER_IP}) and read payroll files. Nobody stopped it.`,
 };
+
+// The SIEM alerts. `trigger` decides when each fires (see OfficeScene.checkAlerts).
+export const ALERTS = [
+  {
+    id: 'bruteforce-jalvarez',
+    main: true,
+    title: 'Multiple failed logons followed by a success',
+    severity: 'High',
+    rule: 'More than 20 failed logons (4625) for one account within 5 minutes, followed by a successful logon (4624) from the same source.',
+    fields: [
+      ['Account', 'j.alvarez'],
+      ['Source IP', ATTACKER_IP],
+      ['Host', 'dc01 (via VPN01)'],
+      ['Failed logons', '38'],
+      ['Window', '03:12:07 to 03:14:52'],
+    ],
+    trigger: { after: 'inbox', delayMs: 2500, fallbackAt: 9 * 60 + 40 },
+    notice: '🚨 SIEM alert (High): failed logons, then a success',
+    chat: [
+      'Ping! The SIEM just fired a High alert: a pile of failed logons, then a success.',
+      'Go to the SOC console in the server room and tell me what happened.',
+      'Search the logs, flag (⚑) your evidence, then write up the case for me.',
+    ],
+    case: CASE,
+  },
+  {
+    id: 'analyst01-foreign',
+    title: 'Logon from a new country for analyst01',
+    severity: 'High',
+    rule: 'First successful logon for this account from a country never seen before.',
+    fields: [
+      ['Account', "analyst01 (that's you)"],
+      ['Source IP', PHISH_IP],
+      ['Country', 'Russia'],
+    ],
+    callout: 'That is your account, logging in from Russia, a few minutes after you typed your password into that "IT Support" page. Report it to Priya right away (she has been notified) and change your password.',
+    trigger: { when: (st) => st.phishedAt() != null && st.minutes >= st.phishedAt() + 3 },
+    notice: '🚨 SIEM alert: logon from a new country (analyst01)',
+    chat: [
+      'Hey. The SIEM says YOUR account just logged in through the VPN from Russia.',
+      'Did you type your password into something this morning? That "IT Support" email, maybe?',
+      "I'm resetting your password now. Check the SOC console when you can.",
+    ],
+  },
+];
