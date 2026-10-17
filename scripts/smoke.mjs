@@ -356,6 +356,12 @@ await page.waitForTimeout(4800);
 check('Play again: the phone still rings on day two', await page.evaluate(() => window.__game.scene.getScene('Office').state.enc.phone?.ringingAt != null));
 check('only one set of computer screens exists after a restart', (await page.locator('#screen-workstation').count()) === 1 && (await page.locator('#screen-soc').count()) === 1);
 
+// Sound: the engine initializes and the mute toggle works.
+{
+  const r = await page.evaluate(() => { const s = window.__sound; s.resume(); s.play('click'); const was = s.muted; const o = window.__game.scene.getScene('Office'); o.toggleMute(); const m = s.muted; o.toggleMute(); return { ctx: !!s.ctx, toggled: m !== was, label: o.muteBtn.text }; });
+  check('sound engine starts and mute toggles', r.ctx && r.toggled && /Sound/.test(r.label), JSON.stringify(r));
+}
+
 check('no console errors', errors.length === 0, errors.join(' | '));
 const failed = results.filter((r) => !r.ok).length;
 console.log(failed ? `SMOKE FAIL (${failed} of ${results.length})` : `SMOKE PASS (${results.length} checks)`);

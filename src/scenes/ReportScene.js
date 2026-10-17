@@ -129,6 +129,10 @@ export class ReportScene extends Phaser.Scene {
       this.scale.off('resize', layout);
       root.remove();
     });
+    const sound = this.game.registry.get('sound');
+    sound?.resume();
+    sound?.play(r.grade === 'A' || r.grade === 'B' ? 'chime' : 'back');
+    root.addEventListener('pointerdown', (e) => { if (e.target.closest('button, a')) sound?.play('click'); });
     this.input.keyboard.enabled = false;
     this.input.keyboard.disableGlobalCapture();
   }

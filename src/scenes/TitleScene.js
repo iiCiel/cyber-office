@@ -26,6 +26,8 @@ export class TitleScene extends Phaser.Scene {
     const go = (resume) => {
       if (started) return;
       started = true;
+      this.game.registry.get('sound')?.resume();
+      this.game.registry.get('sound')?.play('select');
       this.cameras.main.fadeOut(250, 18, 18, 28);
       this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Office', { resume }));
     };

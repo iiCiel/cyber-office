@@ -77,6 +77,8 @@ export class DialogBox {
       callback: () => {
         i++;
         this.bodyText.setText(full.slice(0, i));
+        // A soft blip every few characters, skipping spaces, like old-school text boxes.
+        if (full[i - 1] && full[i - 1] !== ' ' && i % 3 === 0) this.scene.sound?.play('blip');
         if (i >= full.length) this.finishLine();
       },
     });
@@ -89,6 +91,7 @@ export class DialogBox {
 
   showChoices() {
     if (this.choosing) return;
+    this.scene.sound?.play('blip');
     this.choosing = true;
     this.hint.setVisible(false);
     for (const t of this.choiceItems) {
@@ -128,6 +131,7 @@ export class DialogBox {
 
   pick(i) {
     if (!this.choosing) return;
+    this.scene.sound?.play('select');
     const choice = this.choices[i];
     this.choosing = false;
     this.choices = null;

@@ -230,9 +230,13 @@ for (let day = 1; day <= 5; day++) {
 
   // Debrief with Priya -> report.
   await drain();
-  await teleUse(136, 104);
-  const d = await drain();
-  await page.waitForFunction(() => window.__game.scene.isActive('Report'), null, { timeout: 10000 }).catch(() => {});
+  // Debrief can be briefly gated by an NPC walking home; retry the Priya interaction a couple of times.
+  for (let i = 0; i < 4 && !(await page.evaluate(() => window.__game.scene.isActive('Report'))); i++) {
+    await drain();
+    await teleUse(136, 104);
+    await drain();
+    await page.waitForFunction(() => window.__game.scene.isActive('Report'), null, { timeout: 6000 }).catch(() => {});
+  }
   await page.waitForTimeout(500);
   check(`day ${day}: report card shown`, await vis('#report'));
   const grade = await page.getAttribute('#report .grade', 'data-grade').catch(() => null);

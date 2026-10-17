@@ -61,6 +61,7 @@ export class OfficeScene extends Phaser.Scene {
     this.npcs = {};
     this.crisisFx = null;
 
+    this.sound = this.game.registry.get('sound');
     this.buildMap();
     this.buildObjects();
     this.buildCast();
@@ -286,7 +287,27 @@ export class OfficeScene extends Phaser.Scene {
     this.marker.setStrokeStyle(1, 0x1b1b2a);
     this.clickRing = this.world(this.add.circle(0, 0, 3).setStrokeStyle(1, 0xe8c547).setDepth(-500).setVisible(false));
 
+    // Mute toggle (top-right, under the notification), plus the M key.
+    this.muteBtn = this.ui(
+      this.add
+        .text(VIEW_W - 16, VIEW_H - 40, '', { fontFamily: FONT, fontSize: '20px', color: '#9aa3b8', backgroundColor: '#12121caa', padding: { x: 8, y: 4 } })
+        .setOrigin(1, 1)
+        .setDepth(40)
+        .setInteractive({ useHandCursor: true })
+        .on('pointerdown', () => this.toggleMute()),
+    );
+    this.refreshMute();
+
     this.updateObjective();
+  }
+
+  toggleMute() {
+    this.sound?.toggleMute();
+    this.refreshMute();
+  }
+
+  refreshMute() {
+    if (this.muteBtn) this.muteBtn.setText(this.sound?.muted ? '🔇 Sound off (M)' : '🔊 Sound on (M)');
   }
 
   tickMinute() {
@@ -300,7 +321,7 @@ export class OfficeScene extends Phaser.Scene {
       // Pick the latest by arrival time, not array order, so an out-of-order emails list still names the right sender.
       const newest = delivered.reduce((a, b) => (b.at >= a.at ? b : a));
       this.knownMail = delivered.length;
-      if (!this.computer.isOpen) this.notify(`✉ New email from ${newest.from.name}`);
+      if (!this.computer.isOpen) { this.notify(`✉ New email from ${newest.from.name}`); this.sound?.play('mail'); }
       this.onStateChanged();
     }
     this.state.save();
@@ -369,6 +390,7 @@ export class OfficeScene extends Phaser.Scene {
     if (this.state.soc.alerts[a.id] != null) return;
     this.state.soc.alerts[a.id] = this.minutes;
     this.state.log('alert-fired', { id: a.id });
+    this.sound?.play(a.main && this.day.crisis ? 'crisis' : 'alert');
     this.notify(a.notice || `🚨 SIEM alert: ${a.title}`);
     if (a.chat) this.say(a.chatFrom || 'Priya (chat)', a.chat);
     if (a.main && this.day.crisis) this.startCrisis();
@@ -393,6 +415,7 @@ export class OfficeScene extends Phaser.Scene {
       this.state.enc[enc.id] = { ringingAt: this.minutes };
       this.state.log('phone-ringing', { id: enc.id });
       this.notify(enc.notice || '☎ Your desk phone is ringing');
+      this.sound?.play('phone');
       this.showRinging(true);
     } else {
       this.state.enc[enc.id] = { started: true };
@@ -551,6 +574,7 @@ export class OfficeScene extends Phaser.Scene {
     this.complete('server-door'); // you were obviously in there
     const caseObj = this.day.objectives.find((o) => o.type === 'case');
     if (caseObj) this.complete(caseObj.id);
+    this.sound?.play('success');
     this.notify('✔ Case sent to Priya');
     if (this.state.crisis && !this.state.crisis.stopped) {
       const main = this.day.alerts.find((a) => a.main);
@@ -580,6 +604,7 @@ export class OfficeScene extends Phaser.Scene {
     c.stopped = true;
     c.contained = contained;
     c.filesAtStop = this.crisisFiles();
+    this.sound?.play(contained ? 'success' : 'error');
     this.state.log('crisis-stopped', { contained, files: c.filesAtStop });
     if (this.crisisFx) {
       this.tweens.killTweensOf(this.crisisFx);
@@ -682,6 +707,7 @@ export class OfficeScene extends Phaser.Scene {
 
   complete(id) {
     if (this.isDone(id) || !this.objective(id)) return;
+    this.sound?.play('chime');
     this.state.visited.push(id);
     this.state.log('objective', { id });
     this.updateObjective();
@@ -689,7 +715,8 @@ export class OfficeScene extends Phaser.Scene {
 
   // ---------- input ----------
   buildInput() {
-    this.keys = this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,E,SPACE,ENTER,ESC');
+    this.keys = this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,E,SPACE,ENTER,ESC,M');
+    this.keys.M.on('down', () => this.toggleMute());
     const act = () => {
       if (this.overlayOpen() || this.ending) return;
       if (this.dialog.isOpen) this.dialog.advance();
@@ -825,6 +852,7 @@ export class OfficeScene extends Phaser.Scene {
   useBadge(t) {
     if (!this.state.flags.badgeActive) {
       this.flashDoorLight(0xff4f4f);
+      this.sound?.play('denied');
       this.dialog.open(t.name, t.locked);
       return;
     }
@@ -833,6 +861,7 @@ export class OfficeScene extends Phaser.Scene {
       return;
     }
     this.flashDoorLight(0x3fe07a);
+    this.sound?.play('door');
     this.setServerDoor(true);
     this.dialog.open(t.name, t.opened, () => this.complete(t.id));
   }
@@ -946,6 +975,7 @@ export class OfficeScene extends Phaser.Scene {
       const dir = this.facing === 'left' || this.facing === 'right' ? 'side' : this.facing;
       p.setFlipX(this.facing === 'left');
       p.anims.play(`player-walk-${dir}`, true);
+      this.sound?.step(this.time.now);
     } else {
       p.setVelocity(0);
       if (p.anims.isPlaying) {

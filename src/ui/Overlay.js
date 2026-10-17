@@ -37,6 +37,10 @@ export class Overlay {
     this.root.style.width = `${this.sw}px`;
     this.root.style.height = `${this.sh}px`;
     document.body.append(this.root);
+    // A soft click for any button pressed inside an HTML screen.
+    this.root.addEventListener('pointerdown', (e) => {
+      if (e.target.closest('button, .item, .folder, .topt, .titem, .icon, .tab, .link, .pivot, .attachment, .qr')) this.scene.sound?.play('click');
+    });
     this.layout = () => {
       const r = scene.game.canvas.getBoundingClientRect();
       const k = r.width / VIEW_W;
@@ -64,6 +68,7 @@ export class Overlay {
   open(onClose) {
     this.onClose = onClose;
     this.isOpen = true;
+    this.scene.sound?.play('select');
     this.c.setVisible(true);
     this.layout();
     this.root.classList.add('open');
@@ -78,6 +83,7 @@ export class Overlay {
   close() {
     if (!this.isOpen) return;
     this.isOpen = false;
+    this.scene.sound?.play('back');
     this.c.setVisible(false);
     this.root.classList.remove('open');
     const kb = this.scene.input.keyboard;
