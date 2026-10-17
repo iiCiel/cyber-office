@@ -28,7 +28,7 @@ Day 1 vertical slice COMPLETE and live: https://iiciel.github.io/cyber-office/ .
 - [x] M6 Priya debrief reveals consequences; report card (grade, per-item what/why/cost, total cost, skills with Security+ SY0-701 objectives, Day 2 teaser, Play again). One outright miss caps A at B
 - [x] Days 2-5: full week vertical slice (done Oct 17, 2026). Refactored into a data-driven day engine (src/days/dayN). Tue: MFA fatigue + macro invoice + QR phish + tickets. Wed: SQL injection on the portal, investigated in SIEM + Terminal (real shell: grep/awk/sort/whois). Thu: vendor BEC + svc_backup data theft + failing backups. Fri: ransomware finale with a live damage counter; the week's backup choices decide one of 3 endings. Choices carry across days; report chains day-to-day + a week summary. Security note: attack payloads are redacted in-game.
 - [ ] M7 Playtest with 2-3 people (needs Soliman to pick testers)
-- [x] Polish pass (Oct 17, 2026): procedural sound (Web Audio, mute + M key), pause menu (P/Esc/button: resume, restart day, quit, how-to-play), in-game security glossary (22 terms mapped to Security+), screen shake + red flash on alerts/crisis, mobile rotate hint + touch viewport.
+- [x] Polish pass (Oct 17, 2026): procedural sound (Web Audio, mute + M key), pause menu (P/Esc/button: resume, restart day, quit, how-to-play), in-game security glossary (22 terms mapped to Security+), screen shake + red flash on alerts/crisis, mobile rotate hint + touch viewport, and a polished title screen (glowing logo, matrix rain, a returning-player week timeline with grades, GitHub link).
 - [ ] Later: original art, a pixel font, music, more weeks, difficulty settings, real-device mobile testing
 
 ### Code map (D:\Projects\cyber-office)
