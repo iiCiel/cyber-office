@@ -297,7 +297,8 @@ export class OfficeScene extends Phaser.Scene {
     this.checkTriggers();
     const delivered = deliveredEmails(this.day, this.minutes);
     if (delivered.length > this.knownMail) {
-      const newest = delivered[delivered.length - 1];
+      // Pick the latest by arrival time, not array order, so an out-of-order emails list still names the right sender.
+      const newest = delivered.reduce((a, b) => (b.at >= a.at ? b : a));
       this.knownMail = delivered.length;
       if (!this.computer.isOpen) this.notify(`✉ New email from ${newest.from.name}`);
       this.onStateChanged();
