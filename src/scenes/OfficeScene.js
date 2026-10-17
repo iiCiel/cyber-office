@@ -231,6 +231,7 @@ export class OfficeScene extends Phaser.Scene {
     this.minutes++;
     this.state.minutes = this.minutes;
     this.updateClock();
+    this.checkAlerts();
     const delivered = deliveredEmails(this.minutes);
     if (delivered.length > this.knownMail) {
       const newest = delivered[delivered.length - 1];
@@ -255,6 +256,65 @@ export class OfficeScene extends Phaser.Scene {
   onStateChanged() {
     if (!this.isDone('inbox') && this.isDone('my-desk') && this.inboxProgress().done) this.complete('inbox');
     this.updateObjective();
+    this.checkAlerts();
+  }
+
+  // ---------- SIEM alerts (M4) ----------
+  checkAlerts() {
+    const soc = this.state.soc;
+    // The main alert fires a few seconds after you finish your email (and step away), or at 9:40 regardless.
+    if (soc.alertAt == null && !this.alertTimer) {
+      const ready = this.isDone('inbox') && !this.computer?.isOpen;
+      if (ready || this.minutes >= 9 * 60 + 40) {
+        this.alertTimer = this.time.delayedCall(ready ? 2500 : 0, () => this.fireAlert());
+      }
+    }
+    // Consequence: your stolen password gets used a few minutes after you typed it into the phishing page.
+    const phished = this.state.phishedAt();
+    if (phished != null && soc.stolenAlertAt == null && this.minutes >= phished + 3) {
+      soc.stolenAlertAt = this.minutes;
+      this.state.log('alert-fired', { id: 'analyst01-foreign' });
+      this.notify('🚨 SIEM alert: logon from a new country (analyst01)');
+      this.say('Priya (chat)', [
+        'Hey. The SIEM says YOUR account just logged in through the VPN from Russia.',
+        'Did you type your password into something this morning? That "IT Support" email, maybe?',
+        "I'm resetting your password now. Check the SOC console when you can.",
+      ]);
+      this.soc?.isOpen && this.soc.render();
+    }
+  }
+
+  fireAlert() {
+    this.alertTimer = null;
+    if (this.state.soc.alertAt != null) return;
+    this.state.soc.alertAt = this.minutes;
+    this.state.log('alert-fired', { id: 'bruteforce-jalvarez' });
+    this.notify('🚨 SIEM alert (High): failed logons, then a success');
+    this.say('Priya (chat)', [
+      'Ping! The SIEM just fired a High alert: a pile of failed logons, then a success.',
+      'Go to the SOC console in the server room and tell me what happened.',
+      'Search the logs, flag (⚑) your evidence, then write up the case for me.',
+    ]);
+    if (this.soc?.isOpen) this.soc.render();
+    this.updateObjective();
+  }
+
+  onCaseSubmitted() {
+    this.complete('soc');
+    this.notify('✔ Case sent to Priya');
+  }
+
+  // Show a dialog now, or as soon as the player isn't busy.
+  say(name, lines) {
+    if (this.busy()) this.queuedDialog = { name, lines };
+    else this.dialog.open(name, lines);
+  }
+
+  flushQueuedDialog() {
+    if (!this.queuedDialog || this.busy()) return;
+    const { name, lines } = this.queuedDialog;
+    this.queuedDialog = null;
+    this.dialog.open(name, lines);
   }
 
   inboxProgress() {
@@ -428,10 +488,11 @@ export class OfficeScene extends Phaser.Scene {
         this.facing = 'up';
         this.player.anims.stop();
         this.player.setFrame('up-idle').setFlipX(false);
-        this.complete(t.id);
+        if (t.kind === 'desk') this.complete(t.id); // the SOC objective completes when you submit the case
         overlay.open(() => {
           this.seated = false;
           this.onStateChanged();
+          this.flushQueuedDialog();
         });
       },
     });
@@ -521,6 +582,8 @@ export class OfficeScene extends Phaser.Scene {
     const p = this.player;
     let vx = 0;
     let vy = 0;
+
+    if (this.queuedDialog && !this.busy() && !this.seated) this.flushQueuedDialog();
 
     if (!this.busy() && !this.seated) {
       const k = this.keys;

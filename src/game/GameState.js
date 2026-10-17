@@ -14,6 +14,14 @@ export class GameState {
     this.mail = {}; // emailId -> { read, reported, deleted, replied, clicked: [linkIds], enteredCreds, sentGiftCards }
     this.events = []; // { t: gameMinutes, type, ...details } in order, for the report and consequences
     this.minutes = null;
+    this.soc = { alertAt: null, flagged: [], caseFile: null }; // alertAt: in-game minute the alert fired
+    this.phone = null; // M5: the helpdesk call
+    this.dayOver = false;
+  }
+
+  /** In-game minute the player typed their password into the phishing page, or null. */
+  phishedAt() {
+    return this.events.find((e) => e.type === 'creds-entered')?.t ?? null;
   }
 
   mailState(id) {
@@ -32,8 +40,8 @@ export class GameState {
 
   save() {
     try {
-      const { visited, flags, mail, events, minutes } = this;
-      localStorage.setItem(KEY, JSON.stringify({ visited, flags, mail, events, minutes }));
+      const { visited, flags, mail, events, minutes, soc, phone, dayOver } = this;
+      localStorage.setItem(KEY, JSON.stringify({ visited, flags, mail, events, minutes, soc, phone, dayOver }));
     } catch {
       // Private mode or storage full: the game still works, it just won't survive a refresh.
     }
@@ -51,6 +59,10 @@ export class GameState {
       this.mail = d.mail && typeof d.mail === 'object' ? d.mail : {};
       this.events = Array.isArray(d.events) ? d.events : [];
       this.minutes = typeof d.minutes === 'number' ? d.minutes : null;
+      this.soc = { ...this.soc, ...(d.soc || {}) };
+      if (!Array.isArray(this.soc.flagged)) this.soc.flagged = [];
+      this.phone = d.phone && typeof d.phone === 'object' ? d.phone : null;
+      this.dayOver = !!d.dayOver;
       return true;
     } catch {
       return false;

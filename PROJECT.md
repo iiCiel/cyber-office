@@ -43,7 +43,7 @@ Each scenario is one JSON data file (emails, log lines, NPC lines, right calls, 
 - [x] M1: Phaser + Vite project, deployed to GitHub Pages, a walkable room (Oct 16, 2026)
 - [x] M2: Tiled office map, movement + collisions, desk/server room interactions (Oct 16, 2026). 6 rooms, camera follow, A* click-to-walk, Priya activates badge, badge-locked server door that closes behind you, desk computer screen, SOC console with live log tail, objectives (priya -> my-desk -> server-door -> soc) with on-map arrow
 - [x] M3: Mail client with the 5 Day 1 emails, link hover and headers (done Oct 16, 2026). HTML apps inside the Phaser monitor; Report/Delete/Reply/View headers + Explain; in-game browser with a fake sign-in page; choices saved to localStorage; Continue/New day on the title
-- [ ] M4: Log viewer with the Day 1 alert (turn src/ui/SocScreen.js into the real viewer)
+- [x] M4: Log viewer with the Day 1 alert (done Oct 16, 2026). SIEM in the server room: alert detail with pivots, IP lookup, log search (AND terms, -exclude, source filter), flag evidence, raw Windows events, case write-up (verdict + evidence + response). 3 AM brute force on j.alvarez via VPN from a Tor exit, success, payroll file reads. Typing your password into the phish triggers a second alert on YOUR account
 - [ ] M5: Coworker NPC and the social-engineering request
 - [ ] M6: Consequences and the end-of-day report card
 - [ ] M7: Playtest with 2-3 friends, fix what's confusing
