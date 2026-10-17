@@ -91,7 +91,10 @@ export class DialogBox {
     if (this.choosing) return;
     this.choosing = true;
     this.hint.setVisible(false);
-    for (const t of this.choiceItems) t.destroy();
+    for (const t of this.choiceItems) {
+      if (this.scene.uiLayer) this.scene.uiLayer = this.scene.uiLayer.filter((o) => o !== t);
+      t.destroy();
+    }
     this.choiceItems = this.choices.map((c, i) => {
       const t = this.scene.add
         .text(0, 0, `${i + 1}. ${c.text}`, {

@@ -38,6 +38,17 @@ export class OfficeScene extends Phaser.Scene {
     this.flags = { serverOpen: false }; // scene-only; everything that matters lives in this.state
     this.path = null;
     this.pending = null;
+    // Phaser reuses this scene object on "Play again", so reset every per-day field here.
+    this.ending = false;
+    this.seated = false;
+    this.phoneTimer = null;
+    this.alertTimer = null;
+    this.ringIcon = null;
+    this.dialogQueue = [];
+    this.danaPending = false;
+    this.nearest = null;
+    this.markerTarget = null;
+    this.npcInfo = {};
 
     this.buildMap();
     this.buildObjects();
@@ -59,6 +70,7 @@ export class OfficeScene extends Phaser.Scene {
       return;
     }
     if (this.resume) {
+      if (this.state.phone && !this.state.phone.done) this.state.phone.answered = false; // a call can't survive a reload
       this.checkPhone();
       if (this.state.phone?.done && !this.state.usb?.done) this.danaPending = true;
     }
@@ -246,6 +258,7 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   tickMinute() {
+    if (this.ending) return;
     this.minutes++;
     this.state.minutes = this.minutes;
     this.updateClock();
@@ -299,7 +312,7 @@ export class OfficeScene extends Phaser.Scene {
         'Did you type your password into something this morning? That "IT Support" email, maybe?',
         "I'm resetting your password now. Check the SOC console when you can.",
       ]);
-      this.soc?.isOpen && this.soc.render();
+      this.soc?.isOpen && this.soc.onAlertsChanged();
     }
   }
 
@@ -314,7 +327,7 @@ export class OfficeScene extends Phaser.Scene {
       'Go to the SOC console in the server room and tell me what happened.',
       'Search the logs, flag (⚑) your evidence, then write up the case for me.',
     ]);
-    if (this.soc?.isOpen) this.soc.render();
+    if (this.soc?.isOpen) this.soc.onAlertsChanged();
     this.updateObjective();
   }
 
@@ -340,6 +353,7 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   onCaseSubmitted() {
+    this.complete('server-door'); // you were obviously in there
     this.complete('soc');
     this.notify('✔ Case sent to Priya');
     this.checkPhone();
@@ -395,7 +409,7 @@ export class OfficeScene extends Phaser.Scene {
     this.walkNpc('dana', tx, ty, () => {
       this.faceNpcToPlayer('dana');
       const go = () => {
-        if (this.busy()) return this.time.delayedCall(300, go);
+        if (this.busy() || this.seated) return this.time.delayedCall(300, go);
         this.runConversation('usb', USB_DROP, (result) => {
           this.state.usb = { ...result, done: true };
           this.state.log('usb-drop', { outcome: result.outcome });
@@ -480,14 +494,13 @@ export class OfficeScene extends Phaser.Scene {
 
   // Show a dialog now, or as soon as the player isn't busy.
   say(name, lines) {
-    if (this.busy()) this.queuedDialog = { name, lines };
+    if (this.busy() || this.dialogQueue.length) this.dialogQueue.push({ name, lines });
     else this.dialog.open(name, lines);
   }
 
   flushQueuedDialog() {
-    if (!this.queuedDialog || this.busy()) return;
-    const { name, lines } = this.queuedDialog;
-    this.queuedDialog = null;
+    if (!this.dialogQueue.length || this.busy()) return;
+    const { name, lines } = this.dialogQueue.shift();
     this.dialog.open(name, lines);
   }
 
@@ -540,7 +553,7 @@ export class OfficeScene extends Phaser.Scene {
   buildInput() {
     this.keys = this.input.keyboard.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,E,SPACE,ENTER,ESC');
     const act = () => {
-      if (this.overlayOpen()) return;
+      if (this.overlayOpen() || this.ending) return;
       if (this.dialog.isOpen) this.dialog.advance();
       else this.tryInteract();
     };
@@ -554,7 +567,7 @@ export class OfficeScene extends Phaser.Scene {
 
     this.input.on('pointerdown', (pointer, over) => {
       // Clicks on UI buttons (or while sitting down / looking at a screen) never walk the player.
-      if (this.overlayOpen() || this.seated || over.length) return;
+      if (this.overlayOpen() || this.seated || this.ending || over.length) return;
       if (this.dialog.isOpen) return this.dialog.advance();
       const wp = this.cameras.main.getWorldPoint(pointer.x, pointer.y);
       const hit = this.interactableAt(wp.x, wp.y);
@@ -628,7 +641,8 @@ export class OfficeScene extends Phaser.Scene {
     this.player.setVelocity(0);
     if (t.kind === 'npc' && this.npcInfo?.[t.id]?.walking) return;
 
-    if (t.id === 'priya' && this.currentObjective()?.id === 'debrief') return this.debrief();
+    // The debrief is open once the day's events are done, even if some earlier step got skipped.
+    if (t.id === 'priya' && this.isDone('usb') && !this.isDone('debrief')) return this.debrief();
 
     if (t.kind === 'npc') {
       const dx = this.player.x - t.px;
@@ -764,7 +778,7 @@ export class OfficeScene extends Phaser.Scene {
     let vx = 0;
     let vy = 0;
 
-    if (this.queuedDialog && !this.busy() && !this.seated) this.flushQueuedDialog();
+    if (this.dialogQueue.length && !this.busy() && !this.seated && !this.ending) this.flushQueuedDialog();
     if (this.danaPending && !this.busy() && !this.seated) this.startDanaWalkUp();
 
     if (!this.busy() && !this.seated && !this.ending) {

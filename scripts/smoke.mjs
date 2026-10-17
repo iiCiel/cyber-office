@@ -340,6 +340,22 @@ await page.waitForFunction(() => window.__game.scene.isActive('Title'));
 await page.waitForTimeout(300);
 check('Play again clears the save and returns to the title', !(await page.evaluate(() => localStorage.getItem('cyber-office:day1:v1'))) && !(await visible('#report')));
 
+// A second day after "Play again" must work too (the scene object is reused by Phaser).
+await page.keyboard.press('Enter');
+await page.waitForFunction(() => window.__game.scene.isActive('Office'));
+await page.waitForTimeout(1000);
+await closeDialog();
+const y0 = (await state()).y;
+await page.keyboard.down('ArrowUp');
+await page.waitForTimeout(600);
+await page.keyboard.up('ArrowUp');
+const y1 = (await state()).y;
+check('Play again: the new day starts fresh and you can move', y1 < y0 - 10 && (await state()).visited.length === 0, `${y0} -> ${y1}`);
+await page.evaluate(() => window.__game.scene.getScene('Office').onCaseSubmitted());
+await page.waitForTimeout(4800);
+check('Play again: the phone still rings on day two', await page.evaluate(() => window.__game.scene.getScene('Office').state.phone?.ringingAt != null));
+check('only one set of computer screens exists after a restart', (await page.locator('#screen-workstation').count()) === 1 && (await page.locator('#screen-soc').count()) === 1);
+
 check('no console errors', errors.length === 0, errors.join(' | '));
 const failed = results.filter((r) => !r.ok).length;
 console.log(failed ? `SMOKE FAIL (${failed} of ${results.length})` : `SMOKE PASS (${results.length} checks)`);

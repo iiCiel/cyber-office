@@ -109,6 +109,7 @@ export class ReportScene extends Phaser.Scene {
     this.scale.on('resize', layout);
     this.events.once('shutdown', () => {
       window.removeEventListener('resize', layout);
+      this.scale.off('resize', layout);
       root.remove();
     });
     this.input.keyboard.enabled = false;

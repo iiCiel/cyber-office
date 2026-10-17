@@ -46,6 +46,7 @@ export class MailApp {
 
   // Called every second while the mail window is open; shows new arrivals.
   tick() {
+    if (this.view === 'compose') return; // don't rebuild the page (and lose the draft) while typing
     const fresh = deliveredEmails(this.minutes()).filter((e) => !this.known.has(e.id));
     if (!fresh.length) return;
     for (const e of fresh) this.known.add(e.id);

@@ -98,6 +98,7 @@ export class Overlay {
 
   destroy() {
     window.removeEventListener('resize', this.layout);
+    this.scene.scale.off('resize', this.layout);
     document.removeEventListener('keydown', this.onKey);
     this.root.remove();
   }

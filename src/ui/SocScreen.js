@@ -36,11 +36,17 @@ export class SocScreen extends Overlay {
     return this.scene.state;
   }
 
+  // Each alert shows up on its own schedule (the stolen-password one can come first).
   alerts() {
-    if (this.st.soc.alertAt == null) return [];
-    const list = [ALERT];
-    if (this.st.soc.stolenAlertAt != null) list.unshift(ALERT_STOLEN);
+    const list = [];
+    if (this.st.soc.stolenAlertAt != null) list.push(ALERT_STOLEN);
+    if (this.st.soc.alertAt != null) list.push(ALERT);
     return list;
+  }
+
+  // A new alert fired while the console is open: refresh the overview, but never wipe a half-filled form.
+  onAlertsChanged() {
+    if (this.view === 'overview') this.render();
   }
 
   logs() {

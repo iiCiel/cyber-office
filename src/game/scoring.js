@@ -31,7 +31,7 @@ function scoreEmail(e, ms = {}) {
   }
   // Legit email
   if (ms.reported) {
-    return { ...base, outcome: 'ok', points: 5, what: 'You reported it as phishing.', why: `False alarm. ${e.verdictNote} False positives cost the SOC time, and people stop trusting real emails.` };
+    return { ...base, outcome: 'ok', points: 5, what: 'You reported it as phishing.', why: `False alarm: this one was real. ${e.verdictNote.replace(/^Real\. /, '')} False positives cost the SOC time, and people stop trusting real emails.` };
   }
   if (ms.replied && e.id === 'it-reset') return { ...base, outcome: 'ok', points: 5, what: 'You replied.', why: e.verdictNote };
   return { ...base, outcome: ms.read ? 'good' : 'ok', points: ms.read ? 10 : 6, what: ms.read ? 'You read it and treated it as real.' : 'You never read it.', why: e.verdictNote };

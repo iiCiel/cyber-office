@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "smoke": "node scripts/smoke.mjs",
     "test": "node --test \"tests/**/*.test.js\"",
-    "tiles": "node scripts/make-tileset.mjs"
+    "tiles": "node scripts/make-tileset.mjs",
+    "smoke:bad": "node scripts/smoke-bad.mjs"
   },
   "dependencies": {
     "phaser": "3.90.0"
