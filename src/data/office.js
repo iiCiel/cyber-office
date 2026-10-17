@@ -26,6 +26,7 @@ export const GAME_DATE = { weekday: 'MON', month: 'Oct', day: 19, startMinutes: 
 export const OBJECTIVES = [
   { id: 'priya', text: 'Check in with Priya, your manager' },
   { id: 'my-desk', text: 'Sit down at your desk' },
+  { id: 'inbox', target: 'my-desk', text: 'Go through your email' },
   { id: 'server-door', text: 'Badge into the server room' },
   { id: 'soc', text: 'Check the SOC console' },
 ];
@@ -48,6 +49,7 @@ export const NPCS = {
       'Oh hey, you must be the new analyst!',
       "I'm Dana. Helpdesk. I reset about forty passwords a day.",
       'Your desk is the one with the bright blue screen. Middle row.',
+      'I set up your laptop at 6 this morning, so you might get a sign-in alert email. That was me.',
       'Server room is the metal door on the right. Badge reader is picky.',
     ],
     again: ['Forty-one passwords now. It is 9 AM.'],

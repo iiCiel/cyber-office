@@ -1,125 +1,187 @@
 import { Overlay } from './Overlay.js';
-import { FONT } from '../config.js';
+import { h, clear } from './dom.js';
+import { MailApp, unreadCount } from './apps/MailApp.js';
+import { renderBrowser } from './apps/Browser.js';
 
-// Your workstation: a tiny desktop with app icons. Apps are placeholders until M3 (Mail) and later.
-const APPS = [
-  {
-    id: 'mail',
-    label: 'Mail',
-    glyph: '✉',
-    title: 'Mail - analyst01@halcyonmutual.com',
-    body: () => [
-      'Inbox (0)',
-      '',
-      'Your mailbox is still syncing from the server.',
-      'IT says it should be ready "any minute now".',
-      '',
-      '(The mail client is the next update.)',
-    ],
-  },
-  {
-    id: 'notes',
-    label: 'welcome.txt',
-    glyph: '≡',
-    title: 'welcome.txt - Notepad',
-    body: (scene) => [
-      'Welcome to Halcyon Mutual!',
-      '',
-      'Day 1 checklist:',
-      ...scene.objectiveList().map((o) => `  [${o.done ? 'x' : ' '}] ${o.text}`),
-      '',
-      'Tip: never click a link before you hover it.',
-    ],
-  },
-  {
-    id: 'terminal',
-    label: 'Terminal',
-    glyph: '>_',
-    title: 'Terminal',
-    body: () => [
-      'analyst01@HALCYON-WS-0142:~$ _',
-      '',
-      'Access pending approval (ticket #4471).',
-      'Coming in a later update: whois, nslookup, grep.',
-    ],
-  },
-  {
-    id: 'tickets',
-    label: 'Tickets',
-    glyph: '#',
-    title: 'Helpdesk Tickets',
-    body: () => ['No tickets assigned to you yet.', '', 'Enjoy it. It will not last.'],
-  },
-];
-
+// Your workstation: a small desktop with apps. Mail is real (M3); Terminal and Tickets come later.
 export class ComputerScreen extends Overlay {
   constructor(scene) {
-    super(scene, { title: 'Workstation', screen: 0x1d4f5c });
-    const { sx, sy, sw, sh } = this;
-
-    this.text(sx + sw / 2, sy + sh / 2 - 30, 'HALCYON MUTUAL', { fontSize: '48px', color: '#2a6676', fontStyle: 'bold' }).setOrigin(0.5);
-    this.text(sx + sw / 2, sy + sh / 2 + 16, 'Protecting what matters', { fontSize: '18px', color: '#2a6676' }).setOrigin(0.5);
-
-    APPS.forEach((app, i) => {
-      const x = sx + 30;
-      const y = sy + 24 + i * 100;
-      const tile = this.rect(x, y, 64, 64, 0x12121c, 0.6).setInteractive({ useHandCursor: true });
-      tile.name = `app-${app.id}`;
-      this.text(x + 32, y + 32, app.glyph, { fontSize: '30px', color: '#e8c547' }).setOrigin(0.5);
-      this.text(x + 32, y + 70, app.label, { fontSize: '14px', color: '#f4f1e8' }).setOrigin(0.5, 0);
-      tile.on('pointerover', () => tile.setFillStyle(0x3fa7ff, 0.5));
-      tile.on('pointerout', () => tile.setFillStyle(0x12121c, 0.6));
-      tile.on('pointerdown', () => this.openApp(app));
+    super(scene, { name: 'workstation' });
+    this.mail = new MailApp({
+      state: scene.state,
+      minutes: () => scene.minutes,
+      openLink: (pageId, emailId) => this.openBrowser(pageId, emailId),
+      toast: (title, text) => this.toast(title, text),
+      changed: () => {
+        this.renderIcons();
+        scene.onStateChanged();
+      },
     });
 
-    // Taskbar
-    this.rect(sx, sy + sh - 34, sw, 34, 0x12121c, 0.95);
-    this.text(sx + 12, sy + sh - 27, '⊞ Start', { fontSize: '16px', color: '#9aa3b8' });
-    this.text(sx + 120, sy + sh - 27, '1-4 open apps', { fontSize: '14px', color: '#6c7590' });
-    this.clock = this.text(sx + sw - 12, sy + sh - 27, '', { fontSize: '16px', color: '#e6e6ea' }).setOrigin(1, 0);
-    this.text(sx + sw - 120, sy + sh - 27, 'analyst01', { fontSize: '16px', color: '#3fe07a' }).setOrigin(1, 0);
+    this.APPS = [
+      { id: 'mail', label: 'Mail', glyph: '✉', title: 'Mail - analyst01@halcyonmutual.com', size: 'max', render: () => (this.mail.render(), this.mail.el) },
+      {
+        id: 'notes',
+        label: 'welcome.txt',
+        glyph: '≡',
+        title: 'welcome.txt - Notepad',
+        size: 'small',
+        render: () =>
+          h(
+            'pre',
+            { class: 'notes-text mono' },
+            [
+              'Welcome to Halcyon Mutual!',
+              '',
+              'Day 1 checklist:',
+              ...scene.objectiveList().map((o) => `  [${o.done ? 'x' : ' '}] ${o.text}`),
+              '',
+              'Tip: never click a link before you hover it.',
+            ].join('\n'),
+          ),
+      },
+      {
+        id: 'terminal',
+        label: 'Terminal',
+        glyph: '>_',
+        title: 'Terminal',
+        size: 'small',
+        render: () =>
+          h('pre', { class: 'notes-text mono' }, 'analyst01@HALCYON-WS-0142:~$ _\n\nAccess pending approval (ticket #4471).\nComing later: whois, nslookup, grep.'),
+      },
+      {
+        id: 'tickets',
+        label: 'Tickets',
+        glyph: '#',
+        title: 'Helpdesk Tickets',
+        size: 'small',
+        render: () => h('pre', { class: 'notes-text' }, 'No tickets assigned to you yet.\n\nEnjoy it. It will not last.'),
+      },
+    ];
 
-    // App window (one at a time)
-    const wx = sx + 170;
-    const wy = sy + 50;
-    this.win = this.scene.add.container(0, 0).setVisible(false);
-    this.c.add(this.win);
-    const ww = sw - 240;
-    const wh = sh - 140;
-    const wbg = this.scene.add.rectangle(wx, wy, ww, wh, 0xf4f1e8).setOrigin(0).setStrokeStyle(2, 0x12121c);
-    const bar = this.scene.add.rectangle(wx, wy, ww, 32, 0x2b3f5c).setOrigin(0);
-    this.winTitle = this.scene.add.text(wx + 12, wy + 7, '', { fontFamily: FONT, fontSize: '16px', color: '#f4f1e8' });
-    const x = this.scene.add.text(wx + ww - 12, wy + 6, '✕', { fontSize: '18px', color: '#f4f1e8' })
-      .setOrigin(1, 0)
-      .setInteractive({ useHandCursor: true })
-      .on('pointerdown', () => this.win.setVisible(false));
-    this.winBody = this.scene.add.text(wx + 20, wy + 50, '', {
-      fontFamily: FONT, fontSize: '18px', color: '#1b1b2a', lineSpacing: 6,
-    });
-    this.win.add([wbg, bar, this.winTitle, x, this.winBody]);
-
-    this.keyHandler = (e) => {
-      if (!this.isOpen) return;
-      const n = Number(e.key);
-      if (n >= 1 && n <= APPS.length) this.openApp(APPS[n - 1]);
-    };
-    scene.input.keyboard.on('keydown', this.keyHandler);
+    this.icons = h('div', { class: 'icons' });
+    this.winHost = h('div');
+    this.browserHost = h('div');
+    this.toasts = h('div', { class: 'toasts', 'aria-live': 'polite' });
+    this.clock = h('span');
+    this.root.append(
+      h(
+        'div',
+        { class: 'desktop' },
+        h('div', { class: 'brand' }, 'HALCYON MUTUAL', h('small', {}, 'Protecting what matters')),
+        this.icons,
+        this.winHost,
+        this.browserHost,
+        this.toasts,
+        h(
+          'div',
+          { class: 'taskbar' },
+          h('span', {}, '⊞ Start'),
+          h('span', { class: 'hint' }, 'Keys 1-4 open apps · Esc goes back'),
+          h('span', { class: 'spacer' }),
+          h('span', { class: 'user' }, 'analyst01'),
+          this.clock,
+        ),
+      ),
+    );
+    this.renderIcons();
   }
 
-  openApp(app) {
-    this.openedApp = app.id;
-    this.winTitle.setText(app.title);
-    this.winBody.setText(app.body(this.scene).join('\n'));
-    this.win.setVisible(true);
+  renderIcons() {
+    const unread = unreadCount(this.scene.state, this.scene.minutes);
+    clear(this.icons).append(
+      ...this.APPS.map((app, i) =>
+        h(
+          'button',
+          { type: 'button', class: 'icon', 'data-app': app.id, title: `${app.label} (${i + 1})`, onclick: () => this.openApp(app.id) },
+          h('span', { class: 'glyph' }, app.glyph),
+          app.label,
+          app.id === 'mail' && unread ? h('span', { class: 'badge' }, unread) : null,
+        ),
+      ),
+    );
+  }
+
+  openApp(id) {
+    const app = this.APPS.find((a) => a.id === id);
+    if (!app) return;
+    this.openedApp = id;
+    this.closeBrowser();
+    clear(this.winHost).append(
+      h(
+        'div',
+        { class: `window ${app.size}`, 'data-window': id },
+        h(
+          'div',
+          { class: 'titlebar' },
+          h('span', { class: 'title' }, app.title),
+          h('button', { type: 'button', 'aria-label': 'Close window', 'data-action': 'close-window', onclick: () => this.closeApp() }, '✕'),
+        ),
+        h('div', { class: 'content' }, app.render()),
+      ),
+    );
+    if (id === 'mail') this.scene.state.log('mail-opened');
+  }
+
+  closeApp() {
+    this.openedApp = null;
+    clear(this.winHost);
+  }
+
+  openBrowser(pageId, emailId) {
+    const el = renderBrowser({ pageId, emailId, state: this.scene.state, onClose: () => this.closeBrowser() });
+    if (el) clear(this.browserHost).append(el);
+  }
+
+  closeBrowser() {
+    const had = !!this.browserHost.firstChild;
+    clear(this.browserHost);
+    if (had) this.scene.onStateChanged();
+    return had;
+  }
+
+  toast(title, text) {
+    const t = h('div', { class: 'toast' }, h('b', {}, title), text);
+    this.toasts.append(t);
+    setTimeout(() => t.remove(), 4500);
+  }
+
+  onKeyDown(e) {
+    if (e.target.matches?.('input, textarea')) return;
+    const n = Number(e.key);
+    if (n >= 1 && n <= this.APPS.length) this.openApp(this.APPS[n - 1].id);
+  }
+
+  tick() {
+    this.clock.textContent = this.scene.clockString();
+    const before = this.lastUnread;
+    this.lastUnread = unreadCount(this.scene.state, this.scene.minutes);
+    if (before !== undefined && this.lastUnread > before) {
+      this.toast('New email', 'You have new mail.');
+      this.renderIcons();
+    }
+    if (this.openedApp === 'mail') this.mail.tick();
   }
 
   onOpen() {
-    this.win.setVisible(false);
-    this.clock.setText(this.scene.clockString());
+    this.closeBrowser();
+    this.renderIcons();
+    this.lastUnread = undefined;
+    this.tick();
+    this.timer = setInterval(() => this.tick(), 1000);
+    // First time at the desk: open mail straight away, so new players see their inbox.
+    if (!this.scene.state.hasEvent('mail-opened')) this.openApp('mail');
+    else if (this.openedApp) this.openApp(this.openedApp);
+  }
+
+  onCloseInternal() {
+    clearInterval(this.timer);
   }
 
   back() {
-    if (this.win.visible) this.win.setVisible(false);
-    else this.close();
+    if (this.closeBrowser()) return;
+    if (this.openedApp === 'mail' && this.mail.back()) return;
+    if (this.openedApp) return this.closeApp();
+    this.close();
   }
 }

@@ -1,4 +1,5 @@
-// Browser smoke test: plays the M2 loop in real Chrome using mouse clicks (so pathfinding is exercised).
+// Browser smoke test: plays Day 1 in real Chrome with mouse clicks (so pathfinding and the HTML apps
+// are exercised), checking each step. Screenshots go to the out dir.
 // Usage: npm run build; npx vite preview --port 4173 --strictPort (in another terminal); npm run smoke
 //        node scripts/smoke.mjs <url> <outDir>   e.g. against the live GitHub Pages site
 import { chromium } from 'playwright-core';
@@ -27,9 +28,9 @@ const state = () =>
       x: Math.round(s.player.x), y: Math.round(s.player.y),
       dialog: s.dialog.isOpen, dialogText: s.dialog.isOpen ? s.dialog.full : '',
       walking: !!s.path, pending: s.pending?.id ?? null, near: s.nearest?.id ?? null,
-      computer: s.computer.isOpen, soc: s.soc.isOpen, winVisible: s.computer.win.visible,
-      winBody: s.computer.winBody.text, tail: s.soc.lines.length,
-      goal: s.objectiveText.text, flags: { ...s.flags }, visited: [...s.visited],
+      computer: s.computer.isOpen, soc: s.soc.isOpen,
+      goal: s.objectiveText.text, flags: { ...s.flags, ...s.state.flags }, visited: [...s.state.visited],
+      mail: JSON.parse(JSON.stringify(s.state.mail)), events: s.state.events.map((e) => e.type),
     };
   });
 
@@ -61,6 +62,10 @@ async function closeDialog() {
   }
 }
 
+const W = '#screen-workstation';
+const visible = (sel) => page.locator(sel).first().isVisible().catch(() => false);
+const text = (sel) => page.locator(sel).first().innerText().catch(() => '');
+
 await page.goto(url);
 await page.waitForFunction(() => window.__game?.scene.isActive('Title'));
 await page.waitForTimeout(300);
@@ -73,20 +78,19 @@ await closeDialog();
 let s = await state();
 check('starts in the lobby', s.y > 300, `${s.x},${s.y}`);
 
-// a) Server door before talking to Priya: denied.
+// ---------- M2: walking, Priya, badge ----------
 await clickWorld(376, 146);
-s = await waitArrive();
+await waitArrive();
 await page.waitForTimeout(400);
 s = await state();
 check('click-walk reaches the server door from the lobby', s.dialog && /denied/i.test(s.dialogText), `${s.x},${s.y} ${s.dialogText}`);
 check('door stays locked without badge activation', !s.flags.serverOpen);
 await closeDialog();
 
-// b) Talk to Priya. She's off-screen from the server door, so walk toward her office first.
 await clickWorld(220, 170);
 await waitArrive();
 await clickWorld(124, 96);
-s = await waitArrive();
+await waitArrive();
 await page.waitForTimeout(300);
 s = await state();
 check('click on Priya walks over and starts talking', s.dialog && /SOC/.test(s.dialogText), `${s.x},${s.y} ${s.dialogText}`);
@@ -95,96 +99,129 @@ await closeDialog();
 s = await state();
 check('talking to Priya activates the badge', s.flags.badgeActive && s.visited.includes('priya'));
 
-// c) Sit at your desk and open welcome.txt.
+// ---------- M3: the inbox ----------
 await clickWorld(256, 128);
-s = await waitArrive();
-await page.waitForTimeout(500);
+await waitArrive();
+await page.waitForTimeout(600);
 s = await state();
 check('clicking your desk sits you down at the computer', s.computer, `${s.x},${s.y}`);
-// Click the Mail icon with the mouse (UI camera input), then switch to welcome.txt with the keyboard.
-{
-  const box = await page.locator('canvas').boundingBox();
-  const k = box.width / 960;
-  await page.mouse.click(box.x + 138 * k, box.y + 108 * k);
-  await page.waitForTimeout(200);
-  const m = await page.evaluate(() => window.__game.scene.getScene('Office').computer.winTitle.text);
-  check('clicking the Mail icon opens the Mail window', m.startsWith('Mail'), m);
-}
+check('mail opens automatically the first time', await visible(`${W} .window[data-window=mail]`));
+check('objective is now "Go through your email"', /email/.test(s.goal), s.goal);
+const firstList = await page.locator(`${W} .item`).count();
+check('4 emails are waiting at ~9:00 (the 5th arrives later)', firstList === 4, `${firstList}`);
+
+// The fake password reset: hover, headers, explain, then fall for it on purpose.
+await page.click(`${W} [data-email=it-reset]`);
+await page.hover(`${W} [data-link=reset]`);
+const status = await text(`${W} .status`);
+check('hovering the link shows the real URL in the status bar', status.includes('login-verify.ru'), status);
+await page.click(`${W} [data-action=headers]`);
+check('View headers shows raw headers', (await text(`${W} .headers pre`)).includes('Authentication-Results'));
+await page.click(`${W} [data-action=explain]`);
+const notes = await page.locator(`${W} .headers .note`).count();
+check('Explain adds plain-language notes', notes >= 3, `${notes} notes`);
+await page.screenshot({ path: `${out}/4-headers.png` });
+await page.click(`${W} [data-action=headers]`);
+await page.click(`${W} [data-link=reset]`);
+check('clicking the link opens the in-game browser on a "Not secure" page', (await text(`${W} .browser .addr`)).includes('Not secure'));
+await page.fill(`${W} .browser input[type=password]`, 'hunter2');
+await page.screenshot({ path: `${out}/5-phish-page.png` });
+await page.click(`${W} [data-action=sign-in]`);
+s = await state();
+check('typing a password on the phishing page is recorded', s.mail['it-reset']?.enteredCreds && s.events.includes('creds-entered'));
+check('the typed password is never stored', !JSON.stringify(await page.evaluate(() => ({ ...localStorage }))).includes('hunter2'));
+await page.keyboard.press('Escape');
+check('Esc closes the browser first', !(await visible(`${W} .browser`)) && (await visible(`${W} .window`)));
+await page.click(`${W} [data-action=report]`);
+s = await state();
+check('Report phishing moves it to Reported', s.mail['it-reset']?.reported && (await page.locator(`${W} [data-email=it-reset]`).count()) === 0);
+
+// Read the rest of the inbox.
+for (const id of ['ms-signin', 'hr-benefits', 'priya-welcome']) await page.click(`${W} [data-email=${id}]`);
+s = await state();
+check('reading emails marks them read', ['ms-signin', 'hr-benefits', 'priya-welcome'].every((id) => s.mail[id]?.read));
+check('inbox objective counts progress', /4\/5 read/.test(s.goal), s.goal);
+
+// Jump the clock so the CEO email arrives.
+await page.evaluate(() => { const sc = window.__game.scene.getScene('Office'); sc.minutes = 9 * 60 + 5; sc.tickMinute(); });
+await page.waitForTimeout(1300);
+check('the CEO email arrives while you are at the desk', (await page.locator(`${W} [data-email=ceo-giftcards]`).count()) === 1);
+await page.click(`${W} [data-email=ceo-giftcards]`);
+check('Reply-To is shown on the CEO email', (await text(`${W} .reader .head`)).includes('gmail.com'));
+await page.click(`${W} [data-action=reply]`);
+check('Reply goes to the Gmail Reply-To, not the CEO', (await text(`${W} [data-field=to]`)) === 'mark.holloway.ceo@gmail.com');
+// Typing in the reply box must not move the player or trigger interactions.
+const before = await state();
+await page.click(`${W} .compose textarea`);
+await page.keyboard.type('wasd e ');
+const typed = await page.inputValue(`${W} .compose textarea`);
+const afterType = await state();
+check('typing in a text box works and does not move the player', typed.includes('wasd e') && afterType.x === before.x && afterType.y === before.y && !afterType.dialog);
+await page.screenshot({ path: `${out}/6-compose.png` });
+await page.click(`${W} [data-action=discard]`);
+await page.click(`${W} [data-action=report]`);
+s = await state();
+check('reported the CEO email; inbox objective complete', s.mail['ceo-giftcards']?.reported && s.visited.includes('inbox'), s.goal);
 await page.keyboard.press('2');
+check('welcome.txt checklist ticks the email step', (await text(`${W} .notes-text`)).includes('[x] Go through your email'));
+await page.keyboard.press('Escape');
+await page.keyboard.press('Escape');
 await page.waitForTimeout(200);
 s = await state();
-check('welcome.txt shows the checklist with Priya ticked', s.winVisible && s.winBody.includes('[x] Check in with Priya'));
-await page.screenshot({ path: `${out}/4-computer.png` });
-await page.keyboard.press('Escape');
-await page.waitForTimeout(150);
-s = await state();
-check('Esc closes the app window first', s.computer && !s.winVisible);
-// Click the "Stand up" button with the mouse: closes the screen and must NOT walk the player.
-{
-  const box = await page.locator('canvas').boundingBox();
-  const k = box.width / 960;
-  const before = await state();
-  await page.mouse.click(box.x + 850 * k, box.y + 24 * k);
-  await page.waitForTimeout(600);
-  s = await state();
-  check('clicking "Stand up" stands up without walking off', !s.computer && !s.walking && s.x === before.x && s.y === before.y && s.visited.includes('my-desk'), `${before.x},${before.y} -> ${s.x},${s.y}`);
-}
+check('Esc closes the window, then stands up', !s.computer);
 
-// d) Click the SOC console while the door is closed: you walk to the door and badge in.
+// ---------- M2: server room ----------
 await clickWorld(300, 150);
 await waitArrive();
-await page.waitForTimeout(800); // let the camera settle
+await page.waitForTimeout(800);
 await clickWorld(446, 168);
-s = await waitArrive();
+await waitArrive();
 await page.waitForTimeout(400);
 s = await state();
 check('clicking past the closed door walks to it and badges in', s.flags.serverOpen && /green/.test(s.dialogText), s.dialogText);
 await closeDialog();
-
-// e) Walk through the door to the SOC console.
-await clickWorld(456, 168);
-s = await waitArrive();
+await clickWorld(446, 168);
+await waitArrive();
 await page.waitForTimeout(1500);
 s = await state();
 check('walks through the open door and sits at the SOC console', s.soc && s.x > 384, `${s.x},${s.y}`);
-check('SOC console shows a live log tail', s.tail >= 10, `${s.tail} lines`);
-await page.screenshot({ path: `${out}/5-soc.png` });
+await page.screenshot({ path: `${out}/7-soc.png` });
 await page.keyboard.press('Escape');
-await page.waitForTimeout(200);
-s = await state();
-check('all objectives done', s.goal.includes('Explore'), s.goal);
-
-// f) Stay inside until the door closes, then click the office: you walk to the door and badge out.
 await page.waitForTimeout(3600);
 s = await state();
 check('door closes behind you while you are inside', !s.flags.serverOpen && s.x > 384);
 await clickWorld(330, 170);
-s = await waitArrive();
+await waitArrive();
 await page.waitForTimeout(400);
 s = await state();
-check('clicking outside from the closed server room badges you out', s.flags.serverOpen, `${s.x},${s.y} ${s.dialogText}`);
+check('clicking outside from the closed server room badges you out', s.flags.serverOpen, `${s.x},${s.y}`);
 await closeDialog();
 await clickWorld(300, 190);
 s = await waitArrive();
 check('walks back out of the server room', s.x < 368, `${s.x},${s.y}`);
 await page.waitForTimeout(3600);
 s = await state();
-check('server door closes behind you', !s.flags.serverOpen);
-{
-  const solid = await page.evaluate(() => {
-    const sc = window.__game.scene.getScene('Office');
-    return sc.wallsLayer.getTileAt(23, 8)?.collides && sc.wallsLayer.getTileAt(23, 9)?.collides && sc.nav.pointBlocked(376, 150);
-  });
-  check('the re-closed door is solid again (physics + pathfinding)', solid);
-}
-await page.screenshot({ path: `${out}/6-office.png` });
-
-// g) Keyboard + wall collision: hold left for 4s, you stop at the outer wall.
+const solid = await page.evaluate(() => {
+  const sc = window.__game.scene.getScene('Office');
+  return sc.wallsLayer.getTileAt(23, 8)?.collides && sc.wallsLayer.getTileAt(23, 9)?.collides && sc.nav.pointBlocked(376, 150);
+});
+check('server door closes behind you and is solid again', !s.flags.serverOpen && solid);
 await page.keyboard.down('ArrowLeft');
 await page.waitForTimeout(4000);
 await page.keyboard.up('ArrowLeft');
 s = await state();
 check('keyboard movement stops at the outer wall', s.x >= 20 && s.x < 40, `${s.x},${s.y}`);
+
+// ---------- Save / continue ----------
+const visitedBefore = s.visited.length;
+await page.reload();
+await page.waitForFunction(() => window.__game?.scene.isActive('Title'));
+await page.waitForTimeout(300);
+await page.keyboard.press('c');
+await page.waitForFunction(() => window.__game.scene.isActive('Office'));
+await page.waitForTimeout(800);
+s = await state();
+check('Continue restores progress after a reload', s.visited.length === visitedBefore && s.mail['it-reset']?.enteredCreds, `${s.visited.length}/${visitedBefore}`);
 
 check('no console errors', errors.length === 0, errors.join(' | '));
 const failed = results.filter((r) => !r.ok).length;

@@ -1,55 +1,77 @@
 import { VIEW_W, VIEW_H, FONT } from '../config.js';
+import { h } from './dom.js';
+import './screen.css';
 
-// Base class for full-screen "you are looking at a monitor" views. Drawn on the UI camera.
-// While one is open the player can't move. Esc (or the X button) closes it.
+// Base class for full-screen "you are looking at a monitor" views.
+// The bezel is drawn in Phaser (pixel art); what's on the screen is real HTML, positioned over the
+// canvas and scaled to match, so text is crisp and inputs, scrolling and hovering just work.
+// While open: the player can't move, Phaser stops eating keys (so you can type), Esc goes back.
 export class Overlay {
-  constructor(scene, { title, bezel = 0x1b1b2a, screen = 0x1d4f5c }) {
+  constructor(scene, { bezel = 0x1b1b2a, name = 'screen' } = {}) {
     this.scene = scene;
     this.isOpen = false;
     this.c = scene.add.container(0, 0).setDepth(200).setVisible(false);
     scene.ui(this.c);
 
-    // Dim the office behind the monitor and swallow clicks so they don't walk the player.
-    const dim = scene.add.rectangle(0, 0, VIEW_W, VIEW_H, 0x05050a, 0.7).setOrigin(0).setInteractive();
     this.sx = 76;
     this.sy = 52;
     this.sw = VIEW_W - 152;
     this.sh = VIEW_H - 150;
+    const dim = scene.add.rectangle(0, 0, VIEW_W, VIEW_H, 0x05050a, 0.7).setOrigin(0).setInteractive();
     const frame = scene.add.rectangle(this.sx - 16, this.sy - 16, this.sw + 32, this.sh + 32, bezel).setOrigin(0);
     const stand = scene.add.rectangle(VIEW_W / 2 - 60, this.sy + this.sh + 16, 120, 30, bezel).setOrigin(0);
     const foot = scene.add.rectangle(VIEW_W / 2 - 120, this.sy + this.sh + 44, 240, 12, bezel).setOrigin(0);
-    const glass = scene.add.rectangle(this.sx, this.sy, this.sw, this.sh, screen).setOrigin(0);
     const led = scene.add.rectangle(this.sx + this.sw - 4, this.sy + this.sh + 6, 6, 4, 0x3fe07a);
-    this.c.add([dim, frame, stand, foot, glass, led]);
-
-    const close = this.text(this.sx + this.sw + 10, 14, 'Stand up  [Esc] ✕', { fontSize: '16px', color: '#9aa3b8' })
+    const close = scene.add
+      .text(this.sx + this.sw + 10, 14, 'Stand up  [Esc] ✕', { fontFamily: FONT, fontSize: '16px', color: '#9aa3b8' })
       .setOrigin(1, 0)
       .setInteractive({ useHandCursor: true })
       .on('pointerdown', (_p, _x, _y, e) => {
         e?.stopPropagation();
         this.close();
       });
-    close.name = 'close-button';
-    this.title = title;
-  }
+    this.c.add([dim, frame, stand, foot, led, close]);
 
-  text(x, y, str, style = {}) {
-    const t = this.scene.add.text(x, y, str, { fontFamily: FONT, fontSize: '18px', color: '#e6e6ea', ...style });
-    this.c.add(t);
-    return t;
-  }
+    // The HTML screen.
+    this.root = h('div', { class: 'screen', id: `screen-${name}`, role: 'dialog', 'aria-label': name });
+    this.root.style.width = `${this.sw}px`;
+    this.root.style.height = `${this.sh}px`;
+    document.body.append(this.root);
+    this.layout = () => {
+      const r = scene.game.canvas.getBoundingClientRect();
+      const k = r.width / VIEW_W;
+      this.root.style.left = `${r.left + this.sx * k}px`;
+      this.root.style.top = `${r.top + this.sy * k}px`;
+      this.root.style.transform = `scale(${k})`;
+    };
+    window.addEventListener('resize', this.layout);
+    scene.scale.on('resize', this.layout);
 
-  rect(x, y, w, h, color, alpha = 1) {
-    const r = this.scene.add.rectangle(x, y, w, h, color, alpha).setOrigin(0);
-    this.c.add(r);
-    return r;
+    this.onKey = (e) => {
+      if (!this.isOpen) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        this.back();
+      } else {
+        this.onKeyDown?.(e);
+      }
+    };
+    document.addEventListener('keydown', this.onKey);
+
+    scene.events.once('shutdown', () => this.destroy());
   }
 
   open(onClose) {
     this.onClose = onClose;
     this.isOpen = true;
-    this.c.setVisible(true).setAlpha(0);
-    this.scene.tweens.add({ targets: this.c, alpha: 1, duration: 150 });
+    this.c.setVisible(true);
+    this.layout();
+    this.root.classList.add('open');
+    // Let the HTML have the keyboard: stop Phaser from handling or swallowing keys.
+    const kb = this.scene.input.keyboard;
+    kb.resetKeys();
+    kb.enabled = false;
+    kb.disableGlobalCapture();
     this.onOpen?.();
   }
 
@@ -57,14 +79,26 @@ export class Overlay {
     if (!this.isOpen) return;
     this.isOpen = false;
     this.c.setVisible(false);
+    this.root.classList.remove('open');
+    const kb = this.scene.input.keyboard;
+    kb.enabled = true;
+    kb.enableGlobalCapture();
+    kb.resetKeys();
+    document.activeElement?.blur?.();
     this.onCloseInternal?.();
     const cb = this.onClose;
     this.onClose = null;
     cb?.();
   }
 
-  // Esc: subclasses may close an inner window first. Return true if handled.
+  // Esc: subclasses close an inner window first.
   back() {
     this.close();
+  }
+
+  destroy() {
+    window.removeEventListener('resize', this.layout);
+    document.removeEventListener('keydown', this.onKey);
+    this.root.remove();
   }
 }

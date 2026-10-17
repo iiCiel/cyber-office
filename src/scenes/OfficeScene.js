@@ -5,6 +5,9 @@ import { DialogBox } from '../ui/DialogBox.js';
 import { ComputerScreen } from '../ui/ComputerScreen.js';
 import { SocScreen } from '../ui/SocScreen.js';
 import { NavGrid } from '../world/pathfinding.js';
+import { GameState } from '../game/GameState.js';
+import { EMAILS } from '../data/day1.js';
+import { deliveredEmails } from '../ui/apps/MailApp.js';
 
 const SPEED = 72; // world px per second
 const REACH = 22; // how close (px) you must be to interact
@@ -19,12 +22,18 @@ export class OfficeScene extends Phaser.Scene {
     super('Office');
   }
 
+  init(data) {
+    this.resume = !!data?.resume;
+  }
+
   create() {
+    this.state = new GameState();
+    if (this.resume) this.state.load();
+    else GameState.clearSave();
     this.worldLayer = [];
     this.uiLayer = [];
     this.uiCam = null;
-    this.visited = new Set();
-    this.flags = { badgeActive: false, serverOpen: false };
+    this.flags = { serverOpen: false }; // scene-only; everything that matters lives in this.state
     this.path = null;
     this.pending = null;
 
@@ -42,9 +51,10 @@ export class OfficeScene extends Phaser.Scene {
     this.soc = new SocScreen(this);
 
     this.cameras.main.fadeIn(300, 18, 18, 28);
-    this.time.delayedCall(450, () =>
-      !this.dialog.isOpen && this.dialog.open('You', ['First day. Badge works. Coffee in hand.', 'Priya, your manager, should be in her office. Top left.']),
-    );
+    const intro = this.resume
+      ? ['Back at it. Your checklist is where you left it.']
+      : ['First day. Badge works. Coffee in hand.', 'Priya, your manager, should be in her office. Top left.'];
+    this.time.delayedCall(450, () => !this.dialog.isOpen && this.dialog.open('You', intro));
   }
 
   // ---------- camera bookkeeping: world objects are zoomed, UI objects are not ----------
@@ -170,10 +180,23 @@ export class OfficeScene extends Phaser.Scene {
       this.add.text(24, 48, '', { fontFamily: FONT, fontSize: '15px', color: '#e6e6ea' }).setDepth(11),
     );
 
-    this.minutes = GAME_DATE.startMinutes;
+    this.minutes = this.state.minutes ?? GAME_DATE.startMinutes;
+    this.state.minutes = this.minutes;
     this.updateClock();
+    this.knownMail = deliveredEmails(this.minutes).length;
     // One in-game minute every 4 real seconds (the full day gets paced in M6).
-    this.time.addEvent({ delay: 4000, loop: true, callback: () => { this.minutes++; this.updateClock(); } });
+    this.time.addEvent({ delay: 4000, loop: true, callback: () => this.tickMinute() });
+
+    // Small notification card (top right) for things that happen while you walk around.
+    this.notice = this.ui(
+      this.add
+        .text(VIEW_W - 16, 16, '', {
+          fontFamily: FONT, fontSize: '15px', color: '#f4f1e8', backgroundColor: '#12121cee', padding: { x: 12, y: 8 },
+        })
+        .setOrigin(1, 0)
+        .setDepth(30)
+        .setVisible(false),
+    );
 
     const hint = this.ui(
       this.add.text(VIEW_W - 16, VIEW_H - 14, 'Move: WASD / arrows / click   ·   Use: E   ·   Back: Esc', {
@@ -204,6 +227,41 @@ export class OfficeScene extends Phaser.Scene {
     this.updateObjective();
   }
 
+  tickMinute() {
+    this.minutes++;
+    this.state.minutes = this.minutes;
+    this.updateClock();
+    const delivered = deliveredEmails(this.minutes);
+    if (delivered.length > this.knownMail) {
+      const newest = delivered[delivered.length - 1];
+      this.knownMail = delivered.length;
+      if (!this.computer.isOpen) this.notify(`✉ New email from ${newest.from.name}`);
+      this.onStateChanged();
+    }
+    this.state.save();
+  }
+
+  notify(text) {
+    this.notice.setText(text).setVisible(true).setAlpha(1);
+    this.tweens.killTweensOf(this.notice);
+    this.tweens.add({ targets: this.notice, alpha: 0, delay: 4500, duration: 600, onComplete: () => this.notice.setVisible(false) });
+  }
+
+  isDone(id) {
+    return this.state.visited.includes(id);
+  }
+
+  // Called by the computer apps whenever the player does something (read, report, ...).
+  onStateChanged() {
+    if (!this.isDone('inbox') && this.isDone('my-desk') && this.inboxProgress().done) this.complete('inbox');
+    this.updateObjective();
+  }
+
+  inboxProgress() {
+    const read = EMAILS.filter((e) => this.state.mail[e.id]?.read).length;
+    return { read, total: EMAILS.length, done: read === EMAILS.length };
+  }
+
   clockString() {
     const h24 = Math.floor(this.minutes / 60) % 24;
     const m = String(this.minutes % 60).padStart(2, '0');
@@ -216,24 +274,31 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   objectiveList() {
-    return OBJECTIVES.map((o) => ({ ...o, done: this.visited.has(o.id) }));
+    return OBJECTIVES.map((o) => ({ ...o, done: this.isDone(o.id) }));
   }
 
   currentObjective() {
-    return OBJECTIVES.find((o) => !this.visited.has(o.id)) || null;
+    return OBJECTIVES.find((o) => !this.isDone(o.id)) || null;
   }
 
   updateObjective() {
     const cur = this.currentObjective();
-    const done = OBJECTIVES.filter((o) => this.visited.has(o.id)).length;
-    this.objectiveText.setText(`> ${cur ? cur.text : OBJECTIVES_DONE}`);
+    const done = OBJECTIVES.filter((o) => this.isDone(o.id)).length;
+    let text = cur ? cur.text : OBJECTIVES_DONE;
+    if (cur?.id === 'inbox') {
+      const p = this.inboxProgress();
+      text += ` (${p.read}/${p.total} read)`;
+    }
+    this.objectiveText.setText(`> ${text}`);
     this.stepText.setText(cur ? `${done + 1}/${OBJECTIVES.length}` : 'done');
-    this.markerTarget = cur ? this.interactables.find((t) => t.id === cur.id) : null;
+    const targetId = cur ? cur.target || cur.id : null;
+    this.markerTarget = targetId ? this.interactables.find((t) => t.id === targetId) : null;
   }
 
   complete(id) {
-    if (this.visited.has(id)) return;
-    this.visited.add(id);
+    if (this.isDone(id)) return;
+    this.state.visited.push(id);
+    this.state.log('objective', { id });
     this.updateObjective();
   }
 
@@ -332,9 +397,9 @@ export class OfficeScene extends Phaser.Scene {
       const dx = this.player.x - t.px;
       const dy = this.player.y - t.py;
       this.faceSprite(t.sprite, Math.abs(dx) > Math.abs(dy) ? (dx < 0 ? 'left' : 'right') : dy < 0 ? 'up' : 'down');
-      const lines = this.visited.has(t.id) && t.again ? t.again : t.talk;
+      const lines = this.isDone(t.id) && t.again ? t.again : t.talk;
       this.dialog.open(t.name, lines, () => {
-        if (t.id === 'priya') this.flags.badgeActive = true;
+        if (t.id === 'priya') this.state.flags.badgeActive = true;
         this.complete(t.id);
       });
       return;
@@ -344,7 +409,7 @@ export class OfficeScene extends Phaser.Scene {
     if (t.kind === 'desk') return this.sitAt(t, this.computer);
     if (t.kind === 'soc') return this.sitAt(t, this.soc);
 
-    const lines = this.visited.has(t.id) && t.again ? t.again : t.talk;
+    const lines = this.isDone(t.id) && t.again ? t.again : t.talk;
     this.dialog.open(t.name, lines, () => this.complete(t.id));
   }
 
@@ -363,16 +428,17 @@ export class OfficeScene extends Phaser.Scene {
         this.facing = 'up';
         this.player.anims.stop();
         this.player.setFrame('up-idle').setFlipX(false);
+        this.complete(t.id);
         overlay.open(() => {
           this.seated = false;
-          this.complete(t.id);
+          this.onStateChanged();
         });
       },
     });
   }
 
   useBadge(t) {
-    if (!this.flags.badgeActive) {
+    if (!this.state.flags.badgeActive) {
       this.flashDoorLight(0xff4f4f);
       this.dialog.open(t.name, t.locked);
       return;
