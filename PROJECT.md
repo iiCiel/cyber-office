@@ -16,7 +16,7 @@ D:\Projects\cyber-office
 A pixel-art browser game where you live a real day as a junior security analyst: walk the office, read real-looking email, dig through logs, deal with coworkers, and watch your choices play out. Not a quiz, not a wall of text. Built in public as a portfolio piece for internship applications.
 
 ### Status
-The full 5-day week, the polish pass, the pixel font and Case Files (3 real-breach replays) are done (Oct 18, 2026): https://iiciel.github.io/cyber-office/ . Repo (public): https://github.com/iiCiel/cyber-office . Only M7 (playtest) is left, and it is blocked on Soliman. The PROJECT.md on disk is the source of truth: never git checkout/revert it, edit it in place.
+The full 5-day week, the polish pass, the pixel font and Case Files (3 real-breach replays) are done (Oct 18, 2026). Live site: https://iiciel.github.io/cyber-office/ (still the 4322ed5 build: Case Files is committed locally as 8136bd7 but NOT pushed, waiting for Soliman to OK real company names; to deploy: git push origin main, then node scripts/smoke.mjs https://iiciel.github.io/cyber-office/ smoke-out/live). Repo (public): https://github.com/iiCiel/cyber-office . Only M7 (playtest) is left, and it is blocked on Soliman. The PROJECT.md on disk is the source of truth: never git checkout/revert it, edit it in place.
 
 ### Milestones
 - [x] Concept, M1 Phaser+Vite+Pages, M2 Tiled office + A* + badge door, M3 mail client, M4 SIEM, M5 vishing + USB, M6 debrief + report card
