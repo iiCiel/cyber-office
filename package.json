@@ -15,6 +15,7 @@
     "smoke:week": "node scripts/smoke-week.mjs"
   },
   "dependencies": {
+    "@fontsource/vt323": "^5.3.0",
     "phaser": "3.90.0"
   },
   "devDependencies": {

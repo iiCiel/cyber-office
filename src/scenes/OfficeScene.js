@@ -232,9 +232,9 @@ export class OfficeScene extends Phaser.Scene {
   // ---------- HUD ----------
   buildHud() {
     this.ui(this.add.rectangle(12, 12, 400, 64, 0x12121c, 0.82).setOrigin(0).setStrokeStyle(2, 0x3fe07a).setDepth(10));
-    this.clockText = this.ui(this.add.text(24, 20, '', { fontFamily: FONT, fontSize: '20px', color: '#3fe07a' }).setDepth(11));
-    this.stepText = this.ui(this.add.text(400, 22, '', { fontFamily: FONT, fontSize: '14px', color: '#6c7590' }).setOrigin(1, 0).setDepth(11));
-    this.objectiveText = this.ui(this.add.text(24, 48, '', { fontFamily: FONT, fontSize: '15px', color: '#e6e6ea' }).setDepth(11));
+    this.clockText = this.ui(this.add.text(24, 20, '', { fontFamily: FONT, fontSize: '25px', color: '#3fe07a' }).setDepth(11));
+    this.stepText = this.ui(this.add.text(400, 22, '', { fontFamily: FONT, fontSize: '18px', color: '#6c7590' }).setOrigin(1, 0).setDepth(11));
+    this.objectiveText = this.ui(this.add.text(24, 48, '', { fontFamily: FONT, fontSize: '19px', color: '#e6e6ea' }).setDepth(11));
 
     this.minutes = this.state.minutes ?? this.day.start;
     this.state.minutes = this.minutes;
@@ -245,7 +245,7 @@ export class OfficeScene extends Phaser.Scene {
 
     this.notice = this.ui(
       this.add
-        .text(VIEW_W - 16, 16, '', { fontFamily: FONT, fontSize: '15px', color: '#f4f1e8', backgroundColor: '#12121cee', padding: { x: 12, y: 8 } })
+        .text(VIEW_W - 16, 16, '', { fontFamily: FONT, fontSize: '19px', color: '#f4f1e8', backgroundColor: '#12121cee', padding: { x: 12, y: 8 } })
         .setOrigin(1, 0)
         .setDepth(30)
         .setVisible(false),
@@ -254,7 +254,7 @@ export class OfficeScene extends Phaser.Scene {
     // Day 5: the live "files encrypted" counter.
     this.crisisText = this.ui(
       this.add
-        .text(VIEW_W / 2, 92, '', { fontFamily: FONT, fontSize: '18px', fontStyle: 'bold', color: '#ffd7d7', backgroundColor: '#4a0f12ee', padding: { x: 12, y: 6 } })
+        .text(VIEW_W / 2, 92, '', { fontFamily: FONT, fontSize: '22px', fontStyle: 'bold', color: '#ffd7d7', backgroundColor: '#4a0f12ee', padding: { x: 12, y: 6 } })
         .setOrigin(0.5, 0)
         .setDepth(29)
         .setVisible(false),
@@ -263,7 +263,7 @@ export class OfficeScene extends Phaser.Scene {
     const hint = this.ui(
       this.add
         .text(VIEW_W - 16, VIEW_H - 14, 'Move: WASD / arrows / click   ·   Use: E   ·   Back: Esc', {
-          fontFamily: FONT, fontSize: '14px', color: '#9aa3b8', backgroundColor: '#12121caa', padding: { x: 8, y: 4 },
+          fontFamily: FONT, fontSize: '18px', color: '#9aa3b8', backgroundColor: '#12121caa', padding: { x: 8, y: 4 },
         })
         .setOrigin(1, 1)
         .setDepth(10),
@@ -272,12 +272,12 @@ export class OfficeScene extends Phaser.Scene {
 
     this.prompt = this.ui(this.add.container(0, 0).setDepth(20).setVisible(false));
     const bubble = this.add.image(0, 0, 'prompt').setOrigin(0.5, 1).setScale(1.2);
-    const key = this.add.text(0, -19, 'E', { fontFamily: FONT, fontSize: '20px', fontStyle: 'bold', color: '#1b1b2a' }).setOrigin(0.5);
+    const key = this.add.text(0, -19, 'E', { fontFamily: FONT, fontSize: '25px', fontStyle: 'bold', color: '#1b1b2a' }).setOrigin(0.5);
     this.prompt.add([bubble, key]);
     this.tweens.add({ targets: this.prompt, scale: 1.1, duration: 500, yoyo: true, repeat: -1 });
     this.nameTag = this.ui(
       this.add
-        .text(0, 0, '', { fontFamily: FONT, fontSize: '14px', color: '#e6e6ea', backgroundColor: '#12121ccc', padding: { x: 6, y: 3 } })
+        .text(0, 0, '', { fontFamily: FONT, fontSize: '18px', color: '#e6e6ea', backgroundColor: '#12121ccc', padding: { x: 6, y: 3 } })
         .setOrigin(0.5, 1)
         .setDepth(20)
         .setVisible(false),
@@ -290,7 +290,7 @@ export class OfficeScene extends Phaser.Scene {
     // Mute toggle (top-right, under the notification), plus the M key.
     this.muteBtn = this.ui(
       this.add
-        .text(VIEW_W - 16, VIEW_H - 40, '', { fontFamily: FONT, fontSize: '20px', color: '#9aa3b8', backgroundColor: '#12121caa', padding: { x: 8, y: 4 } })
+        .text(VIEW_W - 16, VIEW_H - 40, '', { fontFamily: FONT, fontSize: '25px', color: '#9aa3b8', backgroundColor: '#12121caa', padding: { x: 8, y: 4 } })
         .setOrigin(1, 1)
         .setDepth(40)
         .setInteractive({ useHandCursor: true })
@@ -300,7 +300,7 @@ export class OfficeScene extends Phaser.Scene {
 
     this.pauseBtn = this.ui(
       this.add
-        .text(16, VIEW_H - 40, '☰ Menu', { fontFamily: FONT, fontSize: '16px', color: '#9aa3b8', backgroundColor: '#12121caa', padding: { x: 8, y: 4 } })
+        .text(16, VIEW_H - 40, '☰ Menu', { fontFamily: FONT, fontSize: '20px', color: '#9aa3b8', backgroundColor: '#12121caa', padding: { x: 8, y: 4 } })
         .setOrigin(0, 1)
         .setDepth(40)
         .setInteractive({ useHandCursor: true })
@@ -676,7 +676,7 @@ export class OfficeScene extends Phaser.Scene {
     this.ending = true;
     const card = this.ui(
       this.add
-        .text(VIEW_W / 2, VIEW_H / 2, `${this.day.date.name}, 5:00 PM`, { fontFamily: FONT, fontSize: '40px', color: '#e6e6ea' })
+        .text(VIEW_W / 2, VIEW_H / 2, `${this.day.date.name}, 5:00 PM`, { fontFamily: FONT, fontSize: '50px', color: '#e6e6ea' })
         .setOrigin(0.5)
         .setDepth(1000)
         .setAlpha(0),

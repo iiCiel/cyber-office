@@ -16,7 +16,7 @@ D:\Projects\cyber-office
 A pixel-art browser game where you live a real day as a junior security analyst: walk the office, read real-looking email, dig through logs, deal with coworkers, and watch your choices play out. Not a quiz, not a wall of text. Built in public as a portfolio piece for internship applications.
 
 ### Status
-Day 1 vertical slice COMPLETE and live: https://iiciel.github.io/cyber-office/ . Repo (public): https://github.com/iiCiel/cyber-office . Latest commit 5bcaca8.
+Full 5-day week + polish pass + pixel font live (Oct 18, 2026). Was: Day 1 vertical slice COMPLETE and live: https://iiciel.github.io/cyber-office/ . Repo (public): https://github.com/iiCiel/cyber-office . Latest commit 5bcaca8.
 
 ### Milestones
 - [x] Concept and design
@@ -29,7 +29,8 @@ Day 1 vertical slice COMPLETE and live: https://iiciel.github.io/cyber-office/ .
 - [x] Days 2-5: full week vertical slice (done Oct 17, 2026). Refactored into a data-driven day engine (src/days/dayN). Tue: MFA fatigue + macro invoice + QR phish + tickets. Wed: SQL injection on the portal, investigated in SIEM + Terminal (real shell: grep/awk/sort/whois). Thu: vendor BEC + svc_backup data theft + failing backups. Fri: ransomware finale with a live damage counter; the week's backup choices decide one of 3 endings. Choices carry across days; report chains day-to-day + a week summary. Security note: attack payloads are redacted in-game.
 - [ ] M7 Playtest with 2-3 people (needs Soliman to pick testers)
 - [x] Polish pass (Oct 17, 2026): procedural sound (Web Audio, mute + M key), pause menu (P/Esc/button: resume, restart day, quit, how-to-play), in-game security glossary (22 terms mapped to Security+), screen shake + red flash on alerts/crisis, mobile rotate hint + touch viewport, and a polished title screen (glowing logo, matrix rain, a returning-player week timeline with grades, GitHub link).
-- [ ] Later: original art, a pixel font, music, more weeks, difficulty settings, real-device mobile testing
+- [x] Pixel font (Oct 18, 2026): in-world Phaser text (HUD, dialog, choices, title, pause menu) now uses VT323 (OFL, self-hosted via @fontsource/vt323, about 10 kB). BootScene waits for the font (3 s timeout, Courier fallback) because Phaser draws text once. All in-world font sizes scaled x1.25 because VT323 is smaller. HTML screens (mail, SIEM, report) keep system fonts for readability. Tried Pixelify Sans first: its bold C looked like O and the fi ligature broke, so it was dropped.
+- [ ] Later: original art, music, more weeks, difficulty settings, real-device mobile testing
 
 ### Code map (D:\Projects\cyber-office)
 - THE GAME IS NOW A 5-DAY CAMPAIGN. Each day is a data file in src/days/dayN/ (index.js = the day definition: emails, pages, logs, alerts, tickets, encounters, objectives, score, debrief, carry, teaser, prepare).
@@ -51,7 +52,10 @@ Day 1 vertical slice COMPLETE and live: https://iiciel.github.io/cyber-office/ .
 - Deploy: push to main -> GitHub Actions -> Pages. Repo-local git email = GitHub no-reply.
 
 ### Issues
-- In-world dialog uses Courier New, not a true pixel font (readable, just not pixel-styled). No music yet (sound effects are in).
+- No music yet (sound effects are in). Symbols the pixel font lacks (phone, menu, close, speaker glyphs) fall back to Courier/emoji fonts.
+- VT323 renders "fi" as a ligature (still readable).
+- GitHub Actions runs on ubuntu-latest, which moves to Ubuntu 26 on Oct 19, 2026. Probably fine (Node 22 via setup-node); check the next deploy.
+- Oct 18 run: an uncommitted Command Center copy of PROJECT.md (Oct 18, 8:17 PM) was reverted to the committed one. Its notes were older (Day 1 only); only its header differed. Re-paste from Command Center if needed.
 - Pacing not playtested by a human. Alert/phone fallbacks exist so a day can't stall.
 - On phones: a rotate-to-landscape hint shows in portrait; touch works, but the in-game HTML screens are small on tiny phones. Not tested on a real device.
 - smoke-week.mjs can flake on a slow connection at the Day 4 phone/debrief timing (passes on rerun); the game itself is fine.

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { generateTextures } from '../art/textures.js';
+import { FONT_NAME } from '../config.js';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -31,6 +32,17 @@ export class BootScene extends Phaser.Scene {
       }
     }
 
-    this.scene.start('Title');
+    // Phaser rasterises text once, so the pixel font has to be loaded before any text is drawn.
+    // If it fails or is slow (offline, old browser), fall back to Courier after 3 seconds.
+    const fonts = document.fonts
+      ? Promise.all([document.fonts.load(`16px "${FONT_NAME}"`), document.fonts.load(`bold 16px "${FONT_NAME}"`)])
+      : Promise.resolve();
+    const timeout = new Promise((resolve) => setTimeout(resolve, 3000));
+    Promise.race([fonts, timeout])
+      .catch(() => {})
+      .then(() => {
+        window.__fontReady = !!document.fonts?.check(`16px "${FONT_NAME}"`);
+        this.scene.start('Title');
+      });
   }
 }

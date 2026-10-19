@@ -23,7 +23,7 @@ export class Overlay {
     const foot = scene.add.rectangle(VIEW_W / 2 - 120, this.sy + this.sh + 44, 240, 12, bezel).setOrigin(0);
     const led = scene.add.rectangle(this.sx + this.sw - 4, this.sy + this.sh + 6, 6, 4, 0x3fe07a);
     const close = scene.add
-      .text(this.sx + this.sw + 10, 14, 'Stand up  [Esc] ✕', { fontFamily: FONT, fontSize: '16px', color: '#9aa3b8' })
+      .text(this.sx + this.sw + 10, 14, 'Stand up  [Esc] ✕', { fontFamily: FONT, fontSize: '20px', color: '#9aa3b8' })
       .setOrigin(1, 0)
       .setInteractive({ useHandCursor: true })
       .on('pointerdown', (_p, _x, _y, e) => {

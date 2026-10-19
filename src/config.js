@@ -6,4 +6,7 @@ export const ROWS = 15;
 export const VIEW_W = COLS * TILE * ZOOM; // 960
 export const VIEW_H = ROWS * TILE * ZOOM; // 720
 
-export const FONT = '"Courier New", Courier, monospace';
+// In-world text uses VT323 (OFL, bundled via @fontsource, so it is self-hosted).
+// Courier New stays as the fallback for symbols the pixel font lacks (e.g. the phone and menu glyphs).
+export const FONT_NAME = 'VT323';
+export const FONT = `"${FONT_NAME}", "Courier New", Courier, monospace`;

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import '@fontsource/vt323/latin-400.css';
 import { BootScene } from './scenes/BootScene.js';
 import { TitleScene } from './scenes/TitleScene.js';
 import { OfficeScene } from './scenes/OfficeScene.js';

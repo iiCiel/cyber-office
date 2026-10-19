@@ -15,13 +15,13 @@ export class DialogBox {
     this.container = scene.add.container(0, 0).setDepth(100).setVisible(false);
     const bg = scene.add.rectangle(x, y, w, h, 0x12121c, 0.94).setOrigin(0).setStrokeStyle(3, 0xe6e6ea);
     this.nameText = scene.add.text(x + 20, y + 14, '', {
-      fontFamily: FONT, fontSize: '18px', fontStyle: 'bold', color: '#e8c547',
+      fontFamily: FONT, fontSize: '22px', fontStyle: 'bold', color: '#e8c547',
     });
     this.bodyText = scene.add.text(x + 20, y + 46, '', {
-      fontFamily: FONT, fontSize: '22px', color: '#f4f1e8', wordWrap: { width: w - 40 }, lineSpacing: 6,
+      fontFamily: FONT, fontSize: '28px', color: '#f4f1e8', wordWrap: { width: w - 40 }, lineSpacing: 6,
     });
     this.hint = scene.add.text(x + w - 16, y + h - 12, 'E ▸', {
-      fontFamily: FONT, fontSize: '16px', color: '#9aa3b8',
+      fontFamily: FONT, fontSize: '20px', color: '#9aa3b8',
     }).setOrigin(1, 1);
     scene.tweens.add({ targets: this.hint, alpha: 0.2, duration: 500, yoyo: true, repeat: -1 });
 
@@ -101,7 +101,7 @@ export class DialogBox {
     this.choiceItems = this.choices.map((c, i) => {
       const t = this.scene.add
         .text(0, 0, `${i + 1}. ${c.text}`, {
-          fontFamily: FONT, fontSize: '19px', color: '#f4f1e8', backgroundColor: '#2b3f5c',
+          fontFamily: FONT, fontSize: '24px', color: '#f4f1e8', backgroundColor: '#2b3f5c',
           padding: { x: 14, y: 8 }, wordWrap: { width: this.boxW - 60 },
         })
         .setInteractive({ useHandCursor: true })

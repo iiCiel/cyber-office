@@ -17,12 +17,12 @@ export class TitleScene extends Phaser.Scene {
     this.buildRain();
 
     // Logo with a soft green glow (a blurred-ish double behind the sharp text).
-    this.add.text(cx, 174, 'CYBER OFFICE', { fontFamily: FONT, fontSize: '66px', fontStyle: 'bold', color: '#1f6f45' }).setOrigin(0.5).setAlpha(0.6);
-    const logo = this.add.text(cx, 172, 'CYBER OFFICE', { fontFamily: FONT, fontSize: '66px', fontStyle: 'bold', color: '#3fe07a' }).setOrigin(0.5);
+    this.add.text(cx, 174, 'CYBER OFFICE', { fontFamily: FONT, fontSize: '82px', fontStyle: 'bold', color: '#1f6f45' }).setOrigin(0.5).setAlpha(0.6);
+    const logo = this.add.text(cx, 172, 'CYBER OFFICE', { fontFamily: FONT, fontSize: '82px', fontStyle: 'bold', color: '#3fe07a' }).setOrigin(0.5);
     logo.setShadow(0, 0, '#3fe07a', 18, false, true);
     this.tweens.add({ targets: logo, alpha: { from: 0.86, to: 1 }, duration: 1600, yoyo: true, repeat: -1 });
 
-    this.add.text(cx, 232, 'one week as a junior security analyst', { fontFamily: FONT, fontSize: '20px', color: '#9aa3b8' }).setOrigin(0.5);
+    this.add.text(cx, 232, 'one week as a junior security analyst', { fontFamily: FONT, fontSize: '25px', color: '#9aa3b8' }).setOrigin(0.5);
 
     const save = GameState.savedSummary();
     const day = save ? getDay(save.day) : getDay(1);
@@ -34,7 +34,7 @@ export class TitleScene extends Phaser.Scene {
       .text(cx, save ? 352 : 330, save
         ? `${day.date.name} — day ${day.n} of ${LAST_DAY}${save.dayOver ? ' (finished)' : ''}`
         : 'Monday, 8:57 AM.\nFirst day at Halcyon Mutual Insurance.', {
-        fontFamily: FONT, fontSize: '22px', color: '#e6e6ea', align: 'center', lineSpacing: 8,
+        fontFamily: FONT, fontSize: '28px', color: '#e6e6ea', align: 'center', lineSpacing: 8,
       })
       .setOrigin(0.5);
 
@@ -51,7 +51,7 @@ export class TitleScene extends Phaser.Scene {
 
     const button = (y, label, resume, color = '#e8c547') => {
       const t = this.add
-        .text(cx, y, label, { fontFamily: FONT, fontSize: '22px', color, backgroundColor: '#12201a66', padding: { x: 16, y: 8 } })
+        .text(cx, y, label, { fontFamily: FONT, fontSize: '28px', color, backgroundColor: '#12201a66', padding: { x: 16, y: 8 } })
         .setOrigin(0.5)
         .setInteractive({ useHandCursor: true })
         .on('pointerover', () => t.setColor('#ffffff'))
@@ -73,10 +73,10 @@ export class TitleScene extends Phaser.Scene {
       this.input.keyboard.once('keydown', () => go(false));
     }
 
-    this.add.text(cx, VIEW_H - 76, 'Move: WASD / arrows / click   ·   Use: E / Space   ·   Menu: P', { fontFamily: FONT, fontSize: '15px', color: '#6c7590' }).setOrigin(0.5);
-    this.add.text(cx, VIEW_H - 48, 'A playable CompTIA Security+ scenario · built in public', { fontFamily: FONT, fontSize: '13px', color: '#4a5a52' }).setOrigin(0.5);
+    this.add.text(cx, VIEW_H - 76, 'Move: WASD / arrows / click   ·   Use: E / Space   ·   Menu: P', { fontFamily: FONT, fontSize: '19px', color: '#6c7590' }).setOrigin(0.5);
+    this.add.text(cx, VIEW_H - 48, 'A playable CompTIA Security+ scenario · built in public', { fontFamily: FONT, fontSize: '16px', color: '#4a5a52' }).setOrigin(0.5);
     const gh = this.add
-      .text(cx, VIEW_H - 26, 'github.com/iiCiel/cyber-office', { fontFamily: FONT, fontSize: '13px', color: '#5a7a68' })
+      .text(cx, VIEW_H - 26, 'github.com/iiCiel/cyber-office', { fontFamily: FONT, fontSize: '16px', color: '#5a7a68' })
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true })
       .on('pointerover', () => gh.setColor('#8fb6ff'))
@@ -92,7 +92,7 @@ export class TitleScene extends Phaser.Scene {
       const x = 12 + i * ((VIEW_W - 24) / (cols - 1));
       const str = Array.from({ length: 22 }, () => GLYPHS[Math.floor(Math.random() * GLYPHS.length)]).join('\n');
       const t = this.add
-        .text(x, Math.random() * VIEW_H - VIEW_H, str, { fontFamily: FONT, fontSize: '16px', color: '#1c3a2a', align: 'center' })
+        .text(x, Math.random() * VIEW_H - VIEW_H, str, { fontFamily: FONT, fontSize: '20px', color: '#1c3a2a', align: 'center' })
         .setOrigin(0.5, 0)
         .setAlpha(0.5 + Math.random() * 0.3);
       t.speed = 14 + Math.random() * 26;
@@ -113,8 +113,8 @@ export class TitleScene extends Phaser.Scene {
       const color = done ? 0x3fe07a : current ? 0xe8c547 : 0x2a3a32;
       this.add.circle(x, y, 7, color).setStrokeStyle(2, 0x0a0e0c);
       if (d < n) this.add.rectangle(x + 8, y, gap - 16, 2, 0x2a3a32).setOrigin(0, 0.5);
-      this.add.text(x, y + 16, getDay(d).date.weekday, { fontFamily: FONT, fontSize: '12px', color: done ? '#9fd8b4' : current ? '#e8c547' : '#4a5a52' }).setOrigin(0.5, 0);
-      if (h) this.add.text(x, y - 22, h.grade, { fontFamily: FONT, fontSize: '16px', fontStyle: 'bold', color: '#3fe07a' }).setOrigin(0.5);
+      this.add.text(x, y + 16, getDay(d).date.weekday, { fontFamily: FONT, fontSize: '15px', color: done ? '#9fd8b4' : current ? '#e8c547' : '#4a5a52' }).setOrigin(0.5, 0);
+      if (h) this.add.text(x, y - 22, h.grade, { fontFamily: FONT, fontSize: '20px', fontStyle: 'bold', color: '#3fe07a' }).setOrigin(0.5);
     }
   }
 

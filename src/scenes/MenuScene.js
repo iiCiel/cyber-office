@@ -34,7 +34,7 @@ export class MenuScene extends Phaser.Scene {
     this.panel.add(this.add.rectangle(0, 0, 520, ph, 0x12121c, 0.96).setStrokeStyle(2, 0x3fe07a));
     const add = (y, label, fn, color = '#e8c547') => {
       const t = this.add
-        .text(0, y, label, { fontFamily: FONT, fontSize: '24px', color })
+        .text(0, y, label, { fontFamily: FONT, fontSize: '30px', color })
         .setOrigin(0.5)
         .setInteractive({ useHandCursor: true })
         .on('pointerover', () => t.setColor('#ffffff'))
@@ -44,7 +44,7 @@ export class MenuScene extends Phaser.Scene {
       return t;
     };
 
-    this.panel.add(this.add.text(0, -170, 'PAUSED', { fontFamily: FONT, fontSize: '44px', fontStyle: 'bold', color: '#3fe07a' }).setOrigin(0.5));
+    this.panel.add(this.add.text(0, -170, 'PAUSED', { fontFamily: FONT, fontSize: '55px', fontStyle: 'bold', color: '#3fe07a' }).setOrigin(0.5));
 
     if (this.showHelp) {
       const help = [
@@ -59,7 +59,7 @@ export class MenuScene extends Phaser.Scene {
         'links before you click. Never enter your password',
         'into a page you reached from an email.',
       ].join('\n');
-      this.panel.add(this.add.text(0, -20, help, { fontFamily: FONT, fontSize: '16px', color: '#e6e6ea', align: 'center', lineSpacing: 5 }).setOrigin(0.5));
+      this.panel.add(this.add.text(0, -20, help, { fontFamily: FONT, fontSize: '20px', color: '#e6e6ea', align: 'center', lineSpacing: 5 }).setOrigin(0.5));
       add(150, '< Back', () => { this.showHelp = false; this.render(); });
       return;
     }
