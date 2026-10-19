@@ -404,6 +404,12 @@ const PLANS = {
     actions: ['disable-vpn', 'mfa-all', 'segment', 'law', 'restore', 'creds'],
   },
 };
+// New cases keep their playbook in scripts/case-plans/<id>.mjs (default export, same shape as above).
+import { readdirSync } from 'node:fs';
+for (const f of readdirSync(new URL('./case-plans/', import.meta.url)).filter((x) => x.endsWith('.mjs'))) {
+  const plan = (await import(`./case-plans/${f}`)).default;
+  PLANS[plan.id] = plan;
+}
 const only = process.env.CASE;
 for (const id of Object.keys(PLANS)) {
   if (only && only !== id) continue;

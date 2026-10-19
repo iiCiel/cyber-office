@@ -11,16 +11,18 @@
 import uber2022 from './uber2022/index.js';
 import mgm2023 from './mgm2023/index.js';
 import colonial2021 from './colonial2021/index.js';
+import target2013 from './target2013/index.js';
+import equifax2017 from './equifax2017/index.js';
+import moveit2023 from './moveit2023/index.js';
+import change2024 from './change2024/index.js';
+import capitalone2019 from './capitalone2019/index.js';
 
-export const CASES = [uber2022, mgm2023, colonial2021];
+export const CASES = [uber2022, mgm2023, colonial2021, target2013, equifax2017, capitalone2019, moveit2023, change2024];
 
 export const getCase = (id) => CASES.find((c) => c.caseFile.id === id) || CASES[0];
 
 // On the roadmap: shown as locked cards in the Case Files menu.
 const soon = (id, company, when, title, pitch, tags) => ({ comingSoon: true, caseFile: { id, company, when, title, pitch, tags, difficulty: 'Coming soon' } });
 export const COMING_SOON = [
-  soon('equifax-2017', 'Equifax', 'May-July 2017', 'The patch that never landed', 'An Apache Struts flaw with a fix already out, a scan that missed one portal, and an expired certificate that hid 76 days of data leaving.', ['Unpatched CVE', 'Web shells', 'Expired cert']),
-  soon('target-2013', 'Target', 'Nov-Dec 2013', 'In through the HVAC vendor', "A heating contractor's stolen login, card-scraping malware on registers, and security alerts that fired and were never acted on.", ['Third-party access', 'POS malware', 'Ignored alerts']),
-  soon('moveit-2023', 'MOVEit Transfer', 'May-June 2023', 'One SQL injection, 2,700+ organizations', 'Cl0p hits a file-transfer product over a holiday weekend, drops a web shell called human2.aspx, and steals data from thousands of organizations.', ['Zero-day', 'SQL injection', 'Cl0p']),
-  soon('change-2024', 'Change Healthcare', 'February 2024', 'No MFA, no claims', 'Stolen credentials on a remote-access portal without MFA, nine quiet days inside, then ransomware that stalled pharmacy claims nationwide.', ['No MFA', 'Ransomware', 'Healthcare']),
+  soon('solarwinds-2020', 'SolarWinds', 'Sept 2019 - Dec 2020', 'The update everyone trusted', 'Attackers slip malicious code into a signed software update that thousands of organizations install.', ['Supply chain', 'Build system', 'APT29']),
 ];

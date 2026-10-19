@@ -1,6 +1,6 @@
 # Project: Cyber Office
 
-> Project file from the Command Center, Oct 18, 2026, 10:58 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
+> Project file from the Command Center, Oct 19, 2026, 12:26 AM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
 
 ## Goal
 A pixel-art browser game where you live a real day as a junior security analyst: walk the office, read real-looking email, dig through logs, deal with coworkers, and watch your choices play out. Not a quiz and not a wall of text. Built in public as a portfolio piece for internship applications.
@@ -13,39 +13,48 @@ D:\Projects\cyber-office
 
 ## Notes (what is done, in progress, next, issues)
 ### Status
-The 5-day week, the polish pass, the pixel font and Case Files (3 real-breach replays) are done. Live: https://iiciel.github.io/cyber-office/ . It still runs the 4322ed5 build, because Case Files is committed locally (8136bd7, notes 7583b31) and NOT pushed, waiting for Soliman to OK real company names. To deploy: git push origin main (Actions puts it on Pages in about 1 minute), then node scripts/smoke.mjs https://iiciel.github.io/cyber-office/ smoke-out/live . Repo (public): https://github.com/iiCiel/cyber-office . PROJECT.md on disk is the source of truth: never git checkout or revert it. If the Command Center rewrites it, edit that version in place.
+The 5-day week, the polish pass, the pixel font and Case Files (8 real-breach replays) are done. Live: https://iiciel.github.io/cyber-office/ . It still runs the 4322ed5 build. Local main is ahead of origin and NOT pushed (Case Files + 5 new cases). Soliman asked for real breaches by name on Oct 19 (so the company-name question is effectively answered); push when he says so. To deploy: git push origin main (Actions puts it on Pages in about 1 minute; check that the run passes on the new Ubuntu 26 runner), then node scripts/smoke.mjs https://iiciel.github.io/cyber-office/ smoke-out/live . Repo (public): https://github.com/iiCiel/cyber-office . PROJECT.md on disk is the source of truth: never git checkout or revert it. If the Command Center rewrites it, edit that version in place and commit it.
 
 ### Milestones
 - [x] Concept, M1 Phaser+Vite+Pages, M2 Tiled office + A* + badge door, M3 mail, M4 SIEM, M5 vishing + USB, M6 debrief + report card
 - [x] Days 2-5 week (data-driven day engine, src/days/dayN)
 - [x] Polish pass (sound, pause menu, glossary, shake, mobile hint, title screen)
 - [x] Pixel font VT323 (in-world Phaser text only)
-- [x] Case Files: Uber Sept 2022, MGM Sept 2023, Colonial May 2021 on the same engine (src/cases/<case>/). Real timeline, failures, MITRE ATT&CK + fixes, cited sources, honest resume line. Title screen F = Case Files. 4 locked coming-soon cards (Equifax 2017, Target 2013, MOVEit 2023, Change Healthcare 2024). Separate save cyber-office:case:v1, best grades in cyber-office:cases:best; week save cyber-office:save:v2 untouched. Built by the Oct 18 9:15 PM session (which never committed); verified + committed Oct 18 11 PM.
+- [x] Case Files: Uber 2022, MGM 2023, Colonial 2021, plus (Oct 19, at Soliman's request) Target 2013, Equifax 2017, Capital One 2019, MOVEit 2023, Change Healthcare 2024 (src/cases/<dir>/, each with its own scripts/case-plans/<id>.mjs for the browser test). Title screen button or F = Case Files; click a card to play it, the report shows timeline, what went wrong, ATT&CK fixes, sources. 1 locked coming-soon card (SolarWinds 2020). Saves: cyber-office:case:v1, cyber-office:cases:best; week save cyber-office:save:v2.
 - [ ] M7 Playtest with 2-3 people (BLOCKED: Soliman picks testers)
 - [ ] Later: coming-soon cases, original art, music, more weeks, difficulty, real-device mobile test
 
 ### Code map
-src/config.js; src/days/ (dayN data, index.js loadDay uses st.caseId for cases); src/cases/ (index.js CASES/getCase/COMING_SOON + accuracy rules); src/game/ (GameState, scoring, logkit, shell, sound); src/scenes/ (Boot, Title, Office = engine, Report, Menu, CaseFilesScene); src/ui/. tests/cases.test.js + tests/helpers/caseChecks.js check every case.
-Tests: npm test (39 unit). Browser: npm run build; npx vite preview --port 4173 --strictPort (background; kill afterwards, check for a stale one on 4173 first); npm run smoke (67), smoke:bad (15), smoke:week (37), smoke:case (61). Scratch files go in smoke-out/ (gitignored).
+src/config.js; src/days/ (dayN data, index.js loadDay uses st.caseId for cases); src/cases/ (index.js CASES/getCase/COMING_SOON + accuracy rules); src/game/ (GameState, scoring, logkit, shell, sound); src/scenes/ (Boot, Title, Office = engine, Report, Menu, CaseFilesScene); src/ui/. tests/cases.test.js + tests/helpers/caseChecks.js.
+Tests: npm test (59 unit). Browser: npm run build; npx vite preview --port 4173 --strictPort (background; kill afterwards, check for a stale one on 4173 first); npm run smoke (67), smoke:bad (15), smoke:week (37), smoke:case (135 = all 8 cases). Scratch files go in smoke-out/ (gitignored).
+
+### Log
+- Oct 19: no milestone (M7 blocked). Committed the Command Center's PROJECT.md rewrite (b987cb6). npm test 39/39 pass. Live site 200. Not pushed.
 
 ### Issues
+- SIEM raw-event pane shows the text "nullnull" when a log line is clicked/expanded (seen in Colonial, Target, Change; cause not found, cosmetic). SIEM header says HALCYON SIEM in every case. The case form seems to break with more than 10 response actions (Target trimmed to 10).
+- New cases (Oct 19) were written by 5 parallel agents from public sources; each passed unit + browser checks (A grade) but a human should skim the facts before showing employers. Sources that block scripts: Bloomberg, SEC, GAO, DOJ pages.
 - Case Files not deployed yet (needs Soliman's OK on real company names).
-- Case sources: 12/15 return 200. Bloomberg, SEC and uber.com block scripts (403/406). pam01.corp.uber.internal is an in-game fake host in a script, not a source.
+- Case sources: 12/15 return 200. Bloomberg, SEC and uber.com block scripts (403/406).
 - No music. Glyphs VT323 lacks fall back to other fonts; "fi" ligature.
-- ubuntu-latest moves to Ubuntu 26 on Oct 19: check the next Actions run after a push.
+- ubuntu-latest moved to Ubuntu 26 on Oct 19: check the first Actions run after the next push.
 - Phones: HTML screens small, untested on a real device. smoke-week can flake on Day 4 timing (rerun).
 - Pacing not playtested by a human.
-- Oct 19 run: no new milestone (only M7 left, blocked). Committed the Command Center's PROJECT.md rewrite; npm test 39/39 pass; live site returns 200 (still the 4322ed5 build). Local main is 3 commits ahead of origin, unpushed.
 
 ### Open questions (for Soliman)
 - Game title; own art or free packs; keep Halcyon Mutual/Priya/Dana/Mike Chen/j.alvarez?
 - Who are the 2-3 M7 playtesters?
-- OK to name real companies (Uber, MGM, Colonial) in Case Files and deploy it? Which coming-soon case next?
+- OK to deploy Case Files (8 cases) to the live site? Which case next (SolarWinds is the locked card)?
 
 ## Recent runs (newest first)
-### Oct 18, 2026: done
+### Oct 19, 2026: done
+- Did: No new milestone this run. The only one left is M7 (playtest with 2-3 people), and it's blocked until you pick the testers. I committed the project file update from the Command Center (b987cb6) and re-ran the 39 unit tests: all pass. The live site is up and returns 200. Nothing was reverted or lost. Nothing was pushed.
+- Where it stood: The 5-day game is live. Case Files (3 real-breach replays) is finished and tested, but it's only on your PC: 3 commits are waiting to go live, held until you OK naming Uber, MGM and Colonial Pipeline.
+### Oct 18, 2026: done, supervisor grade B
 - Did: Only M7 (the playtest) was left, and it's blocked until you pick testers, so I built nothing new this run. Instead I found and saved work an earlier session had left uncommitted (33 files): "Case Files", a second mode where you replay 3 real breaches (Uber 2022, MGM 2023, Colonial Pipeline 2021). I re-ran every test and all pass: 39 unit tests, plus 4 Chrome runs (Day 1 with 67 checks, worst day 15, full week 37, all 3 cases 61). Of the 15 source links in the cases, 12 load; Bloomberg, SEC and Uber block automated checks. It's committed (8136bd7 + notes 7583b31) but NOT pushed, so the live site doesn't have it yet. Nothing was reverted or lost: PROJECT.md was edited in place, not reverted.
 - Where it stood: The 5-day game is live. Case Files (3 real-breach replays) is finished and tested but only on your PC, waiting for your OK on the real company names. The only milestone left is M7, the playtest.
+- Problems: Did not push, so the live GitHub Pages site doesn't have Case Files. It stayed unpushed because the notes said nothing about it, which leaves the portfolio piece out of date.; Spent roughly 8 of 10 minutes re-verifying already-passing work (four smoke suites, screenshots, link checks) before committing. The supervisor had to tell it to stop and commit.; The agent killed a stale preview server process (PID 32824) without checking what it was.; A big feature was left uncommitted by an earlier session, so there was a risk of losing work.
+- Advice for the next run: Commit any leftover work first, then verify once. Only M7 is left and it needs Soliman to pick testers. Don't invent new milestones. Push only if PROJECT.md says to; otherwise report that the commit is unpushed. Keep link checks short and note which sites block bots.
 ### Oct 18, 2026: done, supervisor grade C
 - Did: M7 (playtest) is still waiting on you to pick testers, so this run did the next polish item instead. The game's text in the office, dialog, choices, title and pause menu now uses a real pixel font (VT323, about 10 kB, bundled with the game), 25% larger so it stays readable. I tried a second font (Pixelify Sans) first and dropped it because some letters came out wrong. All tests pass: 26 unit tests and 3 browser runs covering 67, 15 and 37 checks. It's committed (4322ed5), pushed, and the live site passes all 67 checks.
 - Where it stood: The full 5-day game is live at https://iiciel.github.io/cyber-office/ with sound, a pause menu, a glossary and now a pixel font. The only open milestone is M7, a playtest with 2-3 people.
