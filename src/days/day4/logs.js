@@ -8,7 +8,7 @@
 
 import { T, logBuilder, finishLogs, backgroundNoise } from '../../game/logkit.js';
 
-export const DATE = { weekday: 'THU', name: 'Thursday', month: 'Oct', day: 22 };
+export const DATE = { weekday: 'THU', name: 'Thursday', month: 'Oct', day: 22, year: 2026, domain: 'halcyonmutual.local', netbios: 'HALCYON' };
 export const C2 = '203.0.113.45';
 
 export const IP_INFO = {

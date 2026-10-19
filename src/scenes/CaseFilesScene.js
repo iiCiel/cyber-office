@@ -23,7 +23,7 @@ export class CaseFilesScene extends Phaser.Scene {
       return h(
         'div',
         { class: `case-card${c.comingSoon ? ' soon' : ''}`, 'data-case': cf.id },
-        h('div', { class: 'when' }, cf.when),
+        h('div', { class: 'when' }, cf.when, cf.kind === 'lab' ? h('span', { class: 'labtag' }, 'LAB · fictional') : null),
         h('div', { class: 'co' }, `${cf.company}: ${cf.title}`),
         h('p', { class: 'sub' }, cf.pitch),
         h('div', { class: 'tags' }, cf.tags.map((t) => h('span', { class: 'tag' }, t))),
@@ -49,7 +49,7 @@ export class CaseFilesScene extends Phaser.Scene {
           'p',
           { class: 'intro' },
           'Real breaches, replayed. Each case rebuilds a documented incident from public reports: the same way in, the same mistakes, the same clues in the logs. ',
-          "You're the analyst on shift. Afterwards you see what really happened, what it cost, the MITRE ATT&CK techniques, and how to stop it.",
+          "You're the analyst on shift. Afterwards you see what really happened, what it cost, the MITRE ATT&CK techniques, and how to stop it. Cards marked LAB are invented scenarios built from real techniques and real log formats (Active Directory, AWS).",
         ),
         h('div', { class: 'grid' }, [...CASES, ...COMING_SOON].map(card)),
         h(

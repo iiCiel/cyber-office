@@ -1,0 +1,151 @@
+// Lab: Halcyon Mutual, Saturday Oct 24, 2026. The weekend on-call inbox.
+//   - Mike's honest report of what he clicked on Friday night (the start of the intrusion)
+//   - The weekly Active Directory health digest (every gap the attack uses was already listed, and nobody is paged)
+//   - A "password expires" phish (not part of the intrusion: noise to test the player)
+//   - Dana's change notice about moving service accounts from RC4 to AES (a real Microsoft guidance topic)
+const t = (h, m) => h * 60 + m;
+const ME = 'analyst01@halcyonmutual.com';
+
+export const EMAILS = [
+  {
+    id: 'mike-report',
+    at: t(6, 5),
+    from: { name: 'Mike Chen', address: 'm.chen@halcyonmutual.com' },
+    to: 'security@halcyonmutual.com',
+    subject: 'Invoice from a vendor, and my laptop was loud all night',
+    external: false,
+    phish: false,
+    body: [
+      'Hi Security,',
+      'Friday night around 12:30 I connected to my work PC from home to finish a quote. I opened an invoice (Invoice_8841.docm) a vendor sent me earlier. Word said I had to "Enable Content" to see it, so I clicked it.',
+      'Nothing showed up, the page was blank. This morning my laptop fan was running at full speed and I noticed a PowerShell window flash by when I logged in.',
+      'Is this something? I did not want to bother anyone on a Saturday. Thanks, Mike',
+    ],
+    headers: [
+      'Return-Path: <m.chen@halcyonmutual.com>',
+      'Received: from mail01.halcyonmutual.local (10.0.3.40)',
+      '  by mx.halcyonmutual.com with ESMTPS id 6C1B0E22;',
+      '  Sat, 24 Oct 2026 06:05:41 -0400 (EDT)',
+      'Authentication-Results: mx.halcyonmutual.com;',
+      '  spf=pass smtp.mailfrom=halcyonmutual.com;',
+      '  dkim=pass header.d=halcyonmutual.com;',
+      '  dmarc=pass header.from=halcyonmutual.com',
+      'From: Mike Chen <m.chen@halcyonmutual.com>',
+      'To: security@halcyonmutual.com',
+      'Subject: Invoice from a vendor, and my laptop was loud all night',
+    ],
+    notes: { 'Received:': 'Internal mail server, a real message from a real employee. He is reporting the incident, not causing it.' },
+    verdictNote: 'Real, and it is where the intrusion started: a macro document opened Friday night, "Enable Content", a hidden PowerShell window. A user who says "my laptop was loud" is a sensor. Thank him, tell him he did the right thing, and start with his workstation. Do not report this one as phishing: the sender is genuine.',
+    teaches: { skill: 'Treat user reports as detection, and follow the thread to the host', secplus: '4.8 Incident response: detection and analysis' },
+  },
+  {
+    id: 'ad-digest',
+    at: t(6, 0),
+    from: { name: 'AD Health Report', address: 'ad-reports@halcyonmutual.com' },
+    to: 'security@halcyonmutual.com',
+    subject: '[Weekly] Active Directory health: 6 findings open longer than 30 days',
+    external: false,
+    phish: false,
+    body: [
+      'Automated report from the identity hygiene scan (domain: halcyonmutual.local). Findings open longer than 30 days:',
+      'HIGH  svc_sql      has an SPN (MSSQLSvc/claims-db01), password last set 2018-05-21 (2,713 days), never expires. Kerberoastable.',
+      'HIGH  svc_web      has an SPN (HTTP/portal), password last set 2022-04-12, never expires. Kerberoastable.',
+      'HIGH  svc_scan     service account is a member of Domain Admins.',
+      'MED   krbtgt       password last set 2019-06-20 (2,683 days). Recommended: every 180 days.',
+      'MED   a.admin      has a Disconnected RDP session on CLAIMS-DB01 since Fri 16:38. Tier 0 account on a Tier 1 server.',
+      'LOW   No SIEM rule for event 4662 with replication rights by a non-DC account; no rule for RC4 (0x17) tickets to user accounts.',
+      'This report is generated weekly. Nobody is paged for HIGH findings.',
+    ],
+    headers: [
+      'Return-Path: <ad-reports@halcyonmutual.com>',
+      'Received: from scan02.halcyonmutual.local (10.0.3.61)',
+      '  by mx.halcyonmutual.com with ESMTPS id 2B7C19A4;',
+      '  Sat, 24 Oct 2026 06:00:03 -0400 (EDT)',
+      'Authentication-Results: mx.halcyonmutual.com;',
+      '  spf=pass smtp.mailfrom=halcyonmutual.com;',
+      '  dkim=pass header.d=halcyonmutual.com;',
+      '  dmarc=pass header.from=halcyonmutual.com',
+      'From: AD Health Report <ad-reports@halcyonmutual.com>',
+      'Subject: [Weekly] Active Directory health: 6 findings open longer than 30 days',
+    ],
+    notes: { 'Received:': 'An internal scanner. A real scheduled report, sent every Saturday at 6 AM.' },
+    verdictNote: 'Real, and it is the lesson of the whole case. Every step of the intrusion used a gap this report already listed: a Kerberoastable service account with a 2018 password, an admin session left on a server, and no alert for DCSync. A finding that nobody is paged for stays open until an attacker finds it.',
+    teaches: { skill: 'Act on the findings your tools already report', secplus: '4.4 Alerting and monitoring' },
+  },
+  {
+    id: 'm365-expire',
+    at: t(7, 12),
+    from: { name: 'Microsoft 365 Security', address: 'no-reply@microsoft365-secure-login.com' },
+    to: ME,
+    subject: 'Your password expires in 24 hours. Keep your account active',
+    external: true,
+    phish: true,
+    body: [
+      'Your Microsoft 365 password will expire in 24 hours. To keep access to your mailbox and files, confirm your password now.',
+      { link: 'm365-confirm', text: 'Keep my password', href: 'https://microsoft365-secure-login.com/halcyonmutual/confirm' },
+      'If you do not confirm, your account will be suspended.',
+      'Microsoft 365 Security Team',
+    ],
+    headers: [
+      'Return-Path: <bounce@microsoft365-secure-login.com>',
+      'Received: from mail.microsoft365-secure-login.com (203.0.113.91)',
+      '  by mx.halcyonmutual.com with ESMTP id 3E6A9B07;',
+      '  Sat, 24 Oct 2026 07:12:09 -0400 (EDT)',
+      'Authentication-Results: mx.halcyonmutual.com;',
+      '  spf=pass smtp.mailfrom=microsoft365-secure-login.com;',
+      '  dkim=none (message not signed);',
+      '  dmarc=none header.from=microsoft365-secure-login.com',
+      'From: Microsoft 365 Security <no-reply@microsoft365-secure-login.com>',
+      'Subject: Your password expires in 24 hours. Keep your account active',
+    ],
+    notes: {
+      'Return-Path:': 'microsoft365-secure-login.com is not microsoft.com or office.com. A brand name inside a longer domain is the oldest trick there is.',
+      'Authentication-Results:': 'SPF "passes" because the attacker owns the lookalike domain. No DKIM, no DMARC.',
+    },
+    verdictNote: 'Phishing, the generic kind. Not part of the intrusion; weekends are when scammers expect nobody to look. Microsoft does not warn about password expiry by emailing a "keep my password" link. Your organization sets password expiry in its own directory.',
+    credsCost: { amount: 25000, text: 'Reset your password, review sign-ins for your mailbox, check for rules and forwards (estimate for this lab)' },
+    teaches: { skill: 'Spot credential phishing, even when you are busy', secplus: '2.2 Threat vectors: phishing' },
+  },
+  {
+    id: 'dana-rc4',
+    at: t(6, 40),
+    from: { name: 'Dana Kowalski', address: 'dana.k@halcyonmutual.com' },
+    to: 'security@halcyonmutual.com',
+    subject: 'Change notice: RC4 to AES for service accounts, Sunday',
+    external: false,
+    phish: false,
+    body: [
+      'FYI, planned change for Sunday 10 AM:',
+      'Per Microsoft\'s Kerberos guidance (KB5020805), I will set "This account supports Kerberos AES 256 bit encryption" on the service accounts and stop the domain from issuing RC4 tickets to them. svc_sql and svc_web first.',
+      'Risk: any old app that only knows RC4 will fail to authenticate. The NAS is the one I am worried about. I will check with Theo before touching svc_sql.',
+      'Dana',
+    ],
+    headers: [
+      'Return-Path: <dana.k@halcyonmutual.com>',
+      'Received: from mail01.halcyonmutual.local (10.0.3.40)',
+      '  by mx.halcyonmutual.com with ESMTPS id 4F2D18C1;',
+      '  Sat, 24 Oct 2026 06:40:11 -0400 (EDT)',
+      'Authentication-Results: mx.halcyonmutual.com;',
+      '  spf=pass smtp.mailfrom=halcyonmutual.com;',
+      '  dkim=pass header.d=halcyonmutual.com;',
+      '  dmarc=pass header.from=halcyonmutual.com',
+      'From: Dana Kowalski <dana.k@halcyonmutual.com>',
+      'To: security@halcyonmutual.com',
+      'Subject: Change notice: RC4 to AES for service accounts, Sunday',
+    ],
+    notes: { 'Received:': 'Internal. A real change notice, posted ahead of a maintenance window the way change management says to.' },
+    verdictNote: 'Real, and good practice: announced in advance, with a stated risk. It also shows why RC4 shows up at all: some old devices only speak it. That is why one NAS in the logs asks for RC4 tickets all day. The difference is the account it asks for: a machine account (name ends in $), not a user\'s service account.',
+    teaches: { skill: 'Read a change notice and know what normal looks like before you hunt', secplus: '1.3 Change management' },
+  },
+];
+
+export const PAGES = {
+  'm365-confirm': { kind: 'phish-login', url: 'https://microsoft365-secure-login.com/halcyonmutual/confirm', secure: true, brand: 'Microsoft 365', heading: 'Confirm your password', small: 'Your password expires in 24 hours.', done: 'Thank you. Your password is confirmed. (It is not. It just went to a stranger.)' },
+};
+
+export const REPLY_DRAFTS = {
+  'mike-report': 'Thank you, Mike. You did the right thing by telling us. Please do not use that laptop or the invoice again. Someone will be in touch.',
+  'ad-digest': 'Opening the findings now.',
+  'dana-rc4': 'Thanks, Dana. Hold the svc_sql change until we have looked at it.',
+  'm365-expire': 'Done, I confirmed.',
+};

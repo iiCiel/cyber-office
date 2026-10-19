@@ -10,9 +10,9 @@
 // NOT public: attacker IPs, internal hostnames, file names, exact times. Those are stand-ins (RFC 5737 ranges). Dates
 // follow the reporting; times of day are made up. This case spans months, so every line carries its own date.
 
-import { T, logBuilder, hms } from '../../game/logkit.js';
+import { T, logBuilder, finishDays } from '../../game/logkit.js';
 
-export const DATE = { weekday: 'SAT', name: 'Saturday', month: 'Jul', day: 29 };
+export const DATE = { weekday: 'SAT', name: 'Saturday', month: 'Jul', day: 29, year: 2017, domain: 'corp.example', netbios: 'CORP' };
 export const ATT1 = '203.0.113.44';
 export const ATT2 = '198.51.100.23';
 export const ATT3 = '203.0.113.77';
@@ -33,7 +33,6 @@ export const IP_INFO = {
 const DAY = 86400;
 // day = days relative to Jul 29 (May 13 = -77, Mar 15 = -136, Jul 25 = -4).
 const A = (day, h, m, s = 0) => day * DAY + T(h, m, s);
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export function generateLogs({ nowMinutes = 24 * 60, phishedAt = null } = {}) {
   const b = logBuilder(2017);
@@ -97,24 +96,7 @@ export function generateLogs({ nowMinutes = 24 * 60, phishedAt = null } = {}) {
     add(at, 'idp', 'sso', 'event=auth.password outcome=SUCCESS user=analyst01@corp.example src_ip=203.0.113.90 geo="Amsterdam, NL" device=unknown', { user: 'analyst01', ip: '203.0.113.90', attack: true, key: 'analyst01-pw' });
   }
 
-  return finish(b.ev, nowMinutes);
-}
-
-function finish(ev, nowMinutes) {
-  const nowSec = A(0, 0, 0) + nowMinutes * 60;
-  const stamp = (abs) => {
-    const day = Math.floor(abs / DAY);
-    const d = new Date(Date.UTC(2017, 6, DATE.day + day));
-    return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()} ${hms(abs - day * DAY)}`;
-  };
-  return ev
-    .filter((e) => e.t <= nowSec)
-    .sort((a, b) => a.t - b.t)
-    .map((e) => {
-      const time = stamp(e.t);
-      const tod = e.t - Math.floor(e.t / DAY) * DAY;
-      return { ...e, t: tod, time, line: `${time} ${e.host} ${e.msg}`, short: e.msg };
-    });
+  return finishDays(b.ev, { nowMinutes, date: DATE });
 }
 
 export const CASE = {

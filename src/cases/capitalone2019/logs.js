@@ -15,7 +15,7 @@
 
 import { T, logBuilder, finishLogs } from '../../game/logkit.js';
 
-export const DATE = { weekday: 'WED', name: 'Wednesday', month: 'Jul', day: 17 };
+export const DATE = { weekday: 'WED', name: 'Wednesday', month: 'Jul', day: 17, year: 2019, domain: 'corp.example', netbios: 'CORP' };
 const ATT_VPN = '198.51.100.62'; // VPN provider address the first requests come from
 const ATT_TOR = '203.0.113.17'; // Tor exit node stand-in: the stolen role session is used from here
 const WAF = '10.40.3.23'; // waf-prod-03

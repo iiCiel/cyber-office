@@ -10,9 +10,9 @@
 // Feb 21, and how much data left on which day. Those are stand-ins; IPs are from the documentation ranges (RFC 5737).
 // Times of day are made up; the dates (Feb 12, Feb 21) follow the testimony. Every line carries its own date.
 
-import { T, logBuilder, hms } from '../../game/logkit.js';
+import { T, logBuilder, finishDays } from '../../game/logkit.js';
 
-export const DATE = { weekday: 'WED', name: 'Wednesday', month: 'Feb', day: 21 };
+export const DATE = { weekday: 'WED', name: 'Wednesday', month: 'Feb', day: 21, year: 2024, domain: 'change.example', netbios: 'CHANGE' };
 export const ATTACKER_IP = '203.0.113.44';
 export const CITRIX_IP = '10.50.8.14';
 export const EXFIL_IP = '198.51.100.130';
@@ -31,7 +31,6 @@ export const IP_INFO = {
 const DAY = 86400;
 // day = days relative to Feb 21 (Feb 12 = -9).
 const A = (day, h, m, s = 0) => day * DAY + T(h, m, s);
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const GB = (n) => `${n.toFixed(1)}GB`;
 
 const cx = (b, t, user, src, extra, portal, method, mfa, result = 'SUCCESS') =>
@@ -110,32 +109,9 @@ export function generateLogs({ nowMinutes = 24 * 60, phishedAt = null } = {}) {
     add(at + 5, 'idp', 'sso', 'event=mfa.push outcome=FAILURE user=analyst01@change.example src_ip=203.0.113.90 factor=push reason=user_denied attempt=1', { user: 'analyst01', ip: '203.0.113.90', attack: true });
   }
 
-  return finish(b.ev, nowMinutes);
+  return finishDays(b.ev, { nowMinutes, date: DATE });
 }
 
-// Like finishLogs, but each line carries its own date. `t` stays the time of day (the SIEM shows it).
-function finish(ev, nowMinutes) {
-  const nowSec = A(0, 0, 0) + nowMinutes * 60;
-  const stamp = (abs) => {
-    const day = Math.floor(abs / DAY);
-    const d = new Date(Date.UTC(2024, 1, DATE.day + day));
-    return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()} ${hms(abs - day * DAY)}`;
-  };
-  return ev
-    .filter((e) => e.t <= nowSec)
-    .sort((a, b) => a.t - b.t)
-    .map((e) => {
-      const time = stamp(e.t);
-      const tod = e.t - Math.floor(e.t / DAY) * DAY;
-      return {
-        ...e,
-        t: tod,
-        time,
-        line: `${time} ${e.host} ${e.source === 'Security' ? 'Microsoft-Windows-Security-Auditing: ' : ''}${e.msg}`,
-        short: e.source === 'Security' ? e.msg.replace(/^EventID=(\d+) (.+?)\. (.*)$/, (_, id, _s, rest) => `${id}  ${rest}`) : e.msg,
-      };
-    });
-}
 
 export const CASE = {
   id: 'case',

@@ -2,6 +2,7 @@
 import { EMAILS, PAGES, REPLY_DRAFTS } from './emails.js';
 import { generateLogs, accessLog, ALERTS, CASE, IP_INFO, DATE, ATTACKER_IP } from './logs.js';
 import { THEO_WAF } from './talk.js';
+import { halcyonDirectory, halcyonPowershell } from '../../data/halcyonDirectory.js';
 import { scoreEmail, scoreCase, scoreConversation, finalize } from '../../game/scoring.js';
 
 const MAIN = 'portal-sqli';
@@ -151,6 +152,8 @@ export default {
 
   emails: EMAILS,
   pages: PAGES,
+  directory: halcyonDirectory(),
+  powershell: halcyonPowershell(),
   replyDrafts: REPLY_DRAFTS,
   logs: (st) => generateLogs({ nowMinutes: st.minutes }),
   ipInfo: IP_INFO,

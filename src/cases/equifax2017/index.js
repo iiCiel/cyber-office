@@ -67,8 +67,7 @@ const csv = (rows) => `${rows.map((r) => r.join(',')).join('\n')}\n`;
 function terminal() {
   return {
     date: 'Sat Jul 29 2017',
-    host: 'SOC-WS-07',
-    motd: 'SOC workstation. Exports are under /mnt/exports (assets, scans, certs, acis). Type help.\n',
+    note: 'Exports are under /mnt/exports (assets, scans, certs, acis).',
     files: {
       '/mnt/exports/README.txt': [
         'assets/assets.csv     what runs where (owner, internet-facing, struts version)',

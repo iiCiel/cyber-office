@@ -3,6 +3,7 @@ import { EMAILS, PAGES, REPLY_DRAFTS } from './emails.js';
 import { generateLogs, ALERTS, CASE, IP_INFO, DATE } from './logs.js';
 import { CARLA_CALL } from './talk.js';
 import { TICKETS } from './tickets.js';
+import { halcyonDirectory, halcyonPowershell } from '../../data/halcyonDirectory.js';
 import { scoreEmail, scoreCase, scoreTicket, scoreConversation, finalize } from '../../game/scoring.js';
 
 const MAIN = 'exfil-svc-backup';
@@ -94,6 +95,8 @@ export default {
   ipInfo: IP_INFO,
   alerts: ALERTS,
   tickets: TICKETS,
+  directory: halcyonDirectory(),
+  powershell: halcyonPowershell(),
   prepare,
 
   objectives: [

@@ -2,6 +2,7 @@
 // and the week's backups decide the ending. No tickets or walk-ups: it's one escalating incident.
 import { emailsFor, PAGES, REPLY_DRAFTS } from './emails.js';
 import { generateLogs, ALERTS, CASE, IP_INFO, DATE, C2 } from './logs.js';
+import { halcyonDirectory, halcyonPowershell } from '../../data/halcyonDirectory.js';
 import { scoreEmail, scoreCase, finalize } from '../../game/scoring.js';
 
 const MAIN = 'ransomware-file01';
@@ -137,6 +138,8 @@ export default {
 
   emails: emailsFor({}), // replaced by prepare() with the carry-aware set
   pages: PAGES,
+  directory: halcyonDirectory(),
+  powershell: halcyonPowershell(),
   replyDrafts: REPLY_DRAFTS,
   logs: (st) => generateLogs({ nowMinutes: st.minutes, carry: st.campaign.carry, alertAt: st.soc.alerts[MAIN] }),
   ipInfo: IP_INFO,

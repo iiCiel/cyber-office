@@ -11,7 +11,7 @@
 
 import { T, logBuilder, finishLogs, STAFF } from '../../game/logkit.js';
 
-export const DATE = { weekday: 'MON', name: 'Monday', month: 'Oct', day: 19 };
+export const DATE = { weekday: 'MON', name: 'Monday', month: 'Oct', day: 19, year: 2026, domain: 'halcyonmutual.local', netbios: 'HALCYON' };
 export const ATTACKER_IP = '185.220.101.47';
 export const PHISH_IP = '91.215.85.17';
 

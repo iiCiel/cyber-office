@@ -61,8 +61,7 @@ const csv = (rows) => `${rows.map((r) => r.join(',')).join('\n')}\n`;
 function terminal() {
   return {
     date: 'Thu Jun 01 2023',
-    host: 'SOC-WS-07',
-    motd: 'SOC workstation. An export of moveit01 (web root, IIS logs, user list, file list) is mounted read-only at /mnt/moveit01. Type help.\n',
+    note: 'An export of moveit01 (web root, IIS logs, user list, file list) is mounted read-only at /mnt/moveit01.',
     files: {
       '/mnt/moveit01/README.txt': [
         'Read-only export of moveit01 (MOVEit Transfer, DMZ), taken this morning.',

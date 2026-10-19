@@ -170,6 +170,7 @@ export class ReportScene extends Phaser.Scene {
   caseSections(cf, r) {
     const earned = ['A', 'B', 'C'].includes(r.grade);
     const resume = cf.resume.replace('{grade}', r.grade);
+    const lab = cf.kind === 'lab';
     const copyBtn = h('button', { type: 'button', class: 'secondary copy', 'data-action': 'copy-resume' }, 'Copy');
     copyBtn.addEventListener('click', () => {
       navigator.clipboard?.writeText(resume).then(() => (copyBtn.textContent = 'Copied ✓'), () => (copyBtn.textContent = 'Select and copy it'));
@@ -177,10 +178,10 @@ export class ReportScene extends Phaser.Scene {
     return h(
       'div',
       { class: 'casefile', 'data-casefile': cf.id },
-      h('section', {}, h('h2', {}, 'What really happened'), h('p', { class: 'cf-lede' }, cf.headline),
+      h('section', {}, h('h2', {}, lab ? 'What happened in this lab' : 'What really happened'), h('p', { class: 'cf-lede' }, cf.headline),
         h('ol', { class: 'timeline' }, cf.timeline.map((t) => h('li', {}, h('span', { class: 'when' }, t.when), h('span', {}, t.what))))),
-      h('section', {}, h('h2', {}, `How it ended for ${cf.company}`), cf.realOutcome.map((l) => h('p', { class: 'cf-p' }, l))),
-      h('section', {}, h('h2', {}, 'What went wrong (the real failures)'), h('ul', { class: 'cf-list bad' }, cf.failures.map((f) => h('li', {}, f)))),
+      h('section', {}, h('h2', {}, lab ? 'Why this works in real networks' : `How it ended for ${cf.company}`), cf.realOutcome.map((l) => h('p', { class: 'cf-p' }, l))),
+      h('section', {}, h('h2', {}, lab ? 'What went wrong in this lab' : 'What went wrong (the real failures)'), h('ul', { class: 'cf-list bad' }, cf.failures.map((f) => h('li', {}, f)))),
       h('section', {}, h('h2', {}, 'How to stop it: techniques and fixes'),
         h('div', { class: 'attck' }, cf.attack.map((a) =>
           h('div', { class: 'tech' },

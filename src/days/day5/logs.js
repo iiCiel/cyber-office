@@ -7,7 +7,7 @@
 
 import { T, logBuilder, finishLogs, backgroundNoise } from '../../game/logkit.js';
 
-export const DATE = { weekday: 'FRI', name: 'Friday', month: 'Oct', day: 23 };
+export const DATE = { weekday: 'FRI', name: 'Friday', month: 'Oct', day: 23, year: 2026, domain: 'halcyonmutual.local', netbios: 'HALCYON' };
 export const C2 = '203.0.113.45';
 export const RANSOM_IP = '91.219.236.14';
 

@@ -19,7 +19,7 @@
 
 import { T, logBuilder, finishLogs } from '../../game/logkit.js';
 
-export const DATE = { weekday: 'SUN', name: 'Sunday', month: 'Sep', day: 10 };
+export const DATE = { weekday: 'SUN', name: 'Sunday', month: 'Sep', day: 10, year: 2023, domain: 'mgmresorts.example', netbios: 'MGM' };
 export const RING_DEFAULT = 8 * 60 + 35; // minute the desk phone rings if the engine never recorded it
 const ATT_HOME = '198.51.100.40'; // the caller's "home" IP when they sign in
 const ATT_INFRA = '203.0.113.55'; // the attacker's own infrastructure (rogue IdP, Azure)

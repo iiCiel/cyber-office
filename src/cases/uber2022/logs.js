@@ -12,7 +12,7 @@
 
 import { T, logBuilder, finishLogs } from '../../game/logkit.js';
 
-export const DATE = { weekday: 'THU', name: 'Thursday', month: 'Sep', day: 15 };
+export const DATE = { weekday: 'THU', name: 'Thursday', month: 'Sep', day: 15, year: 2022, domain: 'corp.example', netbios: 'CORP' };
 export const ATTACKER_IP = '203.0.113.77';
 export const VPN_IP = '10.8.14.23';
 const CONTRACTOR = 'r.osei';

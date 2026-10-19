@@ -14,9 +14,9 @@
 // SQL injection payloads are never shown: they are replaced by a redaction note.
 // Dates (May 27 through June 1) follow the reporting, so every line carries its own date like the Colonial case.
 
-import { T, logBuilder, hms } from '../../game/logkit.js';
+import { T, logBuilder, finishDays } from '../../game/logkit.js';
 
-export const DATE = { weekday: 'THU', name: 'Thursday', month: 'Jun', day: 1 };
+export const DATE = { weekday: 'THU', name: 'Thursday', month: 'Jun', day: 1, year: 2023, domain: 'corp.example', netbios: 'CORP' };
 export const SCAN_IP = '198.51.100.23'; // injects and drops the shell
 export const THEFT_IP = '203.0.113.60'; // talks to the shell and pulls the files (Mandiant: theft came from different hosts)
 export const LATE_IP = '198.51.100.88'; // still using the shell on June 1
@@ -37,7 +37,6 @@ export const IP_INFO = {
 const DAY = 86400;
 // day = days relative to June 1 (May 27 = -5, May 31 = -1).
 const A = (day, h, m, s = 0) => day * DAY + T(h, m, s);
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const mb = (n) => `${n.toFixed(0)}MB`;
 
 const UA = 'Mozilla/5.0 (X11; Linux x86_64)';
@@ -110,26 +109,7 @@ export function generateLogs({ nowMinutes = 24 * 60 } = {}) {
     }
   }
 
-  return finish(b.ev, nowMinutes);
-}
-
-// Like finishLogs, but each line carries its own date. `t` stays the time of day (the SIEM shows it); the
-// full timestamp is in `time`/`line`, and ordering uses the absolute second count.
-function finish(ev, nowMinutes) {
-  const nowSec = A(0, 0, 0) + nowMinutes * 60;
-  const stamp = (abs) => {
-    const day = Math.floor(abs / DAY);
-    const d = new Date(Date.UTC(2023, 5, DATE.day + day));
-    return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()} ${hms(abs - day * DAY)}`;
-  };
-  return ev
-    .filter((e) => e.t <= nowSec)
-    .sort((a, b) => a.t - b.t)
-    .map((e) => {
-      const time = stamp(e.t);
-      const tod = e.t - Math.floor(e.t / DAY) * DAY;
-      return { ...e, t: tod, time, line: `${time} ${e.host} ${e.msg}`, short: e.msg };
-    });
+  return finishDays(b.ev, { nowMinutes, date: DATE });
 }
 
 export const CASE = {

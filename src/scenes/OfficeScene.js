@@ -371,7 +371,8 @@ export class OfficeScene extends Phaser.Scene {
       if (this.isDone(o.id)) continue;
       if (o.type === 'inbox' && this.isDone('my-desk') && this.inboxProgress().done) this.complete(o.id);
       if (o.type === 'tickets' && this.ticketProgress().done) this.complete(o.id);
-      if (o.type === 'terminal' && this.state.events.some((e) => e.type === 'terminal-cmd' && o.match.test(e.cmd))) this.complete(o.id);
+      // A "terminal" objective is also satisfied by looking things up in AD Users and Computers (events ad-open / ad-find).
+      if (o.type === 'terminal' && this.state.events.some((e) => (e.type === 'terminal-cmd' && o.match.test(e.cmd)) || (e.type === 'ad-open' && o.match.test(e.sam)) || (e.type === 'ad-find' && o.match.test(e.q)))) this.complete(o.id);
     }
     this.updateObjective();
     this.checkTriggers();

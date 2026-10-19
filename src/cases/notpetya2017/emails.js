@@ -1,0 +1,136 @@
+// Case file: NotPetya, Tuesday June 27, 2017. The inbox: the automated digest that already lists every gap, the Ghana power notice,
+// a change notice that explains legitimate reboots, the first report from the Ukraine office, and a "vaccine" phish.
+// Staff play roles (Dana = helpdesk, Theo = server engineer). Everything here is invented.
+const t = (h, m) => h * 60 + m;
+const ME = 'analyst01@corp.example';
+const rcv = (host, ip, id, time) => [`Received: from ${host}.corp.example (${ip})`, `  by mx.corp.example with ESMTPS id ${id};`, `  Tue, 27 Jun 2017 ${time} +0000 (UTC)`, 'Authentication-Results: mx.corp.example;', '  spf=pass smtp.mailfrom=corp.example;', '  dkim=pass header.d=corp.example;', '  dmarc=pass header.from=corp.example'];
+
+export const EMAILS = [
+  {
+    id: 'ad-digest',
+    at: t(6, 0),
+    from: { name: 'Infrastructure Health Report', address: 'infra-reports@corp.example' },
+    to: 'security@corp.example',
+    subject: '[Weekly] Infrastructure risk: 7 findings open longer than 60 days',
+    external: false,
+    phish: false,
+    body: [
+      'Automated report from the weekly scan (domain: corp.example). Findings open longer than 60 days:',
+      'CRITICAL  MS17-010 (SMBv1) missing on 214 hosts, 41 of them servers. Patch published March 14, 2017. SMBv1 still enabled on 2,290 hosts.',
+      'HIGH      The local Administrator password is identical on 1,964 workstations and servers (no LAPS).',
+      'HIGH      adm.helpdesk (shared by all helpdesk staff) is a member of Domain Admins and has 14 disconnected RDP sessions on workstations.',
+      'HIGH      TCP 445 is allowed between all sites. Only the terminal network is segmented.',
+      'HIGH      Domain controller backups: 0 of 6 domain controllers appear in any backup job. Active Directory relies on replication between controllers.',
+      'MED       svc_scan (vulnerability scanner) is a member of Domain Admins.',
+      'MED       Ukraine office: M.E.Doc (tax software) runs with local administrator rights on the finance PCs and on SRV-UA-APP01.',
+      'This report is generated weekly. Nobody is paged for CRITICAL or HIGH findings.',
+    ],
+    headers: [...rcv('scan01', '10.10.9.20', '2B7C19A4', '06:00:03'), 'From: Infrastructure Health Report <infra-reports@corp.example>', 'Subject: [Weekly] Infrastructure risk: 7 findings open longer than 60 days'],
+    notes: { 'Received:': 'An internal scanner. A real scheduled report.' },
+    verdictNote: 'Real, and it is the lesson of the whole case. Almost every step of the outbreak used a gap this report already listed: missing MS17-010, one local Administrator password everywhere, a shared Domain Admin cached on workstations, a flat network, and no backup of the domain controllers. Findings that nobody is paged for stay open until an attacker finds them. (The figures are invented for this replay.)',
+    teaches: { skill: 'Act on the findings your tools already report', secplus: '4.4 Alerting and monitoring; 4.3 Vulnerability management' },
+  },
+  {
+    id: 'gh-power',
+    at: t(7, 20),
+    from: { name: 'Dana Kowalski', address: 'dana.k@corp.example' },
+    to: 'security@corp.example',
+    subject: 'FYI: Ghana site is on UPS, then down, power company says tonight',
+    external: false,
+    phish: false,
+    body: [
+      'Heads up from the service desk (Dana, playing the helpdesk).',
+      'The Ghana office lost mains power at 06:14 this morning. The UPS held for about 15 minutes, then the monitoring box shut everything down cleanly, including their domain controller (DC-GH01). The power company says it will be back this evening.',
+      'Nothing we can do from here. Local users are working from phones. I have logged a ticket so nobody thinks the missing link is an attack.',
+      'Dana',
+    ],
+    headers: [...rcv('mail01', '10.10.1.50', '4F2D18C1', '07:20:11'), 'From: Dana Kowalski <dana.k@corp.example>', 'To: security@corp.example', 'Subject: FYI: Ghana site is on UPS, then down, power company says tonight'],
+    notes: { 'Received:': 'Internal. A real status note from the service desk.' },
+    verdictNote: 'Real, and the most valuable fact of the day, though nobody knows it yet. A domain controller that was shut down cleanly before the worm arrived is a copy of Active Directory the worm never touched. In the real incident, a controller in Ghana that lost power was the only one that survived, and it is how the company\'s domain was restored. Do not treat the outage as an attack, and do not plug the machine back in carelessly.',
+    teaches: { skill: 'Notice what is offline and why: an uninfected, powered-off asset can be your recovery', secplus: '4.8 Incident response: recovery; 3.4 Resilience' },
+  },
+  {
+    id: 'patch-change',
+    at: t(8, 30),
+    from: { name: 'Theo Okoye', address: 't.okoye@corp.example' },
+    to: 'security@corp.example',
+    subject: 'Change notice CHG-4417 done: print servers rebooted last night',
+    external: false,
+    phish: false,
+    body: [
+      'Theo (playing a server engineer) here. Done as planned: the monthly patch reboot ran on PRT-CPH01 at 22:00 last night.',
+      'It was a scheduled task named Patch-Reboot, created by svc_patch at 17:52, running shutdown.exe /r /t 60 /c "Monthly patch reboot (CHG-4417)". Dana also used PsExec from the jump host at 17:31 to restart the spooler.',
+      'If you see PSEXESVC or a shutdown task on the print server in the logs, that is us. All approved.',
+      'Theo',
+    ],
+    headers: [...rcv('mail01', '10.10.1.50', '5D8E02A7', '08:30:46'), 'From: Theo Okoye <t.okoye@corp.example>', 'To: security@corp.example', 'Subject: Change notice CHG-4417 done: print servers rebooted last night'],
+    notes: { 'Received:': 'Internal. A real change notice with a ticket number.' },
+    verdictNote: 'Real, and a good habit: it tells you what normal looks like before you hunt. The legitimate PsExec ran from the jump host with Dana\'s own admin account, in daylight, with a ticket. The legitimate reboot task has a name, a comment and a change number. The worm\'s task has an empty name and runs as SYSTEM.',
+    teaches: { skill: 'Read a change notice and know the legitimate version of what you hunt', secplus: '1.3 Change management' },
+  },
+  {
+    id: 'ua-report',
+    at: t(10, 42),
+    from: { name: 'Dana Kowalski', address: 'dana.k@corp.example' },
+    to: 'security@corp.example',
+    subject: 'Ukraine office: finance PC slow right after the tax software updated',
+    external: false,
+    phish: false,
+    body: [
+      'Dana (helpdesk). Odd one from the Ukraine office.',
+      'The finance accountant on WS-UA-0412 says M.E.Doc updated itself around half past ten, then her PC went very slow, the fan is loud, and a black command window flashed. Two coworkers say their PCs got slow too.',
+      'I am not sure it is anything. Everyone in Ukraine has to use that software for tax filing. Can security take a look?',
+      'Dana',
+    ],
+    headers: [...rcv('mail01', '10.10.1.50', '6C1B0E22', '10:42:07'), 'From: Dana Kowalski <dana.k@corp.example>', 'To: security@corp.example', 'Subject: Ukraine office: finance PC slow right after the tax software updated'],
+    notes: { 'Received:': 'Internal, from a real employee.' },
+    verdictNote: 'Real, and it is where the SIEM and the story meet: the update, the slow PC, the flashing window. Treat a user saying "it got slow right after the update" as detection, and start with that host. CISA later said to treat any system with M.E.Doc installed as suspicious.',
+    teaches: { skill: 'Follow a user report to the first host', secplus: '4.8 Incident response: detection and analysis' },
+  },
+  {
+    id: 'vaccine-phish',
+    at: t(10, 58),
+    from: { name: 'SecureShield Threat Response', address: 'response@secureshield-petya-fix.com' },
+    to: ME,
+    subject: 'URGENT: Petya vaccine tool, run it on all servers now',
+    external: true,
+    phish: true,
+    body: [
+      'We have detected a new ransomware outbreak (Petya) in your region. Download the free emergency vaccine and run it as administrator on every server and workstation.',
+      { link: 'vaccine-login', text: 'Download the vaccine (login required)', href: 'https://secureshield-petya-fix.com/portal/login' },
+      'Sign in with your corporate account so we can match your licence.',
+      'SecureShield Threat Response Team',
+    ],
+    headers: [
+      'Return-Path: <bounce@secureshield-petya-fix.com>',
+      'Received: from mail.secureshield-petya-fix.com (203.0.113.77)',
+      '  by mx.corp.example with ESMTP id 8A0C3D5E;',
+      '  Tue, 27 Jun 2017 10:58:31 +0000 (UTC)',
+      'Authentication-Results: mx.corp.example;',
+      '  spf=pass smtp.mailfrom=secureshield-petya-fix.com;',
+      '  dkim=none (message not signed);',
+      '  dmarc=none header.from=secureshield-petya-fix.com',
+      'From: SecureShield Threat Response <response@secureshield-petya-fix.com>',
+      'Subject: URGENT: Petya vaccine tool, run it on all servers now',
+    ],
+    notes: {
+      'Return-Path:': 'secureshield-petya-fix.com is a domain registered for this email. Breaking news is bait: scammers register lookalikes within hours of a headline outbreak.',
+      'Authentication-Results:': 'SPF "passes" because the scammer owns the domain. No DKIM, no DMARC alignment. An unsigned message that wants you to run code as administrator everywhere is the opposite of a vendor advisory.',
+    },
+    verdictNote: 'Phishing, and an outbreak lure: it asks you to sign in with a corporate account and to run an unknown tool as an administrator on every machine. Tools do not arrive by email. Real fixes come from your own vendors through the channels you already trust. In the real incident, several unofficial "vaccine" tricks circulated; none replaced patching and containment.',
+    credsCost: { amount: 25000, text: 'Reset your password, review sign-ins, and check what the stolen account could reach (estimate for this replay)' },
+    teaches: { skill: 'Spot opportunistic phishing that rides a breaking incident', secplus: '2.2 Threat vectors: phishing, social engineering' },
+  },
+];
+
+export const PAGES = {
+  'vaccine-login': { kind: 'phish-login', url: 'https://secureshield-petya-fix.com/portal/login', secure: true, brand: 'SecureShield', heading: 'Sign in to download the emergency vaccine', small: 'Use your corporate account.', done: 'Thank you. Your vaccine is downloading. (It is not. Your password just went to a stranger.)' },
+};
+
+export const REPLY_DRAFTS = {
+  'ad-digest': 'Opening the findings now.',
+  'gh-power': 'Thanks, Dana. Please leave DC-GH01 switched off until we say otherwise.',
+  'patch-change': 'Thanks, Theo. Noted.',
+  'ua-report': 'Thank you, Dana. Please unplug that PC from the network but leave it powered on. Do not reboot it. We are looking.',
+  'vaccine-login': 'Done, I signed in.',
+};

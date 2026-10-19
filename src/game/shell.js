@@ -7,15 +7,21 @@
 //            uniq (-c), cut (-d -f), awk '{print $N}', whois, nslookup, dig, whoami, hostname, date,
 //            echo, history, clear
 
+import { jq, awk as awkFull, sed, tr, base64, find } from './shellplus.js';
+
 export const HELP = [
   'Commands you can use (real flags, simulated data):',
   '  ls [dir]              list files            cd <dir>    change directory',
   '  cat <file>            print a file          head / tail -n 20 <file>',
   '  grep [-i -v -c -n -E -r -l] <pattern> [file|dir]   find matching lines (-r: whole folder)',
   '  wc -l                 count lines           sort [-n] [-r]    uniq [-c]',
-  "  cut -d ' ' -f 1       pick a column         awk '{print $1}'  same idea",
+  "  cut -d ' ' -f 1       pick a column         awk -F'\"' '$9==200 {print $7}'   real awk (END, arrays, sums)",
+  "  jq '.Records[] | select(.eventName==\"ListBuckets\")'   read JSON logs (CloudTrail, Okta, Entra)   -r raw  -c compact",
+  "  sed 's/a/b/g'  tr 'A-Z' 'a-z'  base64 -d      decode / rewrite text (PowerShell -enc commands are base64)",
+  '  find <dir> -name "*.json"                     find files',
   '  whois <ip|domain>     who owns it           nslookup <name>   DNS lookup',
-  '  history  clear  whoami  hostname  date',
+  '  history  clear  whoami  id  hostname  date  uname -a',
+  '  aws ...  az ...       cloud CLIs, only on cloud cases (try: aws sts get-caller-identity, az ad user list)',
   '',
   'Pipes work:  cut -d " " -f 1 access.log | sort | uniq -c | sort -rn | head',
 ].join('\n');
@@ -273,7 +279,7 @@ function exec(cmd, args, stdin, ctx) {
         return ka < kb ? -1 : ka > kb ? 1 : 0;
       });
       if (flags.r) ls.reverse();
-      return { out: joinOut(ls) };
+      return { out: joinOut(flags.u ? ls.filter((l, i) => i === 0 || l !== ls[i - 1]) : ls) };
     }
     case 'uniq': {
       const { flags, rest } = parseFlags(args);
@@ -303,17 +309,59 @@ function exec(cmd, args, stdin, ctx) {
       return { out: joinOut(lines(readInput(rest, stdin, ctx, 'cut')).map((l) => fields.map((f) => l.split(d)[f - 1] ?? '').join(d))) };
     }
     case 'awk': {
-      const [prog, ...files] = args;
-      const m = prog && prog.match(/^\{\s*print\s+(.+?)\s*\}$/);
-      if (!m) throw new Error("awk: only '{print $N}' is supported here (e.g. awk '{print $1}')");
-      const cols = m[1].split(/\s*,\s*|\s+/).map((c) => c.replace('$', ''));
-      return {
-        out: joinOut(lines(readInput(files, stdin, ctx, 'awk')).map((l) => {
-          const f = l.trim().split(/\s+/);
-          return cols.map((c) => (c === '0' ? l : f[parseInt(c, 10) - 1] ?? '')).join(' ');
-        })),
-      };
+      const a = [...args];
+      const fs2 = [];
+      while (a[0] && a[0].startsWith('-F')) {
+        fs2.push(a.shift());
+        if (fs2[fs2.length - 1] === '-F') fs2.push(a.shift());
+      }
+      const prog = a.shift();
+      if (!prog) throw new Error("usage: awk [-F fs] 'program' [file ...]");
+      return { out: awkFull([...fs2, prog], readInput(a, stdin, ctx, 'awk')) };
     }
+    case 'jq': {
+      const { flags, rest } = parseFlags(args);
+      const [filter, ...files] = rest;
+      if (!filter) throw new Error('Usage:\tjq [OPTIONS] FILTER [FILES...]');
+      return { out: jq(flags, filter, readInput(files, stdin, ctx, 'jq')) };
+    }
+    case 'sed': {
+      const files = [];
+      const prog = [];
+      for (let i = 0; i < args.length; i++) {
+        if (args[i] === '-e') prog.push(args[i], args[++i]);
+        else if (args[i].startsWith('-') && args[i].length > 1) prog.push(args[i]);
+        else if (!prog.some((x) => !x.startsWith('-')) && prog.every((x) => x.startsWith('-') && x !== '-e')) prog.push(args[i]);
+        else files.push(args[i]);
+      }
+      return { out: sed(prog, readInput(files, stdin, ctx, 'sed')) };
+    }
+    case 'tr': {
+      if (stdin === null) throw new Error('tr: reads standard input (pipe something into it)');
+      return { out: tr(args, stdin) };
+    }
+    case 'base64':
+    case 'b64': {
+      const files = args.filter((a) => !a.startsWith('-'));
+      return { out: base64(args, files.length || stdin !== null ? readInput(files, stdin, ctx, 'base64') : '') };
+    }
+    case 'find':
+      return { out: find(args, fs, ctx.cwd, resolve) };
+    case 'less':
+    case 'more':
+      return { out: readInput(args, stdin, ctx, cmd) };
+    case 'uname':
+      return { out: args.includes('-a') ? 'Linux soc-jump01 5.15.0-91-generic #101-Ubuntu SMP Tue Nov 14 13:30:08 UTC 2023 x86_64 x86_64 x86_64 GNU/Linux\n' : 'Linux\n' };
+    case 'id':
+      return { out: 'uid=1001(analyst01) gid=1001(analyst01) groups=1001(analyst01),4(adm),999(soc-readonly)\n' };
+    case 'which':
+      return { out: args[0] && ['ls', 'cat', 'grep', 'awk', 'sed', 'jq', 'tr', 'sort', 'uniq', 'whois', 'aws', 'az'].includes(args[0]) ? `/usr/bin/${args[0]}\n` : '' };
+    case 'curl':
+    case 'wget':
+    case 'ping':
+      return { out: `${cmd}: (6) Could not resolve host: ${args.find((a) => !a.startsWith('-')) || 'host'}. This jump host has no internet access, which is how it should be on a SOC network.\n` };
+    case 'man':
+      return { out: args[0] ? `No manual entry for ${args[0]}\n` : 'What manual page do you want?\n' };
     case 'whois': {
       if (!args[0]) throw new Error('usage: whois <ip or domain>');
       const ans = ctx.whois?.[args[0].toLowerCase()];
@@ -333,7 +381,14 @@ function exec(cmd, args, stdin, ctx) {
       return { out: `${ctx.user || 'analyst01'} is not in the sudoers file. This incident will be reported.\n` };
     case 'rm':
       return { out: 'rm: read-only file system (and deleting evidence is a bad idea anyway)\n' };
-    default:
+    default: {
+      // Commands a case supplies itself: aws, az, kubectl, ... (see src/game/cloudcli.js)
+      const custom = ctx.commands?.[cmd];
+      if (custom) {
+        const res = custom(args, stdin, ctx);
+        return typeof res === 'string' ? { out: res } : res;
+      }
       throw new Error(`${cmd}: command not found (type 'help')`);
+    }
   }
 }

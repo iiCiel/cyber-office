@@ -18,9 +18,9 @@
 //
 // Unlike a one-day case, this one spans about three weeks, so every line carries its own date.
 
-import { T, logBuilder, hms } from '../../game/logkit.js';
+import { T, logBuilder, finishDays } from '../../game/logkit.js';
 
-export const DATE = { weekday: 'MON', name: 'Monday', month: 'Dec', day: 2 };
+export const DATE = { weekday: 'MON', name: 'Monday', month: 'Dec', day: 2, year: 2013, domain: 'corp.example', netbios: 'CORP' };
 export const VENDOR_IP = '203.0.113.44'; // where the stolen vendor login was used (stand-in)
 export const DROP_IP = '198.51.100.23'; // the outside FTP server (stand-in; real drops were compromised servers in the US, Brazil, Russia)
 export const PORTAL = '10.70.3.12';
@@ -49,7 +49,6 @@ export const IP_INFO = {
 const DAY = 86400;
 // day = days relative to Dec 2, 2013 (Nov 12 = -20, Nov 15 = -17, Nov 28 = -4, Nov 30 = -2).
 const A = (day, h, m, s = 0) => day * DAY + T(h, m, s);
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const fe = (b, t, host, md5tag, extra = {}, more = '') =>
   b.add(t, 'fireeye-nx01', 'fireeye', `alert name=malware.binary severity=CRIT src_host=${host} sample=${md5tag}${more} action=ALERT_ONLY auto_delete=off status=NEW assigned=-`, { ip: STAGE, ...extra });
@@ -134,32 +133,7 @@ export function generateLogs({ nowMinutes = 24 * 60 } = {}) {
     add(A(d, 11, 5 + i * 7, 12), 'fireeye-nx01', 'fireeye', `alert name=malware.binary severity=MAJOR src_host=${h} sample=test-tool action=ALERT_ONLY status=CLOSED reason=false_positive (internal test tool)`, { key: i === 3 ? 'fe-noise' : undefined });
   });
 
-  return finish(b.ev, nowMinutes);
-}
-
-// Like finishLogs, but each line carries its own date. `t` stays the time of day (the SIEM shows it); the
-// full timestamp is in `time`/`line`, and ordering uses the absolute second count.
-function finish(ev, nowMinutes) {
-  const nowSec = A(0, 0, 0) + nowMinutes * 60;
-  const stamp = (abs) => {
-    const day = Math.floor(abs / DAY);
-    const d = new Date(Date.UTC(2013, 11, DATE.day + day));
-    return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()} ${hms(abs - day * DAY)}`;
-  };
-  return ev
-    .filter((e) => e.t <= nowSec)
-    .sort((a, b) => a.t - b.t)
-    .map((e) => {
-      const time = stamp(e.t);
-      const tod = e.t - Math.floor(e.t / DAY) * DAY;
-      return {
-        ...e,
-        t: tod,
-        time,
-        line: `${time} ${e.host} ${e.source === 'Security' ? 'Microsoft-Windows-Security-Auditing: ' : ''}${e.msg}`,
-        short: e.source === 'Security' ? e.msg.replace(/^EventID=(\d+) (.+?)\. (.*)$/, (_, id, _s, rest) => `${id}  ${rest}`) : e.msg,
-      };
-    });
+  return finishDays(b.ev, { nowMinutes, date: DATE });
 }
 
 export const CASE = {

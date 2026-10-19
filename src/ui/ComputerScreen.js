@@ -4,6 +4,7 @@ import { MailApp, unreadCount } from './apps/MailApp.js';
 import { renderBrowser } from './apps/Browser.js';
 import { TerminalApp } from './apps/TerminalApp.js';
 import { TicketsApp } from './apps/TicketsApp.js';
+import { AdApp } from './apps/AdApp.js';
 
 // Your workstation: a small desktop with apps. Mail every day; Tickets and Terminal on the days that use them.
 export class ComputerScreen extends Overlay {
@@ -21,6 +22,8 @@ export class ComputerScreen extends Overlay {
       },
     });
     this.terminal = new TerminalApp({ state: scene.state, day: () => scene.day, changed: () => scene.onStateChanged() });
+    this.powershell = new TerminalApp({ state: scene.state, day: () => scene.day, changed: () => scene.onStateChanged(), kind: 'pwsh' });
+    this.ad = new AdApp({ state: scene.state, day: () => scene.day, changed: () => scene.onStateChanged() });
     this.ticketsApp = new TicketsApp({
       state: scene.state,
       day: () => scene.day,
@@ -57,7 +60,7 @@ export class ComputerScreen extends Overlay {
         id: 'terminal',
         label: 'Terminal',
         glyph: '>_',
-        title: () => `Terminal - analyst01@${scene.day.terminal?.host || 'HALCYON-WS-0142'}`,
+        title: () => `Terminal - analyst01@${scene.day.terminal?.host || 'soc-jump01'}`,
         size: 'max',
         render: () => {
           if (!scene.day.terminal) {
@@ -66,6 +69,27 @@ export class ComputerScreen extends Overlay {
           this.terminal.focus();
           return this.terminal.el;
         },
+      },
+      {
+        id: 'powershell',
+        label: 'PowerShell',
+        glyph: 'PS>',
+        title: 'Windows PowerShell',
+        size: 'max',
+        visible: () => !!scene.day.powershell,
+        render: () => {
+          this.powershell.focus();
+          return this.powershell.el;
+        },
+      },
+      {
+        id: 'ad',
+        label: 'AD Users',
+        glyph: '👥',
+        title: 'Active Directory Users and Computers',
+        size: 'max',
+        visible: () => !!scene.day.directory,
+        render: () => (this.ad.render(), this.ad.el),
       },
       {
         id: 'tickets',
@@ -112,7 +136,7 @@ export class ComputerScreen extends Overlay {
   renderIcons() {
     const unread = unreadCount(this.scene.state, this.scene.day, this.scene.minutes);
     clear(this.icons).append(
-      ...this.APPS.map((app, i) =>
+      ...this.visibleApps().map((app, i) =>
         h(
           'button',
           { type: 'button', class: 'icon', 'data-app': app.id, title: `${app.label} (${i + 1})`, onclick: () => this.openApp(app.id) },
@@ -123,6 +147,11 @@ export class ComputerScreen extends Overlay {
         ),
       ),
     );
+  }
+
+  // Apps a day does not use (PowerShell, AD Users and Computers) are hidden, so the desktop only shows what this day gives you.
+  visibleApps() {
+    return this.APPS.filter((a) => !a.visible || a.visible());
   }
 
   openTickets() {
@@ -176,7 +205,8 @@ export class ComputerScreen extends Overlay {
   onKeyDown(e) {
     if (e.target.matches?.('input, textarea')) return;
     const n = Number(e.key);
-    if (n >= 1 && n <= this.APPS.length) this.openApp(this.APPS[n - 1].id);
+    const apps = this.visibleApps();
+    if (n >= 1 && n <= apps.length) this.openApp(apps[n - 1].id);
   }
 
   tick() {
@@ -208,6 +238,7 @@ export class ComputerScreen extends Overlay {
   back() {
     if (this.closeBrowser()) return;
     if (this.openedApp === 'mail' && this.mail.back()) return;
+    if (this.openedApp === 'ad' && this.ad.back()) return;
     if (this.openedApp) return this.closeApp();
     this.close();
   }

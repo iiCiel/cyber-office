@@ -27,7 +27,7 @@ export class GameState {
     this.soc = { alerts: {}, flagged: [], cases: {}, viewed: [], lookups: [] }; // alerts: id -> minute fired
     this.enc = {}; // encounters: id -> { ringingAt, answered, outcome, done, ... }
     this.tickets = {}; // ticketId -> chosen option id
-    this.term = { history: [] };
+    this.term = { history: [], ps: [] };
     this.crisis = null; // Day 5: { startedAt, elapsed, stoppedAt }
     this.dayOver = false;
   }
@@ -112,7 +112,7 @@ export class GameState {
       for (const k of ['alerts', 'cases']) this.soc[k] = obj(this.soc[k], {});
       this.enc = obj(d.enc, {});
       this.tickets = obj(d.tickets, {});
-      this.term = { history: Array.isArray(d.term?.history) ? d.term.history : [] };
+      this.term = { history: Array.isArray(d.term?.history) ? d.term.history : [], ps: Array.isArray(d.term?.ps) ? d.term.ps : [] };
       this.crisis = obj(d.crisis, null);
       this.dayOver = !!d.dayOver;
       return true;

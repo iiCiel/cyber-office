@@ -24,6 +24,14 @@ const sc = (fn, arg) => page.evaluate(`(${fn})(window.__game.scene.getScene('Off
 const st = () => sc((s) => ({ day: s.day.n, minutes: s.minutes, dialog: s.dialog.isOpen, choosing: !!s.dialog.choosing, name: s.dialog.nameText.text, text: s.dialog.full, soc: s.soc.isOpen, computer: s.computer.isOpen, visited: [...s.state.visited], goal: s.objectiveText.text }));
 const W = '#screen-workstation';
 const S = '#screen-soc';
+// Splunk lists the newest event first, so "the first row" is no longer the earliest. Flag every row that carries an evidence key (or the first row when none do).
+const flagBest = async () => {
+  await page.selectOption(`${S} select.per`, '100').catch(() => {}); // newest first + 20 per page: show everything
+  const n = await page.locator(`${S} .row[data-key]`).count();
+  if (!n) return page.locator(`${S} .row .flag`).first().click();
+  for (let i = 0; i < n; i++) await page.locator(`${S} .row[data-key] .flag`).nth(i).click();
+};
+
 const vis = (sel) => page.locator(sel).first().isVisible().catch(() => false);
 const txt = (sel) => page.locator(sel).first().innerText().catch(() => '');
 
@@ -99,7 +107,7 @@ async function doCase(verdict, actions, evidenceQuery) {
   await page.fill(`${S} .q`, evidenceQuery);
   await page.waitForTimeout(350);
   const flags = await page.locator(`${S} .row .flag`).count();
-  if (flags) await page.locator(`${S} .row .flag`).first().click();
+  if (flags) await flagBest();
   await page.click(`${S} [data-tab=case]`);
   await page.check(`${S} input[name=verdict][value=${verdict}]`);
   for (const a of actions) await page.check(`${S} input[name=action][value=${a}]`).catch(() => {});

@@ -55,8 +55,7 @@ function debrief(st) {
 function terminal() {
   return {
     date: 'Thu Sep 15 2022',
-    host: 'SOC-WS-07',
-    motd: 'SOC workstation. The IT file share (fs-it01) is mirrored read-only at /mnt/fs-it01/IT. Type help.\n',
+    note: 'The IT file share (fs-it01) is mirrored read-only at /mnt/fs-it01/IT.',
     files: {
       '/mnt/fs-it01/IT/README.txt': 'IT department share. Scripts for helpdesk and ops.\nPlease do not store personal files here.\n',
       '/mnt/fs-it01/IT/scripts/map-drives.ps1': [

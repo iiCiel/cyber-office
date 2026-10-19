@@ -23,6 +23,14 @@ const sc = (fn, arg) => page.evaluate(`(${fn})(window.__game.scene.getScene('Off
 const st = () => sc((s) => ({ minutes: s.minutes, dialog: s.dialog.isOpen, choosing: !!s.dialog.choosing, name: s.dialog.nameText.text, text: s.dialog.full, soc: s.soc.isOpen, visited: [...s.state.visited], caseId: s.state.caseId, title: s.day.title }));
 const W = '#screen-workstation';
 const S = '#screen-soc';
+// Splunk lists the newest event first, so "the first row" is no longer the earliest. Flag every row that carries an evidence key (or the first row when none do).
+const flagBest = async () => {
+  await page.selectOption(`${S} select.per`, '100').catch(() => {}); // newest first + 20 per page: show everything
+  const n = await page.locator(`${S} .row[data-key]`).count();
+  if (!n) return page.locator(`${S} .row .flag`).first().click();
+  for (let i = 0; i < n; i++) await page.locator(`${S} .row[data-key] .flag`).nth(i).click();
+};
+
 const vis = (sel) => page.locator(sel).first().isVisible().catch(() => false);
 const txt = (sel) => page.locator(sel).first().innerText().catch(() => '');
 const active = (k) => page.evaluate((key) => window.__game.scene.isActive(key), k);
@@ -61,6 +69,14 @@ const setMinutes = (m) => sc((s, mm) => { s.minutes = mm; s.tickMinute(); }, m);
 await page.goto(url);
 await page.waitForFunction(() => window.__game?.scene.isActive('Title'));
 
+// ONLY=id1,id2 plays just those cases from the plans below (skips the long Uber walkthrough).
+const ONLY = process.env.ONLY ? process.env.ONLY.split(',') : null;
+if (ONLY) {
+  await page.waitForTimeout(300);
+  await page.keyboard.press('f');
+}
+uber: {
+if (ONLY) break uber;
 // Start the week first, so we can prove a case never touches the week's save.
 await page.keyboard.press('Enter');
 await page.waitForFunction(() => window.__game.scene.isActive('Office'));
@@ -134,7 +150,7 @@ await page.locator(`${W} .term-in`).fill('cat /mnt/fs-it01/IT/scripts/pam-sync.p
 await page.locator(`${W} .term-in`).press('Enter');
 await page.waitForTimeout(150);
 check('the script shows the hardcoded vault admin (password redacted)', (await txt(`${W} .term-out`)).includes('$Username = "ss-admin"'));
-check('the prompt uses the case workstation name', (await txt(`${W} .term-prompt`)).includes('SOC-WS-07'));
+check('the prompt is the Ubuntu jump host', (await txt(`${W} .term-prompt`)).includes('soc-jump01'));
 await page.screenshot({ path: `${out}/2-terminal.png` });
 check('the Terminal objective completes', await sc((o) => o.state.visited.includes('script')));
 await closeOverlay();
@@ -150,10 +166,10 @@ await page.fill(`${S} .q`, 'ss-admin Login');
 await page.waitForTimeout(350);
 const rows = await page.locator(`${S} .row .flag`).count();
 check('SIEM search finds the vault admin login', rows >= 1, `${rows} rows`);
-if (rows) await page.locator(`${S} .row .flag`).first().click();
+if (rows) await flagBest();
 await page.fill(`${S} .q`, 'pam-sync');
 await page.waitForTimeout(350);
-if (await page.locator(`${S} .row .flag`).count()) await page.locator(`${S} .row .flag`).first().click();
+if (await page.locator(`${S} .row .flag`).count()) await flagBest();
 await page.screenshot({ path: `${out}/3-siem.png` });
 await page.click(`${S} [data-tab=case]`);
 await page.check(`${S} input[name=verdict][value=takeover]`);
@@ -210,6 +226,7 @@ await page.evaluate(() => window.__game.scene.getScene('Menu').quit());
 await page.waitForFunction(() => window.__game.scene.isActive('CaseFiles'), null, { timeout: 5000 }).catch(() => {});
 check('Quit returns to Case Files', await active('CaseFiles'));
 
+}
 // ---------- Generic runner for the other cases: a "good run" plan per case ----------
 async function readAll(reportIds = []) {
   const latest = await page.evaluate(() => Math.max(...window.__game.scene.getScene('Office').day.emails.map((e) => e.at)));
@@ -307,6 +324,7 @@ async function playCase(p) {
   check(`${p.id}: main alert fires`, await sc((o) => { const a = o.day.alerts.find((x) => x.main); return o.state.soc.alerts[a.id] != null; }));
   await drain();
   if (p.terminalAfterAlert) await runTerminal(p);
+  if (p.powershell) await runTerminal(p, 'powershell');
   for (const step of p.afterAlert || []) {
     if (step.walkup) {
       const w = await walkup(step.walkup);
@@ -327,7 +345,7 @@ async function playCase(p) {
     await page.fill(`${S} .q`, q);
     await page.waitForTimeout(350);
     const n = await page.locator(`${S} .row .flag`).count();
-    if (n) { await page.locator(`${S} .row .flag`).first().click(); found++; }
+    if (n) { await flagBest(); found++; }
   }
   check(`${p.id}: SIEM search finds the evidence`, found === p.search.length, `${found}/${p.search.length}`);
   const flaggedPrimary = await sc((o) => { const a = o.day.alerts.find((x) => x.main); return o.state.events.some((e) => e.type === 'log-flagged' && e.key === a.case.primaryEvidence.key); });
@@ -364,21 +382,22 @@ async function playCase(p) {
   const missed = await page.evaluate(() => [...document.querySelectorAll('#report .ritem.bad, #report .ritem.ok')].map((d) => d.dataset.item).join(','));
   if (missed) console.log(`      (not perfect: ${missed})`);
   check(`${p.id}: timeline, ATT&CK and sources shown`, (await page.locator('#report .timeline li').count()) >= 5 && (await page.locator('#report .tech').count()) >= 3 && (await page.locator('#report .sources a').count()) >= 3);
-  check(`${p.id}: resume line says "simulated recreation"`, (await txt('#report [data-resume]')).includes('simulated recreation'));
+  check(`${p.id}: resume line says "simulated"`, /simulated/.test(await txt('#report [data-resume]')));
   await page.screenshot({ path: `${out}/${p.id}-report.png` });
   await page.click('#report [data-action=case-files]');
   await page.waitForFunction(() => window.__game.scene.isActive('CaseFiles'));
   check(`${p.id}: best grade on the card`, (await txt(`#cases [data-case=${p.id}] .best`)).startsWith('Best:'));
 }
-async function runTerminal(p) {
+async function runTerminal(p, app = 'terminal') {
+  const cfg = p[app];
   await teleUse(256, 146);
   await page.waitForTimeout(400);
-  await page.click(`${W} [data-app=terminal]`);
+  await page.click(`${W} [data-app=${app}]`);
   await page.waitForTimeout(200);
-  await page.locator(`${W} .term-in`).fill(p.terminal.cmd);
+  await page.locator(`${W} .term-in`).fill(cfg.cmd);
   await page.locator(`${W} .term-in`).press('Enter');
   await page.waitForTimeout(200);
-  check(`${p.id}: terminal finds ${p.terminal.expect}`, (await txt(`${W} .term-out`)).includes(p.terminal.expect));
+  check(`${p.id}: ${app} finds ${cfg.expect}`, (await txt(`${W} .term-out`)).includes(cfg.expect));
   await closeOverlay();
   await drain();
 }
@@ -411,7 +430,7 @@ for (const f of readdirSync(new URL('./case-plans/', import.meta.url)).filter((x
   PLANS[plan.id] = plan;
 }
 const only = process.env.CASE;
-for (const id of Object.keys(PLANS)) {
+for (const id of Object.keys(PLANS).filter((k) => !ONLY || ONLY.includes(k))) {
   if (only && only !== id) continue;
   if (!(await active('CaseFiles'))) await page.evaluate(() => { for (const k of ['Office', 'Report', 'Menu']) window.__game.scene.stop(k); window.__game.scene.start('CaseFiles'); });
   await playCase(PLANS[id]);

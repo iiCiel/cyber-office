@@ -69,8 +69,7 @@ function terminal() {
   }
   return {
     date: 'Mon Dec 02 2013',
-    host: 'SOC-WS-07',
-    motd: 'SOC workstation. Exports are under /mnt/exports (pos, stage, vendor). Type help.\n',
+    note: 'Exports are under /mnt/exports (pos, stage, vendor).',
     files: {
       '/mnt/exports/pos/README.txt': ['Nightly export from the register management server. Read-only copy.', 'services.csv   one row per service per register (sample of stores).', 'Register services should be PosAgent and BMCPatrolAgent. Anything else is new.', ''].join('\n'),
       '/mnt/exports/pos/services.csv': csv(rows.map((r) => r.map((c) => (c.includes(',') ? `"${c}"` : c)))),

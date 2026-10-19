@@ -12,9 +12,9 @@
 // day are made up; the dates (April 29, May 6, May 7) follow the reporting. Unlike the other cases, this one spans
 // nine days, so every line carries its own date.
 
-import { T, logBuilder, hms } from '../../game/logkit.js';
+import { T, logBuilder, finishDays } from '../../game/logkit.js';
 
-export const DATE = { weekday: 'FRI', name: 'Friday', month: 'May', day: 7 };
+export const DATE = { weekday: 'FRI', name: 'Friday', month: 'May', day: 7, year: 2021, domain: 'colonial.example', netbios: 'COLONIAL' };
 export const ATTACKER_IP = '203.0.113.58';
 export const VPN_IP = '10.60.9.21';
 export const EXFIL_IP = '198.51.100.77';
@@ -33,7 +33,6 @@ export const IP_INFO = {
 const DAY = 86400;
 // day = days relative to May 7 (Apr 29 = -8, May 5 = -2, May 6 = -1).
 const A = (day, h, m, s = 0) => day * DAY + T(h, m, s);
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const GB = (n) => `${n.toFixed(1)}GB`;
 
 const vpn = (b, t, user, src, extra, profile, method, mfa, result = 'SUCCESS') =>
@@ -113,32 +112,7 @@ export function generateLogs({ nowMinutes = 24 * 60, phishedAt = null } = {}) {
     add(at + 5, 'idp', 'sso', 'event=mfa.push outcome=FAILURE user=analyst01@colonial.example src_ip=203.0.113.90 factor=push reason=user_denied attempt=1', { user: 'analyst01', ip: '203.0.113.90', attack: true });
   }
 
-  return finish(b.ev, nowMinutes);
-}
-
-// Like finishLogs, but each line carries its own date. `t` stays the time of day (the SIEM shows it); the
-// full timestamp is in `time`/`line`, and ordering uses the absolute second count.
-function finish(ev, nowMinutes) {
-  const nowSec = A(0, 0, 0) + nowMinutes * 60;
-  const stamp = (abs) => {
-    const day = Math.floor(abs / DAY);
-    const d = new Date(Date.UTC(2021, 4, DATE.day + day));
-    return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()} ${hms(abs - day * DAY)}`;
-  };
-  return ev
-    .filter((e) => e.t <= nowSec)
-    .sort((a, b) => a.t - b.t)
-    .map((e) => {
-      const time = stamp(e.t);
-      const tod = e.t - Math.floor(e.t / DAY) * DAY;
-      return {
-        ...e,
-        t: tod,
-        time,
-        line: `${time} ${e.host} ${e.source === 'Security' ? 'Microsoft-Windows-Security-Auditing: ' : ''}${e.msg}`,
-        short: e.source === 'Security' ? e.msg.replace(/^EventID=(\d+) (.+?)\. (.*)$/, (_, id, _s, rest) => `${id}  ${rest}`) : e.msg,
-      };
-    });
+  return finishDays(b.ev, { nowMinutes, date: DATE });
 }
 
 export const CASE = {

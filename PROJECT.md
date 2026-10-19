@@ -1,6 +1,6 @@
 # Project: Cyber Office
 
-> Project file from the Command Center, Oct 19, 2026, 2:48 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
+> Project file from the Command Center, Oct 19, 2026, 5:35 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
 
 ## Goal
 A pixel-art browser game where you live a real day as a junior security analyst: walk the office, read real-looking email, dig through logs, deal with coworkers, and watch your choices play out. Not a quiz and not a wall of text. Built in public as a portfolio piece for internship applications.
@@ -69,7 +69,6 @@ Tests: npm test (39 unit). Browser: npm run build; npx vite preview --port 4173 
 ## Waiting on Soliman
 - Pick which Case File to build next: Equifax 2017, Target 2013, MOVEit 2023 or Change Healthcare 2024
 - OK (or veto) putting Case Files live, since it names real companies: Uber, MGM, Colonial Pipeline
-- Optional: re-paste the latest project file from Command Center if it had anything new
 - Look at the new pixel font for 1 minute and say if you like it
 - Answer the open questions: game title, art plan, and whether to keep the character names
 - Pick 2-3 people to playtest it (milestone M7)

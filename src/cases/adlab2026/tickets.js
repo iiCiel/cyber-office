@@ -1,0 +1,51 @@
+// Lab: Halcyon Mutual, the weekend identity queue. Three requests that each test one habit the attack depends on.
+export const TICKETS = [
+  {
+    id: 'contractor-da',
+    num: 5120,
+    title: 'URGENT: add contractor to Domain Admins for "vendor patching"',
+    from: 'Facilities (a contractor, via a manager)',
+    via: 'Helpdesk queue, Sat 7:30 AM',
+    priority: 'High',
+    facts: [['Request', 'Add vendor account "v.tilley" to Domain Admins until Monday'], ['Reason', '"Patching the building badge servers"'], ['Approved by', 'Nobody has replied; the manager says "just do it"'], ['Account owner verified', 'No']],
+    body: ['The contractor says the work cannot wait until Monday. The manager just wants it done.', 'Domain Admins can read and change everything in the domain. What do we do?'],
+    teaches: { skill: 'Least privilege: never grant Domain Admin on request, and verify the requester', secplus: '4.6 Identity and access management: least privilege, approval' },
+    options: [
+      { id: 'deny', text: 'Decline. Verify the contractor by phone with the vendor, and give a scoped account with rights only on the badge servers, for a fixed time, with the approval on the ticket.', outcome: 'good', points: 10, why: 'Right. Domain Admin is the whole domain. A vendor patching badge servers needs local admin on those servers, not everything. And a "just do it" with no approval is exactly how an attacker or a social engineer gets in. On the same weekend as an intrusion it is also a red flag.', reply: 'Facilities: OK, we will get you the approval on Monday.' },
+      { id: 'add', text: 'Add the account to Domain Admins. The manager asked.', outcome: 'bad', points: 0, why: 'One more Domain Admin is one more credential to steal. A manager asking is not an approval, and nobody checked who the contractor is.', reply: 'Facilities: Great, thanks!', cost: { amount: 60000, text: 'A new Domain Admin nobody verified (estimate for this lab)' } },
+      { id: 'ignore', text: 'Leave it in the queue until Monday', outcome: 'ok', points: 5, why: 'Safe, but you did not tell them why or what to do instead. Decline with a reason and a path to yes.', reply: '(no reply)' },
+    ],
+  },
+  {
+    id: 'svc-sql-rotate',
+    num: 5121,
+    title: 'svc_sql password is from 2018: rotate it?',
+    from: 'Identity hygiene scan',
+    via: 'Security backlog, Sat 7:45 AM',
+    priority: 'High',
+    facts: [['Account', 'svc_sql (runs SQL Server on CLAIMS-DB01)'], ['Password last set', 'May 21, 2018 (2,713 days)'], ['Never expires', 'Yes'], ['Has an SPN', 'MSSQLSvc/claims-db01:1433 (Kerberoastable)']],
+    body: ['The password was set by someone who left in 2019. It is probably short and a human picked it. Anyone who is a domain user can ask for a ticket for this account and crack it offline, without a single failed logon.', 'What is the right fix?'],
+    teaches: { skill: 'Fix Kerberoastable service accounts: long random passwords or managed service accounts', secplus: '4.6 Identity and access management: service accounts' },
+    options: [
+      { id: 'gmsa', text: 'Move the service to a group managed service account (gMSA), or set a random 25+ character password and require AES. Test with Theo first, then rotate.', outcome: 'good', points: 10, why: 'Right. A gMSA has a 240 character password that Windows rotates for you, so cracking a ticket is pointless. If that is not possible, a long random password is the next best. Kerberoasting only works because the service account password is crackable.', reply: 'Theo: I can do that Monday. Please do not break the claims app.' },
+      { id: 'sameplus', text: 'Change the password to "Halcyon2026!" and move on', outcome: 'bad', points: 0, why: 'A human-chosen password is still crackable. The attack does not guess online; it takes the ticket home and tries billions of guesses. Length and randomness are the defence.', reply: 'Theo: Fine, but I hate it.', cost: { amount: 40000, text: 'The account stays crackable (estimate for this lab)' } },
+      { id: 'leave', text: 'Leave it. It works, and rotating it might break the claims app.', outcome: 'bad', points: 0, why: 'Everything in this case happened because "it works" was good enough for seven years. Plan the change, test it, do it.', reply: 'Theo: Phew.', cost: { amount: 40000, text: 'The attack path stays open (estimate for this lab)' } },
+    ],
+  },
+  {
+    id: 'rc4-policy',
+    num: 5122,
+    title: 'Stop issuing RC4 Kerberos tickets for service accounts',
+    from: 'IT (Dana)',
+    via: 'Change queue, Sat 8:00 AM',
+    priority: 'Medium',
+    facts: [['Today', 'The domain still issues RC4 (0x17) tickets when a service account does not say it supports AES'], ['Risk of changing it', 'An old NAS that only speaks RC4 will stop working'], ['Microsoft guidance', 'KB5020805: manage Kerberos changes (CVE-2022-37966)']],
+    body: ['RC4 tickets are much faster to crack than AES tickets. If we require AES for service accounts, Kerberoasting gets very hard.', 'How should we do it?'],
+    teaches: { skill: 'Harden Kerberos: AES-only service accounts, with testing', secplus: '3.2 Secure enterprise infrastructure: hardening; 1.3 Change management' },
+    options: [
+      { id: 'phased', text: 'Set AES on the service accounts first, audit RC4 requests (4769 with 0x17) for a few weeks, fix or replace the NAS, then disable RC4 domain-wide.', outcome: 'good', points: 10, why: 'Right. Measure first: the 4769 events already tell you who still asks for RC4. Then fix those, then switch it off. It is the Microsoft-recommended path.', reply: 'Dana: I will start with svc_sql and svc_web, and check the NAS vendor.' },
+      { id: 'allatonce', text: 'Disable RC4 everywhere right now', outcome: 'ok', points: 4, why: 'It is the right destination, but doing it blind on a Saturday while an incident is running can break the NAS and the claims app, and you would not know why. Audit first.', reply: 'Dana: That will page me when the NAS drops.' },
+      { id: 'skip', text: 'Skip it. RC4 has worked fine for twenty years.', outcome: 'bad', points: 0, why: 'RC4 tickets are what Kerberoasting feeds on. In the logs, two RC4 tickets in two seconds from a sales laptop are what an attacker taking them home looks like.', reply: 'Dana: Okay.', cost: { amount: 30000, text: 'Service tickets stay easy to crack (estimate for this lab)' } },
+    ],
+  },
+];

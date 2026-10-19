@@ -16,8 +16,12 @@ import equifax2017 from './equifax2017/index.js';
 import moveit2023 from './moveit2023/index.js';
 import change2024 from './change2024/index.js';
 import capitalone2019 from './capitalone2019/index.js';
+import adlab2026 from './adlab2026/index.js';
+import awslab2026 from './awslab2026/index.js';
+import midnightblizzard2024 from './midnightblizzard2024/index.js';
+import notpetya2017 from './notpetya2017/index.js';
 
-export const CASES = [uber2022, mgm2023, colonial2021, target2013, equifax2017, capitalone2019, moveit2023, change2024];
+export const CASES = [uber2022, mgm2023, colonial2021, target2013, equifax2017, capitalone2019, moveit2023, change2024, adlab2026, awslab2026, midnightblizzard2024, notpetya2017];
 
 export const getCase = (id) => CASES.find((c) => c.caseFile.id === id) || CASES[0];
 

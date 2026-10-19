@@ -41,6 +41,14 @@ async function use(x, y) {
 }
 const W = '#screen-workstation';
 const S = '#screen-soc';
+// Splunk lists the newest event first, so "the first row" is no longer the earliest. Flag every row that carries an evidence key (or the first row when none do).
+const flagBest = async () => {
+  await page.selectOption(`${S} select.per`, '100').catch(() => {}); // newest first + 20 per page: show everything
+  const n = await page.locator(`${S} .row[data-key]`).count();
+  if (!n) return page.locator(`${S} .row .flag`).first().click();
+  for (let i = 0; i < n; i++) await page.locator(`${S} .row[data-key] .flag`).nth(i).click();
+};
+
 
 await page.goto(url);
 await page.waitForFunction(() => window.__game?.scene.isActive('Title'));
@@ -89,7 +97,7 @@ await page.waitForTimeout(400);
 await page.click(`${S} [data-tab=search]`);
 await page.fill(`${S} .q`, 'invalid user');
 await page.waitForTimeout(350);
-await page.click(`${S} .row .flag`);
+await flagBest();
 await page.click(`${S} [data-tab=case]`);
 await page.check(`${S} input[name=verdict][value=forgot]`);
 await page.click(`${S} [data-action=submit-case]`);

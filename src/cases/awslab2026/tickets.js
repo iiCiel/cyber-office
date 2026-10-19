@@ -1,0 +1,51 @@
+// Lab: the cloud hygiene queue. Each ticket is one habit behind the leak.
+export const TICKETS = [
+  {
+    id: 'ci-oidc',
+    num: 6201,
+    title: 'Replace the long-lived ci-deploy access key with a role GitHub Actions can assume',
+    from: 'Platform Engineering (Theo)',
+    via: 'Cloud backlog, Tue 8:20 AM',
+    priority: 'High',
+    facts: [['Today', 'ci-deploy has a 3-year-old access key stored as a repo secret and in a local .env'], ['Permissions', 'PowerUserAccess plus iam:*'], ['Needs', 'Push images to ECR and sync one S3 prefix']],
+    body: ['The key works everywhere and I copied it into a .env to test locally. That is the file that went public.', 'What should CI use instead?'],
+    teaches: { skill: 'Use short-lived, federated credentials instead of long-lived keys', secplus: '4.6 Identity and access management: credentials, least privilege' },
+    options: [
+      { id: 'oidc', text: 'Use GitHub OIDC: an IAM role with a trust policy limited to this repo and branch, permissions only for ECR push and that S3 prefix. Delete the access key.', outcome: 'good', points: 10, why: 'Right. No stored key means nothing to leak, and the role session expires in an hour. Scoping the role to the repo and the job shrinks what a stolen session can do.', reply: 'Theo: Doing it today. I should have done it in 2023.' },
+      { id: 'rotate', text: 'Rotate the key every 90 days and keep it in the repo secrets', outcome: 'ok', points: 4, why: 'Better than never, but a key that exists can still be copied into a .env. Rotation shortens the window, federation removes the key.', reply: 'Theo: OK, I will set a reminder.' },
+      { id: 'leave', text: 'Leave it. We already deleted the leaked copy.', outcome: 'bad', points: 0, why: 'Deleting a copy does not make the key safe, and the next .env is one commit away.', reply: 'Theo: Fine.', cost: { amount: 50000, text: 'The next leak is waiting (estimate for this lab)' } },
+    ],
+  },
+  {
+    id: 'region-scp',
+    num: 6202,
+    title: 'Block regions we never use',
+    from: 'Cloud governance',
+    via: 'Security backlog, Tue 8:30 AM',
+    priority: 'Medium',
+    facts: [['Regions in use', 'us-east-1 only'], ['Regions with attacker instances', '8'], ['Control available', 'Service control policy (SCP) on the organization']],
+    body: ['The attacker started GPU instances in eight regions in two minutes. We only run in us-east-1.', 'What do we do?'],
+    teaches: { skill: 'Use SCP guardrails to deny unused regions and risky actions', secplus: '3.2 Secure enterprise infrastructure: guardrails' },
+    options: [
+      { id: 'scp', text: 'Attach an SCP that denies all actions outside us-east-1 (with a short exception list for global services), and alert on any attempt.', outcome: 'good', points: 10, why: 'Right. A guardrail the account owner cannot be tricked out of. Even an admin key cannot start miners in a region the SCP denies.', reply: 'Governance: Drafting it.' },
+      { id: 'alarm', text: 'Create a billing alarm only', outcome: 'ok', points: 4, why: 'Useful (the budget alert was how this was first noticed), but it tells you after the bill has grown, not before.', reply: 'Governance: Noted.' },
+      { id: 'nothing', text: 'Nothing. Regions do not matter.', outcome: 'bad', points: 0, why: 'Attackers love unused regions: nobody looks there. Eight regions of miners were launched in under two minutes.', reply: 'Governance: Okay.', cost: { amount: 30000, text: 'Next time it will be quicker (estimate for this lab)' } },
+    ],
+  },
+  {
+    id: 'trail-protect',
+    num: 6203,
+    title: 'Make CloudTrail hard to turn off',
+    from: 'Security engineering',
+    via: 'Security backlog, Tue 8:40 AM',
+    priority: 'High',
+    facts: [['Today', 'Any admin can call StopLogging on the management-events trail'], ['Result', 'Logging was off for the attacker\'s S3 downloads and later calls'], ['Options', 'Organization trail, log file validation, SCP, delivery to a separate log account']],
+    body: ['The attacker called StopLogging and the trail went quiet. We only knew because GuardDuty saw it.', 'How do we make sure we do not lose the logs next time?'],
+    teaches: { skill: 'Protect audit logs from the people they audit', secplus: '4.4 Alerting and monitoring: log integrity' },
+    options: [
+      { id: 'org', text: 'Use an organization trail that delivers to a separate, locked log account with log file validation, deny StopLogging/DeleteTrail by SCP, and alert on any attempt.', outcome: 'good', points: 10, why: 'Right. Logs that the admin of the account cannot turn off or delete are logs you can trust after a compromise.', reply: 'Security engineering: On it.' },
+      { id: 'alert', text: 'Add an alert for StopLogging', outcome: 'ok', points: 5, why: 'Good, and it would have fired here, but an alert after the logs are off is a smaller win than preventing it.', reply: 'Security engineering: Added.' },
+      { id: 'accept', text: 'Accept it. Admins need to be able to change the trail.', outcome: 'bad', points: 0, why: 'Admins can change many things; turning off the audit log of their own actions should not be one.', reply: 'Security engineering: Okay.', cost: { amount: 30000, text: 'Gaps in the evidence (estimate for this lab)' } },
+    ],
+  },
+];

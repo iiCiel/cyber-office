@@ -61,8 +61,7 @@ const csv = (rows) => `${rows.map((r) => r.join(',')).join('\n')}\n`;
 function terminal() {
   return {
     date: 'Fri May 07 2021',
-    host: 'SOC-WS-07',
-    motd: 'SOC workstation. Exports from the VPN gateway (vpn-gw01) are under /mnt/exports/vpn. Type help.\n',
+    note: 'Exports from the VPN gateway (vpn-gw01) are under /mnt/exports/vpn.',
     files: {
       '/mnt/exports/vpn/README.txt': [
         'Nightly export from vpn-gw01. Read-only copy.',
