@@ -57,7 +57,7 @@ export class ComputerScreen extends Overlay {
         id: 'terminal',
         label: 'Terminal',
         glyph: '>_',
-        title: 'Terminal - analyst01@HALCYON-WS-0142',
+        title: () => `Terminal - analyst01@${scene.day.terminal?.host || 'HALCYON-WS-0142'}`,
         size: 'max',
         render: () => {
           if (!scene.day.terminal) {
@@ -141,7 +141,7 @@ export class ComputerScreen extends Overlay {
         h(
           'div',
           { class: 'titlebar' },
-          h('span', { class: 'title' }, app.title),
+          h('span', { class: 'title' }, typeof app.title === 'function' ? app.title() : app.title),
           h('button', { type: 'button', 'aria-label': 'Close window', 'data-action': 'close-window', onclick: () => this.closeApp() }, '✕'),
         ),
         h('div', { class: 'content' }, app.render()),

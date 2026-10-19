@@ -61,3 +61,16 @@ test('helpful errors, never throws', () => {
   assert.match(run('echo "unterminated', ctx()).out, /unterminated/);
   assert.match(run('cat |', ctx()).out, /syntax error/);
 });
+
+test('grep -r searches a whole folder and prefixes paths; -l lists files; -ri works', () => {
+  const fs = {
+    '/mnt/share/IT/scripts/a.ps1': 'Write-Host hi\n',
+    '/mnt/share/IT/scripts/pam-sync.ps1': '$User = "admin"\n$Password = "x"\n',
+    '/mnt/share/IT/old/b.ps1': '# password rotated\n',
+  };
+  const c = { cwd: '/mnt/share', fs };
+  assert.equal(run('grep -r Password IT/scripts', c).out, 'IT/scripts/pam-sync.ps1:$Password = "x"\n');
+  assert.equal(run('grep -ril password .', c).out, 'IT/old/b.ps1\nIT/scripts/pam-sync.ps1\n');
+  assert.equal(run('grep -rc -i password /mnt/share', c).out, '2\n');
+  assert.match(run('grep password IT', c).out, /Is a directory/);
+});

@@ -60,17 +60,38 @@ export class TitleScene extends Phaser.Scene {
       return t;
     };
 
+    const toCases = () => {
+      if (started) return;
+      started = true;
+      this.game.registry.get('sound')?.play('select');
+      this.scene.start('CaseFiles');
+    };
+    const casesBtn = (y) => {
+      const t = this.add
+        .text(cx, y, '📁  Case Files: replay real breaches', { fontFamily: FONT, fontSize: '24px', color: '#8fb6ff', backgroundColor: '#101a2466', padding: { x: 14, y: 6 } })
+        .setOrigin(0.5)
+        .setInteractive({ useHandCursor: true })
+        .on('pointerover', () => t.setColor('#ffffff'))
+        .on('pointerout', () => t.setColor('#8fb6ff'))
+        .on('pointerdown', toCases);
+      t.setName('cases-button');
+      return t;
+    };
+
     if (save) {
       button(420, `▶  Continue: ${day.date.name}`, true, '#3fe07a');
       button(478, 'Start a new week', false);
+      casesBtn(540);
       this.input.keyboard.on('keydown', (e) => {
         if (e.key === 'n' || e.key === 'N') go(false);
+        else if (e.key === 'f' || e.key === 'F') toCases();
         else if (e.key === 'c' || e.key === 'C' || e.key === 'Enter' || e.key === ' ') go(true);
       });
     } else {
       const start = button(440, '▶  Start your first day', false, '#3fe07a');
       this.tweens.add({ targets: start, alpha: { from: 1, to: 0.55 }, duration: 800, yoyo: true, repeat: -1 });
-      this.input.keyboard.once('keydown', () => go(false));
+      casesBtn(510);
+      this.input.keyboard.on('keydown', (e) => (e.key === 'f' || e.key === 'F' ? toCases() : go(false)));
     }
 
     this.add.text(cx, VIEW_H - 76, 'Move: WASD / arrows / click   ·   Use: E / Space   ·   Menu: P', { fontFamily: FONT, fontSize: '19px', color: '#6c7590' }).setOrigin(0.5);

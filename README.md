@@ -1,19 +1,35 @@
 # Cyber Office
 
-A pixel-art browser game where you live one real day as a junior security analyst. Walk the office, triage a real-looking inbox, investigate a 3 AM break-in in the SIEM, handle a suspicious phone call and a coworker with a "found" USB stick, then see what your choices cost the company.
+A pixel-art browser game where you work as a junior security analyst. Walk the office, triage a real-looking inbox, hunt through SIEM logs and a Unix terminal, deal with coworkers and phone calls, and see what your choices cost the company.
 
-**Play:** https://iiciel.github.io/cyber-office/ (about 10-15 minutes, saves in your browser)
+**Play:** https://iiciel.github.io/cyber-office/ (saves in your browser)
 
-## What's in Day 1
-- **Email:** 5 emails, 2 of them phishing. Hover links to see where they really go, open the raw headers (with an "Explain" mode for SPF/DKIM/DMARC, Return-Path and Reply-To), report, delete or reply. Click a phishing link and you land on a convincing fake sign-in page.
-- **SIEM alert:** 38 failed VPN logons for one account from a Tor exit node at 3 AM, then a success, then payroll files being read. Search the logs (Windows 4624/4625, OpenVPN, sshd, Samba audit), look up IPs, flag your evidence and write up the case.
-- **Social engineering:** a caller pretending to be a coworker wants a password reset over the phone, and a coworker walks over with a USB stick labeled "SALARIES 2026".
-- **Consequences:** give your password to the phishing page and the attacker logs in as you minutes later. At the end of the day your manager tells you what your choices caused, and a report card grades each decision, totals the cost to the company and maps every skill to a CompTIA Security+ (SY0-701) objective.
+## Two ways to play
+
+### The week (about 1 hour)
+Five days at Halcyon Mutual Insurance, one attacker group, and choices that carry from day to day.
+- **Mon:** phishing, a 3 AM brute force from a Tor exit node, a vishing call, a "SALARIES 2026" USB stick in the parking lot.
+- **Tue:** MFA fatigue, a macro-laden invoice, a QR-code phish, the helpdesk ticket queue.
+- **Wed:** SQL injection on the customer portal, investigated in the SIEM and a real terminal (grep, awk, sort, whois).
+- **Thu:** a vendor email compromise, a service account exfiltrating data, failing backups.
+- **Fri:** ransomware with a live damage counter. Your backup decisions all week pick one of three endings.
+
+### Case Files: replay real breaches
+Each case rebuilds a documented incident from public reports: the same way in, the same mistakes, the same clues in the logs. You're the analyst on shift. At the end you see what really happened: the real timeline, the company's actual failures, the MITRE ATT&CK techniques with fixes, the sources, and a resume line you've honestly earned ("investigated a simulated recreation of...").
+- **Uber, Sept 2022:** a bought contractor password, 50+ MFA pushes, a WhatsApp message from "IT", and an admin password hardcoded in a PowerShell script on a network share.
+- **MGM Resorts, Sept 2023:** a help-desk phone call, an Okta super admin, a rogue identity provider, and encrypted hypervisors.
+- **Colonial Pipeline, May 2021:** a forgotten VPN account with no MFA, DarkSide ransomware, and the decision to shut down the pipeline.
+- Coming: Equifax 2017, Target 2013, MOVEit 2023, Change Healthcare 2024.
+
+Accuracy rules for every case: each attacker move comes from a cited source; anything only the attacker claimed is labeled as such; nobody real inside the company is named; internal hostnames, users and IPs are stand-ins (RFC 5737 documentation ranges). Attack payloads are redacted.
+
+## Every report card
+Each decision is graded with what happened and why, a cost to the company, and the CompTIA Security+ (SY0-701) objective it practices.
 
 ## Controls
 - Move: WASD / arrow keys, or click where you want to go (click a person or object to walk over and use it)
-- Use / talk: E, Space or Enter · Choices: 1-4 or click
-- Back / stand up: Esc
+- Use / talk: E, Space or Enter · Choices: 1-4 or click · Menu: P or Esc · Mute: M
+- Title screen: F opens Case Files
 
 ## Run it locally
 ```
@@ -23,19 +39,19 @@ npm run dev        # then open http://localhost:5173/cyber-office/
 
 ## Test
 ```
-npm test                                    # unit tests: pathfinding, log generation, scoring
+npm test                                    # unit tests: pathfinding, logs, scoring, shell, sound, every case file
 npm run build
-npx vite preview --port 4173 --strictPort   # in one terminal
-npm run smoke                               # plays a full day in Chrome (61 checks), screenshots in smoke-out/
-npm run smoke:bad                           # plays the worst possible day (15 checks)
+npx vite preview --port 4173 --strictPort   # in another terminal
+npm run smoke                               # plays Day 1 in Chrome, screenshots in smoke-out/
+npm run smoke:bad                           # plays the worst possible Day 1
+npm run smoke:week                          # plays all five days
+npm run smoke:case                          # plays every Case File
 ```
 
 ## How it's built
-- Phaser 3 + Vite, plain JavaScript. The office is a [Tiled](https://www.mapeditor.org/) map (`public/maps/office.tmj`); placeholder pixel art is drawn in code (`src/art/`).
-- The in-game computer screens (mail, browser, SIEM) are real HTML laid over the canvas and scaled to the pixel-art monitor, so text is crisp and you can type, hover and scroll. All content goes in through `textContent`, never `innerHTML`.
-- Content is data: emails in `src/data/day1.js`, logs in `src/data/day1Logs.js` (seeded, so identical every run), conversations in `src/data/day1Talk.js`, scoring in `src/game/scoring.js`.
-- Click-to-walk uses A* on an 8px grid with path smoothing (`src/world/pathfinding.js`).
+- Phaser 3 + Vite, plain JavaScript. The office is a [Tiled](https://www.mapeditor.org/) map (`public/maps/office.tmj`); placeholder pixel art is drawn in code (`src/art/`). In-world text uses the VT323 pixel font.
+- One data-driven engine runs every day and every case (`src/scenes/OfficeScene.js`). A day or case is a data module: emails, seeded logs, alerts, encounters, terminal files, objectives, scoring (`src/days/dayN/`, `src/cases/<case>/`).
+- The in-game screens (mail, browser, SIEM, terminal, tickets) are real HTML laid over the canvas and scaled to the pixel-art monitor. All content goes in through `textContent`, never `innerHTML`.
+- The terminal is a small simulated Unix shell with real flags and pipes (`src/game/shell.js`, unit tested).
+- Sound is synthesized with Web Audio; no asset files.
 - Deployed to GitHub Pages by `.github/workflows/deploy.yml` on every push to `main`.
-
-## Edit the map
-Open `public/maps/office.tmj` in Tiled. `floor` and `walls` are tile layers (tiles with `collides` block movement). `objects` holds points: `prop` (property `tex`), `npc` (property `sprite`), `door`, `spawn`; the object's name links it to its text in `src/data/office.js`. Tile art lives in `src/art/tileArt.js`; run `npm run tiles` to repaint `public/maps/tiles.png`.

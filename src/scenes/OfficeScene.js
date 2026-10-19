@@ -28,13 +28,16 @@ export class OfficeScene extends Phaser.Scene {
 
   init(data) {
     this.resume = !!data?.resume;
+    this.caseMode = !!data?.caseMode;
+    this.caseId = data?.caseId || null;
   }
 
   create() {
-    this.state = new GameState();
+    this.state = new GameState({ caseMode: this.caseMode });
     if (this.resume) this.state.load();
     else {
-      GameState.clearSave();
+      GameState.clearSave(this.caseMode);
+      this.state.caseId = this.caseMode ? this.caseId : null;
       this.state.startDay(1);
     }
     this.day = loadDay(this.state.day, this.state);
@@ -670,13 +673,15 @@ export class OfficeScene extends Phaser.Scene {
     const deb = this.day.objectives.find((o) => o.type === 'debrief');
     if (deb) this.complete(deb.id);
     this.state.dayOver = true;
-    this.state.minutes = 17 * 60;
+    // Days end at 5 PM; a case file can set its own end time (endAt, in minutes).
+    this.state.minutes = this.day.endAt ?? 17 * 60;
+    this.minutes = this.state.minutes;
     this.state.log('day-over');
     this.state.save();
     this.ending = true;
     const card = this.ui(
       this.add
-        .text(VIEW_W / 2, VIEW_H / 2, `${this.day.date.name}, 5:00 PM`, { fontFamily: FONT, fontSize: '50px', color: '#e6e6ea' })
+        .text(VIEW_W / 2, VIEW_H / 2, `${this.day.date.name}, ${this.clockString()}`, { fontFamily: FONT, fontSize: '50px', color: '#e6e6ea' })
         .setOrigin(0.5)
         .setDepth(1000)
         .setAlpha(0),

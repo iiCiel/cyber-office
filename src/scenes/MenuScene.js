@@ -68,8 +68,9 @@ export class MenuScene extends Phaser.Scene {
     this.muteItem = add(-40, '', () => this.toggleMute());
     add(10, 'How to play', () => { this.showHelp = true; this.render(); });
     add(60, 'Security glossary', () => this.openGlossary());
-    add(110, 'Restart this day', () => this.restartDay());
-    add(160, 'Quit to title', () => this.quit(), '#ff8a8a');
+    const inCase = !!this.scene.get('Office')?.state?.caseId;
+    add(110, inCase ? 'Restart this case' : 'Restart this day', () => this.restartDay());
+    add(160, inCase ? 'Quit to Case Files' : 'Quit to title', () => this.quit(), '#ff8a8a');
     add(210, '[ Esc or P to resume ]', () => this.resume(), '#6c7590');
     this.refreshMute();
   }
@@ -140,12 +141,13 @@ export class MenuScene extends Phaser.Scene {
     office?.state?.startDay(day);
     this.scene.stop();
     this.scene.stop('Office');
-    this.scene.start('Office', { resume: true });
+    this.scene.start('Office', { resume: true, caseMode: !!office?.state?.caseId });
   }
 
   quit() {
+    const inCase = !!this.scene.get('Office')?.state?.caseId;
     this.scene.stop();
     this.scene.stop('Office');
-    this.scene.start('Title');
+    this.scene.start(inCase ? 'CaseFiles' : 'Title');
   }
 }

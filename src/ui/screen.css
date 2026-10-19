@@ -335,3 +335,42 @@
 .glossary .g p { margin: 4px 0 0; color: #c8cbd6; }
 .glossary .back { position: sticky; top: 0; background: #0d0f16; padding: 8px 0; }
 .glossary .back button { background: #3fe07a; color: #12121c; border: none; font-weight: 700; padding: 8px 18px; border-radius: 4px; cursor: pointer; font-size: 15px; }
+
+/* ---------- Case Files: report debrief + menu ---------- */
+.casefile .cf-lede { color: #e6e6ea; font-size: 15px; margin: 0 0 10px; }
+.casefile .cf-p { color: #c8cbd6; margin: 0 0 8px; }
+.timeline { list-style: none; margin: 0; padding: 0 0 0 14px; border-left: 2px solid #2b3f5c; }
+.timeline li { position: relative; margin: 0 0 10px; color: #c8cbd6; display: grid; grid-template-columns: 150px 1fr; gap: 10px; }
+.timeline li::before { content: ''; position: absolute; left: -20px; top: 6px; width: 10px; height: 10px; border-radius: 50%; background: #e5484d; }
+.timeline .when { color: #e8c547; font: 12px Consolas, monospace; padding-top: 2px; }
+.cf-list { margin: 0; padding-left: 20px; color: #c8cbd6; }
+.cf-list li { margin: 0 0 6px; }
+.cf-list.bad li::marker { color: #ff7a7a; }
+.cf-list.sources a, .tech a { color: #8fb6ff; }
+.attck { display: grid; gap: 8px; }
+.tech { display: grid; grid-template-columns: 96px 1fr; gap: 12px; background: #1a1c2a; border: 1px solid #2b3f5c; border-radius: 6px; padding: 10px 12px; }
+.tech .tid { font: 700 13px Consolas, monospace; text-decoration: none; padding-top: 2px; }
+.tech p { margin: 3px 0 0; color: #c8cbd6; }
+.resume-box { background: #12261b; border: 1px solid #2a6a45; border-radius: 6px; padding: 12px 16px; }
+.resume-line { font-size: 15px; color: #e6e6ea; background: #0c1a12; padding: 10px 12px; border-left: 3px solid #3fe07a; margin: 0 0 8px; user-select: text; }
+.cf-note { color: #9fd8b4; font-size: 12px; margin: 8px 0 0; }
+.cf-disclaimer { color: #6c7590; font-size: 12px; margin-top: 18px; }
+.cases-screen { background: #0a0e0c; overflow: auto; color: #e6e6ea; }
+.cases { max-width: 860px; margin: 0 auto; padding: 26px 30px 40px; font-size: 14px; }
+.cases h1 { margin: 0 0 4px; font-size: 30px; color: #3fe07a; }
+.cases .intro { color: #9aa3b8; margin: 0 0 18px; }
+.cases .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.case-card { background: #121a16; border: 1px solid #24402f; border-radius: 8px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
+.case-card.soon { opacity: 0.5; }
+.case-card .co { font-size: 18px; font-weight: 700; }
+.case-card .when { color: #e8c547; font: 12px Consolas, monospace; }
+.case-card .sub { color: #c8cbd6; margin: 0; flex: 1; }
+.case-card .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.case-card .tag { font: 11px Consolas, monospace; color: #9fd8b4; border: 1px solid #2a6a45; border-radius: 4px; padding: 1px 6px; }
+.case-card .row { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+.case-card .best { color: #3fe07a; font-weight: 700; }
+.case-card button { background: #3fe07a; color: #0a0e0c; border: none; border-radius: 4px; padding: 7px 16px; font-weight: 700; }
+.case-card button:hover { background: #6af09a; }
+.case-card button[disabled] { background: #2a3a32; color: #6c7590; cursor: default; }
+.cases footer { margin-top: 20px; display: flex; gap: 14px; align-items: center; }
+.cases footer button { background: none; color: #c8cbd6; border: 1px solid #3f4a6a; padding: 8px 16px; border-radius: 4px; }

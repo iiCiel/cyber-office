@@ -20,7 +20,7 @@ export class TerminalApp {
 
   prompt() {
     const short = this.cwd.replace(/^\/home\/analyst01/, '~');
-    return `analyst01@HALCYON-WS-0142:${short}$ `;
+    return `analyst01@${this.day()?.terminal?.host || 'HALCYON-WS-0142'}:${short}$ `;
   }
 
   reset() {
@@ -65,6 +65,7 @@ export class TerminalApp {
       dns: t?.dns,
       history: this.state.term.history,
       date: t?.date,
+      host: t?.host,
     });
     if (res.clear) clear(this.out);
     else {

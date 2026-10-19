@@ -1,0 +1,51 @@
+// Case file: MGM 2023. The help desk queue on a Sunday morning. People and details are fictional.
+export const TICKETS = [
+  {
+    id: 'new-phone',
+    num: 21019,
+    title: 'New phone, need my MFA moved',
+    from: 'Lena Ortiz (Guest Services)',
+    via: 'Chat from a mobile number not in the directory, Sun 8:12 AM',
+    priority: 'High',
+    facts: [['Identity check', 'None yet'], ['Number it came from', 'Not the number on file'], ['Manager approval', 'None attached']],
+    body: ['Hi! I got a new phone and the authenticator app is empty.', 'I start my shift at 9 and cannot sign in. Can you remove my old device and add this one? My employee ID is 30577.'],
+    teaches: { skill: 'Verify identity before an MFA reset', secplus: '4.6 Identity and access management: account recovery' },
+    options: [
+      { id: 'reset', text: 'Reset her MFA now and send her the enrollment link in the chat', outcome: 'bad', points: 0, why: 'Anyone with an employee ID and a new phone number could be on the other end. A reset on those facts is exactly how help desks get fooled.', reply: 'Lena: Thanks!' },
+      { id: 'callback', text: 'Call her back on the directory number and ask her manager to approve in the ticket, then reset', outcome: 'good', points: 10, why: 'Right: a channel the requester does not control, plus an approval from someone who can vouch for her. A real employee will understand the extra minutes.', reply: 'Lena: Oh! Okay. Calling Marcus to approve now.' },
+      { id: 'photo', text: 'Ask her to send a photo of her work badge, then reset', outcome: 'ok', points: 3, why: 'Better than nothing, but a badge photo is easy to find or fake. It does not prove who is typing in the chat.', reply: 'Lena: Sure, sending a pic.' },
+    ],
+  },
+  {
+    id: 'admin-contractor',
+    num: 21022,
+    title: 'Contractor needs permanent admin on a server',
+    from: 'Ravi Menon (Facilities IT, vendor)',
+    via: 'Helpdesk portal, Sun 8:30 AM',
+    priority: 'Normal',
+    facts: [['Account', 'Contractor, ends in 2 weeks'], ['Requested', 'Local admin on 6 servers, permanent'], ['Approval', 'Verbal, "from my boss"']],
+    body: ['I need admin on the HVAC monitoring servers. It is easier if it is permanent so I do not have to ask each time.', 'My boss says it is fine.'],
+    teaches: { skill: 'Least privilege: time-limited access with approval', secplus: '4.6 Identity and access management: least privilege' },
+    options: [
+      { id: 'grant', text: 'Grant permanent local admin on all 6', outcome: 'bad', points: 0, why: 'Permanent admin on six servers for a short-term contractor, with no written approval. Over-privileged accounts are what attackers turn into the keys to everything.', reply: 'Ravi: Great, thanks.' },
+      { id: 'scoped', text: 'Ask for written approval from the system owner, then grant admin only on the servers he needs, expiring when the contract ends', outcome: 'good', points: 10, why: 'Approval from the owner, scoped to what the job needs, and it expires on its own.', reply: 'Ravi: Fine, I will ask. Boss is Dave Holt.' },
+      { id: 'deny', text: 'Close it: contractors never get admin', outcome: 'ok', points: 5, why: 'Safe, but the job has a real need. The fix is a scoped, expiring approval, not a flat no.', reply: 'Ravi: Oh. That will slow things down.' },
+    ],
+  },
+  {
+    id: 'expired-pw',
+    num: 21024,
+    title: 'Password expired, locked out',
+    from: 'Sade Okafor (Reservations)',
+    via: "Phone call to help desk. Overnight note: verified by calling back her desk extension (2241) from the directory.",
+    priority: 'Normal',
+    facts: [['Identity check', 'Callback to directory number: done']],
+    body: ['My password expired over the weekend. I am locked out of the reservations system.'],
+    teaches: { skill: 'Reset passwords safely', secplus: '4.6 Identity and access management: password policy' },
+    options: [
+      { id: 'temp', text: 'Set a one-time temporary password, tell her by phone, and force a change at first login', outcome: 'good', points: 10, why: 'Identity is already verified, the temp password works once, and only she knows the final one.', reply: 'Sade: In! Thank you!' },
+      { id: 'email', text: 'Reset it to Welcome123! and email it to her', outcome: 'bad', points: 0, why: 'A guessable password, sent in plain text. Never email passwords.', reply: 'Sade: Thanks!' },
+      { id: 'same', text: 'Set it back to her old password', outcome: 'bad', points: 2, why: 'Reusing an expired password defeats the point of expiring it.', reply: 'Sade: Oh nice, easy.' },
+    ],
+  },
+];

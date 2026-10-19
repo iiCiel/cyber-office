@@ -3,10 +3,15 @@
 // Saved to localStorage so a refresh doesn't lose progress.
 
 const KEY = 'cyber-office:save:v2';
+// Case Files (real-breach recreations) save separately, so playing one never touches the week.
+const CASE_KEY = 'cyber-office:case:v1';
+const keyFor = (caseMode) => (caseMode ? CASE_KEY : KEY);
 const OLD_KEYS = ['cyber-office:day1:v1'];
 
 export class GameState {
-  constructor() {
+  constructor({ caseMode = false } = {}) {
+    this.key = keyFor(caseMode);
+    this.caseId = null; // set in Case Files mode: which real breach is being replayed
     this.day = 1;
     this.campaign = { history: [], carry: {} };
     this.reset();
@@ -71,13 +76,13 @@ export class GameState {
   }
 
   toJSON() {
-    const { day, campaign, visited, flags, mail, events, minutes, soc, enc, tickets, term, crisis, dayOver } = this;
-    return { day, campaign, visited, flags, mail, events, minutes, soc, enc, tickets, term, crisis, dayOver };
+    const { day, caseId, campaign, visited, flags, mail, events, minutes, soc, enc, tickets, term, crisis, dayOver } = this;
+    return { day, caseId, campaign, visited, flags, mail, events, minutes, soc, enc, tickets, term, crisis, dayOver };
   }
 
   save() {
     try {
-      localStorage.setItem(KEY, JSON.stringify(this));
+      localStorage.setItem(this.key, JSON.stringify(this));
     } catch {
       // Private mode or storage full: the game still works, it just won't survive a refresh.
     }
@@ -86,12 +91,13 @@ export class GameState {
   /** Returns true if a saved game was restored. */
   load() {
     try {
-      const raw = localStorage.getItem(KEY);
+      const raw = localStorage.getItem(this.key);
       if (!raw) return false;
       const d = JSON.parse(raw);
       if (!d || typeof d !== 'object') return false;
       const obj = (v, def) => (v && typeof v === 'object' && !Array.isArray(v) ? v : def);
       this.day = Number.isInteger(d.day) && d.day >= 1 ? d.day : 1;
+      this.caseId = typeof d.caseId === 'string' ? d.caseId : null;
       this.campaign = {
         history: Array.isArray(d.campaign?.history) ? d.campaign.history : [],
         carry: obj(d.campaign?.carry, {}),
@@ -115,10 +121,10 @@ export class GameState {
     }
   }
 
-  static clearSave() {
+  static clearSave(caseMode = false) {
     try {
-      localStorage.removeItem(KEY);
-      for (const k of OLD_KEYS) localStorage.removeItem(k);
+      localStorage.removeItem(keyFor(caseMode));
+      if (!caseMode) for (const k of OLD_KEYS) localStorage.removeItem(k);
     } catch {
       /* ignore */
     }
@@ -141,4 +147,26 @@ export class GameState {
       return null;
     }
   }
+}
+
+// Best result per case file, kept across replays (for the Case Files menu).
+const BEST_KEY = 'cyber-office:cases:best';
+export function caseBests() {
+  try {
+    const d = JSON.parse(localStorage.getItem(BEST_KEY) || '{}');
+    return d && typeof d === 'object' ? d : {};
+  } catch {
+    return {};
+  }
+}
+export function recordCaseBest(id, result) {
+  const all = caseBests();
+  const prev = all[id];
+  if (!prev || result.pct > prev.pct) all[id] = { grade: result.grade, pct: result.pct, at: new Date().toISOString().slice(0, 10) };
+  try {
+    localStorage.setItem(BEST_KEY, JSON.stringify(all));
+  } catch {
+    /* ignore */
+  }
+  return all[id];
 }

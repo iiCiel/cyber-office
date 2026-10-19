@@ -3,7 +3,7 @@
 // Real commands, real flags, simulated data: the day provides a read-only filesystem
 // ({ '/path/file': 'contents' }) plus whois and DNS answers. Pipes work: cmd | cmd | cmd.
 //
-// Supported: help, ls, cd, pwd, cat, head, tail, grep (-i -v -c -n -E), wc (-l -w -c), sort (-n -r -k),
+// Supported: help, ls, cd, pwd, cat, head, tail, grep (-i -v -c -n -E -r -l), wc (-l -w -c), sort (-n -r -k),
 //            uniq (-c), cut (-d -f), awk '{print $N}', whois, nslookup, dig, whoami, hostname, date,
 //            echo, history, clear
 
@@ -11,7 +11,7 @@ export const HELP = [
   'Commands you can use (real flags, simulated data):',
   '  ls [dir]              list files            cd <dir>    change directory',
   '  cat <file>            print a file          head / tail -n 20 <file>',
-  '  grep [-i -v -c -n -E] <pattern> [file]      find matching lines',
+  '  grep [-i -v -c -n -E -r -l] <pattern> [file|dir]   find matching lines (-r: whole folder)',
   '  wc -l                 count lines           sort [-n] [-r]    uniq [-c]',
   "  cut -d ' ' -f 1       pick a column         awk '{print $1}'  same idea",
   '  whois <ip|domain>     who owns it           nslookup <name>   DNS lookup',
@@ -205,7 +205,7 @@ function exec(cmd, args, stdin, ctx) {
     }
     case 'grep': {
       const { flags, rest } = parseFlags(args);
-      if (!rest.length) throw new Error('usage: grep [-i -v -c -n -E] <pattern> [file]');
+      if (!rest.length) throw new Error('usage: grep [-i -v -c -n -E -r -l] <pattern> [file|dir]');
       const [pattern, ...files] = rest;
       let re;
       try {
@@ -216,6 +216,33 @@ function exec(cmd, args, stdin, ctx) {
         throw new Error(`grep: invalid pattern '${pattern}'`);
       }
       const matched = [];
+      // grep -r (or several files): search every file, prefix each hit with its path; -l lists files only.
+      if (flags.r || flags.R || files.length > 1) {
+        const targets = files.length ? files : ['.'];
+        const found = [];
+        for (const f of targets) {
+          const p = resolve(ctx.cwd, f);
+          if (fs[p] !== undefined) found.push([f, p]);
+          else if (isDir(fs, p) && (flags.r || flags.R)) {
+            for (const q of Object.keys(fs).filter((k) => k.startsWith(p === '/' ? '/' : `${p}/`)).sort()) {
+              found.push([f === '.' ? q.slice(p.length + 1) : `${f.replace(/\/$/, '')}${q.slice(p.length)}`, q]);
+            }
+          } else if (isDir(fs, p)) throw new Error(`grep: ${f}: Is a directory`);
+          else throw new Error(`grep: ${f}: No such file or directory`);
+        }
+        let count = 0;
+        for (const [shown, p] of found) {
+          let hit = false;
+          lines(fs[p]).forEach((l, i) => {
+            if (re.test(l) === !!flags.v) return;
+            hit = true;
+            count++;
+            if (!flags.l && !flags.c) matched.push(`${shown}:${flags.n ? `${i + 1}:` : ''}${l}`);
+          });
+          if (hit && flags.l) matched.push(shown);
+        }
+        return { out: flags.c ? `${count}\n` : joinOut(matched) };
+      }
       lines(readInput(files, stdin, ctx, 'grep')).forEach((l, i) => {
         if (re.test(l) !== !!flags.v) matched.push(flags.n ? `${i + 1}:${l}` : l);
       });

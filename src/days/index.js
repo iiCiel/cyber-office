@@ -16,6 +16,7 @@ import day2 from './day2/index.js';
 import day3 from './day3/index.js';
 import day4 from './day4/index.js';
 import day5 from './day5/index.js';
+import { getCase } from '../cases/index.js';
 
 export const DAYS = [day1, day2, day3, day4, day5];
 export const LAST_DAY = DAYS.length;
@@ -26,6 +27,7 @@ export const getDay = (n) => DAYS[Math.min(Math.max(n, 1), LAST_DAY) - 1];
  * what happened earlier in the week (Priya's briefing, who got hacked, which machine is patient zero...).
  */
 export function loadDay(n, st) {
-  const base = getDay(n);
+  // Case Files mode: the "day" is a recreation of a real breach (src/cases).
+  const base = st.caseId ? getCase(st.caseId) : getDay(n);
   return base.prepare ? { ...base, ...base.prepare(st.campaign.carry || {}, st) } : base;
 }
