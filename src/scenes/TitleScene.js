@@ -27,11 +27,11 @@ export class TitleScene extends Phaser.Scene {
     const save = GameState.savedSummary();
     const day = save ? getDay(save.day) : getDay(1);
 
-    // Returning player: show week progress as five labeled nodes.
-    if (save) this.buildProgress(cx, 300, save);
+    // The week as five nodes. Click one to jump straight to that day (your other days are kept).
+    this.buildProgress(cx, 300, save || { day: 1, dayOver: false, history: [] });
 
     this.add
-      .text(cx, save ? 352 : 330, save
+      .text(cx, 372, save
         ? `${day.date.name} — day ${day.n} of ${LAST_DAY}${save.dayOver ? ' (finished)' : ''}`
         : 'Monday, 8:57 AM.\nFirst day at Halcyon Mutual Insurance.', {
         fontFamily: FONT, fontSize: '28px', color: '#e6e6ea', align: 'center', lineSpacing: 8,
@@ -68,7 +68,7 @@ export class TitleScene extends Phaser.Scene {
     };
     const casesBtn = (y) => {
       const t = this.add
-        .text(cx, y, '📁  Case Files: replay real breaches', { fontFamily: FONT, fontSize: '24px', color: '#8fb6ff', backgroundColor: '#101a2466', padding: { x: 14, y: 6 } })
+        .text(cx, y, '📁  Case Files: real breaches + labs (F)', { fontFamily: FONT, fontSize: '24px', color: '#8fb6ff', backgroundColor: '#101a2466', padding: { x: 14, y: 6 } })
         .setOrigin(0.5)
         .setInteractive({ useHandCursor: true })
         .on('pointerover', () => t.setColor('#ffffff'))
@@ -79,21 +79,23 @@ export class TitleScene extends Phaser.Scene {
     };
 
     if (save) {
-      button(420, `▶  Continue: ${day.date.name}`, true, '#3fe07a');
-      button(478, 'Start a new week', false);
-      casesBtn(540);
+      button(440, `▶  Continue: ${day.date.name}`, true, '#3fe07a');
+      button(496, 'Start a new week', false);
+      casesBtn(556);
       this.input.keyboard.on('keydown', (e) => {
         if (e.key === 'n' || e.key === 'N') go(false);
         else if (e.key === 'f' || e.key === 'F') toCases();
         else if (e.key === 'c' || e.key === 'C' || e.key === 'Enter' || e.key === ' ') go(true);
       });
     } else {
-      const start = button(440, '▶  Start your first day', false, '#3fe07a');
+      const start = button(450, '▶  Start your first day', false, '#3fe07a');
       this.tweens.add({ targets: start, alpha: { from: 1, to: 0.55 }, duration: 800, yoyo: true, repeat: -1 });
-      casesBtn(510);
-      this.input.keyboard.on('keydown', (e) => (e.key === 'f' || e.key === 'F' ? toCases() : go(false)));
+      casesBtn(520);
+      this.input.keyboard.on('keydown', (e) => (e.key === 'f' || e.key === 'F' ? toCases() : /^[1-9]$/.test(e.key) ? null : go(false)));
     }
 
+    this.add.text(cx, 268, 'click a day to jump to it  ·  1-5 keys', { fontFamily: FONT, fontSize: '16px', color: '#4a6a5a' }).setOrigin(0.5);
+    this.input.keyboard.on('keydown', (e) => { const n = Number(e.key); if (n >= 1 && n <= LAST_DAY) this.jumpTo(n); });
     this.add.text(cx, VIEW_H - 76, 'Move: WASD / arrows / click   ·   Use: E / Space   ·   Menu: P', { fontFamily: FONT, fontSize: '19px', color: '#6c7590' }).setOrigin(0.5);
     this.add.text(cx, VIEW_H - 48, 'A playable CompTIA Security+ scenario · built in public', { fontFamily: FONT, fontSize: '16px', color: '#4a5a52' }).setOrigin(0.5);
     const gh = this.add
@@ -121,6 +123,21 @@ export class TitleScene extends Phaser.Scene {
     }
   }
 
+  // Jump to any day of the week without replaying the ones before it. Earlier days' results and carry-over stay as they are.
+  jumpTo(n) {
+    if (this.jumping) return;
+    this.jumping = true;
+    const st = new GameState();
+    st.load();
+    st.caseId = null;
+    st.startDay(n);
+    const s = this.game.registry.get('sound');
+    s?.resume();
+    s?.play('select');
+    this.cameras.main.fadeOut(250, 10, 14, 12);
+    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Office', { resume: true }));
+  }
+
   buildProgress(cx, y, save) {
     const byDay = Object.fromEntries((save.history || []).map((d) => [d.day, d]));
     const n = LAST_DAY;
@@ -132,9 +149,12 @@ export class TitleScene extends Phaser.Scene {
       const done = !!h;
       const current = d === save.day && !save.dayOver;
       const color = done ? 0x3fe07a : current ? 0xe8c547 : 0x2a3a32;
-      this.add.circle(x, y, 7, color).setStrokeStyle(2, 0x0a0e0c);
+      const dot = this.add.circle(x, y, 7, color).setStrokeStyle(2, 0x0a0e0c);
+      const hit = this.add.rectangle(x, y + 8, 120, 56, 0xffffff, 0.001).setInteractive({ useHandCursor: true }).setName(`day-${d}`);
+      hit.on('pointerover', () => dot.setScale(1.6)).on('pointerout', () => dot.setScale(1)).on('pointerdown', () => this.jumpTo(d));
       if (d < n) this.add.rectangle(x + 8, y, gap - 16, 2, 0x2a3a32).setOrigin(0, 0.5);
       this.add.text(x, y + 16, getDay(d).date.weekday, { fontFamily: FONT, fontSize: '15px', color: done ? '#9fd8b4' : current ? '#e8c547' : '#4a5a52' }).setOrigin(0.5, 0);
+      this.add.text(x, y + 34, getDay(d).title.split(' · ')[1] || '', { fontFamily: FONT, fontSize: '13px', color: '#4a6a5a' }).setOrigin(0.5, 0);
       if (h) this.add.text(x, y - 22, h.grade, { fontFamily: FONT, fontSize: '20px', fontStyle: 'bold', color: '#3fe07a' }).setOrigin(0.5);
     }
   }
