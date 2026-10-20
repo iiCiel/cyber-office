@@ -1,6 +1,6 @@
 # Project: Cyber Office
 
-> Project file from the Command Center, Oct 19, 2026, 5:35 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
+> Project file from the Command Center, Oct 19, 2026, 10:31 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
 
 ## Goal
 A pixel-art browser game where you live a real day as a junior security analyst: walk the office, read real-looking email, dig through logs, deal with coworkers, and watch your choices play out. Not a quiz and not a wall of text. Built in public as a portfolio piece for internship applications.
@@ -12,42 +12,37 @@ Read PROJECT.md in the project folder. Pick the next unchecked milestone, build 
 D:\Projects\cyber-office
 
 ## Notes (what is done, in progress, next, issues)
-### Status
-The 5-day week, Case Files (8 real-breach replays + 3 fictional labs) and a big realism + Active Directory/cloud pass are DONE, pushed and live at https://iiciel.github.io/cyber-office/ (verified 200, all cases load). Logs now use the vendors' real formats (Windows Security/System/PowerShell/Sysmon in Splunk WinEventLog layout, CloudTrail, GuardDuty, Okta, Entra, Purview, GitHub audit). The SOC console is a Splunk-ES-style SIEM with an SPL search subset (src/ui/SocScreen.js, src/game/spl.js). Terminal gained jq/awk/sed/base64/find, a PowerShell console with the AD cmdlets + Get-WinEvent (src/game/pwsh.js), and aws/az CLIs (cloudcli.js). New: an AD Users and Computers app (src/ui/apps/AdApp.js, directory.js). Days 3-5 have the AD app + PowerShell. The TITLE SCREEN now lets you click any weekday (or press 1-5) to jump straight into it without replaying the week; earlier days' grades and carry-over are kept. New cases: AD lab, AWS lab, Midnight Blizzard 2024 (Entra/M365), NotPetya 2017 (AD), Linux web-server lab; plus a Linux web-server lab and a phishing->BEC (AiTM) lab in M365/Entra. 14 playable cases now live. npm test 111 pass; smoke/smoke:bad/smoke:week pass and smoke:case passes all 228 checks (live, Oct 19 night). OPEN: rename the 'splunk>' branding? A few Midnight Blizzard/NotPetya facts came from search snippets and a few Graph IDs/one role name are invented stand-ins (disclaimers note this). To deploy: git push origin main (Actions puts it on Pages in about 1 minute; passes on the Ubuntu 26 runner), then node scripts/smoke.mjs https://iiciel.github.io/cyber-office/ smoke-out/live . Repo (public): https://github.com/iiCiel/cyber-office . PROJECT.md on disk is the source of truth: never git checkout or revert it. If the Command Center rewrites it, edit that version in place and commit it.
+#### Status
+The 5-day week, Case Files (8 real-breach replays + 3 fictional labs; 14 playable cases in total incl. Midnight Blizzard, NotPetya, AD/AWS/Linux/BEC labs) and the realism + AD/cloud pass are DONE, pushed and live at https://iiciel.github.io/cyber-office/ . Real vendor log formats, Splunk-ES-style SIEM with SPL subset (src/ui/SocScreen.js, src/game/spl.js), terminal jq/awk/sed/base64/find, PowerShell + AD cmdlets (src/game/pwsh.js), aws/az CLIs (cloudcli.js), AD Users and Computers app (src/ui/apps/AdApp.js). Title screen: click a weekday or press 1-5 to jump in; F = Case Files. Only locked card left: SolarWinds 2020 (COMING_SOON in src/cases/index.js). OPEN: rename the 'splunk>' look-alike branding? A few Midnight Blizzard/NotPetya facts came from search snippets; some Graph IDs/one role name are invented stand-ins (disclaimers note this). Deploy: git push origin main (Actions about 30s, green on Ubuntu 26), then node scripts/smoke.mjs https://iiciel.github.io/cyber-office/ smoke-out/live . Repo (public): https://github.com/iiCiel/cyber-office . PROJECT.md on disk is the source of truth: never git checkout/revert it; edit Command Center rewrites in place and commit.
 
-### Milestones
-- [x] Concept, M1 Phaser+Vite+Pages, M2 Tiled office + A* + badge door, M3 mail, M4 SIEM, M5 vishing + USB, M6 debrief + report card
-- [x] Days 2-5 week (data-driven day engine, src/days/dayN)
-- [x] Polish pass (sound, pause menu, glossary, shake, mobile hint, title screen)
-- [x] Pixel font VT323 (in-world Phaser text only)
-- [x] Case Files: Uber Sept 2022, MGM Sept 2023, Colonial May 2021 (src/cases/<case>/). Title screen F = Case Files. 4 locked coming-soon cards (Equifax 2017, Target 2013, MOVEit 2023, Change Healthcare 2024). Saves: cyber-office:case:v1, cyber-office:cases:best; week save cyber-office:save:v2.
-- [x] Realism pass: real log formats, Splunk-style SIEM, jq/awk/sed, PowerShell + AD cmdlets, aws/az CLIs, AD Users and Computers app (deployed Oct 19)
-- [x] More Case Files: Target, Equifax, Capital One, MOVEit, Change Healthcare (real) + AD lab, AWS lab, Midnight Blizzard 2024, NotPetya 2017, Linux lab (deployed); BEC/AiTM lab (deployed)
-- [x] Title screen day-picker: jump to any weekday without replaying the week
-- [ ] M7 Playtest with 2-3 people (BLOCKED: Soliman picks testers). Kit ready: PLAYTEST.md (message to send, what to watch, 8 questions, results table)
-- [ ] Later: coming-soon cases, original art, music, more weeks, difficulty, real-device mobile test
+#### Milestones
+- [x] Concept, M1-M6, Days 2-5, polish pass, VT323 font, Case Files (14 cases), realism pass, day-picker
+- [ ] M7 Playtest with 2-3 people (BLOCKED: Soliman picks testers). Kit ready: PLAYTEST.md in repo root (message to send, what to watch, 8 questions, results table). When done: put top 3 fixes into milestones, check off M7.
+- [ ] Later: SolarWinds case, original art, music, more weeks, difficulty, real-device mobile test
 
-### Code map
-src/config.js; src/days/ (dayN data, index.js loadDay uses st.caseId for cases); src/cases/ (index.js CASES/getCase/COMING_SOON + accuracy rules); src/game/ (GameState, scoring, logkit, shell, sound); src/scenes/ (Boot, Title, Office = engine, Report, Menu, CaseFilesScene); src/ui/. tests/cases.test.js + tests/helpers/caseChecks.js.
-Tests: npm test (111 unit; tests/ now has spl, pwsh, shellplus, cloudcli, formats). Browser: npm run build; npx vite preview --port 4173 --strictPort (background; kill afterwards, check for a stale one on 4173 first); npm run smoke (67), smoke:bad (15), smoke:week (37), smoke:case (228; takes URL and out dir args). Scratch files go in smoke-out/ (gitignored).
+#### Code map
+src/config.js; src/days/ (dayN data); src/cases/ (index.js CASES/getCase/COMING_SOON); src/game/ (GameState, scoring, logkit, shell, spl, pwsh, cloudcli, sound); src/scenes/ (Boot, Title, Office = engine, Report, Menu, CaseFilesScene); src/ui/. Controls: WASD/arrows/click walk, E/Space/Enter interact, Esc close screen, P pause (glossary inside), M mute.
+Tests: npm test (111 unit). Browser: npm run build; npx vite preview --port 4173 --strictPort; npm run smoke (67), smoke:bad (15), smoke:week (37), smoke:case (228). Smoke scripts accept [url] [outdir] args, so they run against the live site directly. Scratch goes in smoke-out/ (gitignored).
 
-### Log
-- Oct 19 (night, autopilot): no milestone (M7 blocked). Added PLAYTEST.md kit. Verified live: npm test 111/111, smoke 67/67 and smoke:case 228/228 against https://iiciel.github.io/cyber-office/; last 4 Actions runs green on Ubuntu 26.
-- Oct 19 (later): realism + AD/cloud pass. Real vendor log formats, Splunk-style SIEM, PowerShell/AD app, aws/az CLIs, day-picker, and new cases (AD/AWS/Linux labs, Midnight Blizzard, NotPetya). npm test 107/107. Committed 098a94c, e238e50, 91efa29 and docs; pushed and deployed; live site 200 with all cases. A BEC lab is still building.
-- Oct 19: no milestone (M7 blocked). Committed the Command Center's PROJECT.md rewrite (b987cb6). npm test 39/39 pass. Live site 200. Not pushed.
+#### Log
+- Oct 19 night (autopilot): no milestone. Added PLAYTEST.md. Live verified: npm test 111/111, smoke 67/67, smoke:case 228/228; Actions green. Commit de09c3c pushed.
+- Oct 19 (interactive): realism + AD/cloud pass, day-picker, 6 new cases/labs; all deployed.
 
-### Issues
-- Case sources: 12/15 return 200. Bloomberg, SEC and uber.com block scripts (403/406).
-- No music. Glyphs VT323 lacks fall back to other fonts; "fi" ligature.
+#### Issues
+- Case sources: 12/15 return 200 (Bloomberg, SEC, uber.com block scripts).
+- No music. VT323 missing glyphs fall back; "fi" ligature.
 - Phones: HTML screens small, untested on a real device. smoke-week can flake on Day 4 timing (rerun).
 - Pacing not playtested by a human.
 
-### Open questions (for Soliman)
+#### Open questions (for Soliman)
 - Game title; own art or free packs; keep Halcyon Mutual/Priya/Dana/Mike Chen/j.alvarez?
 - Who are the 2-3 M7 playtesters?
-- Case Files with real company names is live (deployed in the Oct 19 interactive session). Keep the 'splunk>' look-alike branding or rename it? Which case next (SolarWinds 2020 is the last locked card)?
+- Keep or rename the 'splunk>' look-alike branding? Build SolarWinds 2020 next?
 
 ## Recent runs (newest first)
+### Oct 19, 2026: done
+- Did: No new milestone this run: the only one left is M7 (the playtest), and it's waiting on you to pick testers. To make that easy, I wrote PLAYTEST.md: a message you can paste to testers, what to watch for, 8 questions and a results table. I also checked the live site in Chrome. Unit tests: "pass 111, fail 0". Day 1: "SMOKE PASS (67 checks)". All 14 cases: "CASE PASS (228 checks)". The last 5 GitHub deploys passed on the new Ubuntu 26 runner. Committed and pushed as de09c3c, and the site returns 200. Changes to PROJECT.md: I removed 2 issues that are no longer true ("Case Files not deployed yet" and "check the Ubuntu 26 run"), rewrote the old real-company-names question, and updated the test counts. Nothing was reverted.
+- Where it stood: Everything built so far is live at https://iiciel.github.io/cyber-office/: the 5-day week plus 14 Case Files and labs. The only milestone left is M7, a playtest with 2-3 people, and the kit for it is ready.
 ### Oct 19, 2026: done, supervisor grade B
 - Did: No new milestone this run. The only one left is M7 (playtest with 2-3 people), and it's blocked until you pick the testers. I committed the project file update from the Command Center (b987cb6) and re-ran the 39 unit tests: all pass. The live site is up and returns 200. Nothing was reverted or lost. Nothing was pushed.
 - Where it stood: The 5-day game is live. Case Files (3 real-breach replays) is finished and tested, but it's only on your PC: 3 commits are waiting to go live, held until you OK naming Uber, MGM and Colonial Pipeline.
@@ -70,10 +65,8 @@ Tests: npm test (111 unit; tests/ now has spl, pwsh, shellplus, cloudcli, format
 - Advice for the next run: Set git user.email to the GitHub noreply address before the first commit. Use base /cyber-office/ and run the smoke test via a script that manages its own server. Start with the next unchecked milestone in PROJECT.md and verify on the live site after each push. List issues and open questions explicitly in the notes, not just the checkmarks.
 
 ## Waiting on Soliman
-- Pick which Case File to build next: Equifax 2017, Target 2013, MOVEit 2023 or Change Healthcare 2024
-- OK (or veto) putting Case Files live, since it names real companies: Uber, MGM, Colonial Pipeline
+- Pick 2-3 people to playtest Cyber Office and send them the ready-made message (milestone M7)
 - Look at the new pixel font for 1 minute and say if you like it
 - Answer the open questions: game title, art plan, and whether to keep the character names
-- Pick 2-3 people to playtest it (milestone M7)
 - Play Day 1 once, start to finish (about 15 minutes)
 - Decide: keep the GitHub repo public, or make it private until Day 1 is playable
