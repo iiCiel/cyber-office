@@ -13,7 +13,7 @@ D:\Projects\cyber-office
 
 ## Notes (what is done, in progress, next, issues)
 ### Status
-The 5-day week, the polish pass, the pixel font and Case Files (3 real-breach replays) are done. Live: https://iiciel.github.io/cyber-office/ . It still runs the 4322ed5 build. Local main is 3 commits ahead of origin and NOT pushed: Case Files 8136bd7, notes 7583b31, notes b987cb6. Waiting for Soliman to OK real company names. To deploy: git push origin main (Actions puts it on Pages in about 1 minute; check that the run passes on the new Ubuntu 26 runner), then node scripts/smoke.mjs https://iiciel.github.io/cyber-office/ smoke-out/live . Repo (public): https://github.com/iiCiel/cyber-office . PROJECT.md on disk is the source of truth: never git checkout or revert it. If the Command Center rewrites it, edit that version in place and commit it.
+The 5-day week, Case Files (8 real-breach replays) and a big realism + Active Directory/cloud pass are DONE, pushed and live at https://iiciel.github.io/cyber-office/ (verified 200, all cases load). Logs now use the vendors' real formats (Windows Security/System/PowerShell/Sysmon in Splunk WinEventLog layout, CloudTrail, GuardDuty, Okta, Entra, Purview, GitHub audit). The SOC console is a Splunk-ES-style SIEM with an SPL search subset (src/ui/SocScreen.js, src/game/spl.js). Terminal gained jq/awk/sed/base64/find, a PowerShell console with the AD cmdlets + Get-WinEvent (src/game/pwsh.js), and aws/az CLIs (cloudcli.js). New: an AD Users and Computers app (src/ui/apps/AdApp.js, directory.js). Days 3-5 have the AD app + PowerShell. The TITLE SCREEN now lets you click any weekday (or press 1-5) to jump straight into it without replaying the week; earlier days' grades and carry-over are kept. New cases: AD lab, AWS lab, Midnight Blizzard 2024 (Entra/M365), NotPetya 2017 (AD), Linux web-server lab; a phishing->BEC lab is still being built in the background. npm test 107 pass; smoke/smoke:bad/smoke:week pass and smoke:case passes all 165 checks. OPEN: rename the 'splunk>' branding? A few Midnight Blizzard/NotPetya facts came from search snippets and a few Graph IDs/one role name are invented stand-ins (disclaimers note this). To deploy: git push origin main (Actions puts it on Pages in about 1 minute; check that the run passes on the new Ubuntu 26 runner), then node scripts/smoke.mjs https://iiciel.github.io/cyber-office/ smoke-out/live . Repo (public): https://github.com/iiCiel/cyber-office . PROJECT.md on disk is the source of truth: never git checkout or revert it. If the Command Center rewrites it, edit that version in place and commit it.
 
 ### Milestones
 - [x] Concept, M1 Phaser+Vite+Pages, M2 Tiled office + A* + badge door, M3 mail, M4 SIEM, M5 vishing + USB, M6 debrief + report card
@@ -21,14 +21,18 @@ The 5-day week, the polish pass, the pixel font and Case Files (3 real-breach re
 - [x] Polish pass (sound, pause menu, glossary, shake, mobile hint, title screen)
 - [x] Pixel font VT323 (in-world Phaser text only)
 - [x] Case Files: Uber Sept 2022, MGM Sept 2023, Colonial May 2021 (src/cases/<case>/). Title screen F = Case Files. 4 locked coming-soon cards (Equifax 2017, Target 2013, MOVEit 2023, Change Healthcare 2024). Saves: cyber-office:case:v1, cyber-office:cases:best; week save cyber-office:save:v2.
+- [x] Realism pass: real log formats, Splunk-style SIEM, jq/awk/sed, PowerShell + AD cmdlets, aws/az CLIs, AD Users and Computers app (deployed Oct 19)
+- [x] More Case Files: Target, Equifax, Capital One, MOVEit, Change Healthcare (real) + AD lab, AWS lab, Midnight Blizzard 2024, NotPetya 2017, Linux lab (deployed); BEC/AiTM lab in progress
+- [x] Title screen day-picker: jump to any weekday without replaying the week
 - [ ] M7 Playtest with 2-3 people (BLOCKED: Soliman picks testers)
 - [ ] Later: coming-soon cases, original art, music, more weeks, difficulty, real-device mobile test
 
 ### Code map
 src/config.js; src/days/ (dayN data, index.js loadDay uses st.caseId for cases); src/cases/ (index.js CASES/getCase/COMING_SOON + accuracy rules); src/game/ (GameState, scoring, logkit, shell, sound); src/scenes/ (Boot, Title, Office = engine, Report, Menu, CaseFilesScene); src/ui/. tests/cases.test.js + tests/helpers/caseChecks.js.
-Tests: npm test (39 unit). Browser: npm run build; npx vite preview --port 4173 --strictPort (background; kill afterwards, check for a stale one on 4173 first); npm run smoke (67), smoke:bad (15), smoke:week (37), smoke:case (61). Scratch files go in smoke-out/ (gitignored).
+Tests: npm test (107 unit; tests/ now has spl, pwsh, shellplus, cloudcli, formats). Browser: npm run build; npx vite preview --port 4173 --strictPort (background; kill afterwards, check for a stale one on 4173 first); npm run smoke (67), smoke:bad (15), smoke:week (37), smoke:case (61). Scratch files go in smoke-out/ (gitignored).
 
 ### Log
+- Oct 19 (later): realism + AD/cloud pass. Real vendor log formats, Splunk-style SIEM, PowerShell/AD app, aws/az CLIs, day-picker, and new cases (AD/AWS/Linux labs, Midnight Blizzard, NotPetya). npm test 107/107. Committed 098a94c, e238e50, 91efa29 and docs; pushed and deployed; live site 200 with all cases. A BEC lab is still building.
 - Oct 19: no milestone (M7 blocked). Committed the Command Center's PROJECT.md rewrite (b987cb6). npm test 39/39 pass. Live site 200. Not pushed.
 
 ### Issues
