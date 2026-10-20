@@ -1,0 +1,177 @@
+// Lab: Halcyon Mutual, Friday Oct 30, 2026. The security inbox.
+//   - Rosa's honest report: Tidewater says Thursday's payment never arrived (she is the victim, not the cause)
+//   - Tidewater's own email to Security: they never changed their bank details (real, external, authenticated)
+//   - The Entra ID Protection digest: every gap the attack used was listed, and nobody is paged
+//   - A copycat "your password expires" phish with a fake Microsoft login (NOT part of the incident)
+//   - Hugo's travel notice (a real decoy for the impossible-travel alert)
+const t = (h, m) => h * 60 + m;
+const ME = 'analyst01@halcyonmutual.com';
+const AUTH_OK = ['Authentication-Results: mx.halcyonmutual.com;', '  spf=pass smtp.mailfrom=halcyonmutual.com;', '  dkim=pass header.d=halcyonmutual.com;', '  dmarc=pass header.from=halcyonmutual.com'];
+
+export const EMAILS = [
+  {
+    id: 'rosa-report',
+    at: t(7, 40),
+    from: { name: 'Rosa Delgado', address: 'r.delgado@halcyonmutual.com' },
+    to: 'security@halcyonmutual.com',
+    subject: 'Tidewater says we never paid them, but the bank says we did',
+    external: false,
+    phish: false,
+    body: [
+      'Hi Security,',
+      'Tidewater Facilities called me at 7:15. Their accounts receivable says Thursday\'s payment of $42,600 (INV-20395) has not arrived and they are chasing it. Our bank shows it went out Thursday afternoon, so I am confused.',
+      'Mike told me to ask you. A couple of odd things I noticed, which may be nothing: my Archive folder has a lot of mail marked as read that I never read, and last week a "shared document" email came in that I think I opened. I signed in and approved a code on my phone. Nothing looked wrong.',
+      'Also, Tidewater says they did not change their bank details. The AP team updated them on Wednesday after an email that I confirmed, I thought. I am sure I did, but I do not remember writing it. Sorry if I am wasting your time.',
+      'Rosa',
+    ],
+    headers: [
+      'Return-Path: <r.delgado@halcyonmutual.com>',
+      'Received: from mail01.halcyonmutual.local (10.0.3.40)',
+      '  by mx.halcyonmutual.com with ESMTPS id 4C1D0E22;',
+      '  Fri, 30 Oct 2026 07:40:19 -0400 (EDT)',
+      ...AUTH_OK,
+      'From: Rosa Delgado <r.delgado@halcyonmutual.com>',
+      'To: security@halcyonmutual.com',
+      'Subject: Tidewater says we never paid them, but the bank says we did',
+    ],
+    notes: { 'Received:': 'Internal mail server. This one really is from Rosa, typed at her own desk. She is reporting, not attacking.' },
+    verdictNote: 'Real, and it is the start of the investigation. A user who says "I do not remember writing that" and "my Archive has mail I never read" is describing a mailbox someone else is using. Thank Rosa, tell her she did the right thing by reporting, and do not treat her as the suspect: the page she signed in to was a live copy of the real login.',
+    teaches: { skill: 'Treat user reports as detection, and follow them to the mailbox', secplus: '4.8 Incident response: detection and analysis' },
+  },
+  {
+    id: 'idp-digest',
+    at: t(6, 0),
+    from: { name: 'Entra ID Protection Digest', address: 'idprotection-reports@halcyonmutual.com' },
+    to: 'security@halcyonmutual.com',
+    subject: '[Weekly] Identity Protection: 5 risky users, 3 findings open longer than 7 days',
+    external: false,
+    phish: false,
+    body: [
+      'Automated weekly report (tenant: halcyonmutual.com). Findings:',
+      'HIGH  r.delgado: risk detections anomalousToken, unfamiliarFeatures and impossible travel since Fri Oct 23 14:19. User risk: medium, state atRisk. No policy remediates medium risk.',
+      'HIGH  r.delgado: a new Authenticator app was registered Fri Oct 23 14:30 from a US residential address (not the corporate range).',
+      'HIGH  Exchange Online: 2 inbox rules named "." (a single dot) on r.delgado move mail to RSS Subscriptions and Archive and mark it as read. No alert is configured for New-InboxRule or Set-InboxRule.',
+      'MED   No Conditional Access policy requires a compliant device, phishing-resistant MFA, or token protection. Sign-in frequency is the default (up to 90 days for persistent sessions).',
+      'MED   Legacy authentication (SMTP AUTH) still works for 1 account (scan-to-email).',
+      'LOW   h.pereira: unlikelyTravel (Lisbon), low risk, device compliant and known.',
+      'This report is generated weekly. Nobody is paged for HIGH findings.',
+    ],
+    headers: [
+      'Return-Path: <idprotection-reports@halcyonmutual.com>',
+      'Received: from scan02.halcyonmutual.local (10.0.3.61)',
+      '  by mx.halcyonmutual.com with ESMTPS id 2B7C19A4;',
+      '  Fri, 30 Oct 2026 06:00:03 -0400 (EDT)',
+      ...AUTH_OK,
+      'From: Entra ID Protection Digest <idprotection-reports@halcyonmutual.com>',
+      'Subject: [Weekly] Identity Protection: 5 risky users, 3 findings open longer than 7 days',
+    ],
+    notes: { 'Received:': 'An internal scheduled report. Sent every Friday at 6 AM.' },
+    verdictNote: 'Real, and it is the lesson of the lab. Every step of the attack used a gap this report already listed: a risky user nobody remediated, a new MFA app from a strange address, two hiding rules, and no policy for devices or token protection. A finding nobody is paged for waits until the money is gone. Note the last line: Hugo\'s Lisbon sign-in is listed too, and is the harmless one.',
+    teaches: { skill: 'Act on the identity findings your tools already report', secplus: '4.4 Alerting and monitoring' },
+  },
+  {
+    id: 'tidewater-ar',
+    at: t(8, 0),
+    from: { name: 'Tidewater Facilities Accounts Receivable', address: 'ar@tidewater-facilities.example' },
+    to: 'security@halcyonmutual.com',
+    subject: 'We have not changed our bank account. Please call us.',
+    external: true,
+    phish: false,
+    body: [
+      'To whoever handles security at Halcyon Mutual,',
+      'We could not get an answer from Rosa Delgado, so I found this address on your website. We have emailed her three times since Tuesday about INV-20395 and INV-20418, and never heard back.',
+      'We have NOT changed our bank details this year. Our remittance account is the one on the signed contract. If you were told otherwise, the message did not come from us. Our only domain is tidewater-facilities.example.',
+      'Please call me on the number in your vendor file, not a number from an email.',
+      'Marcus Webb, Accounts Receivable, Tidewater Facilities',
+    ],
+    headers: [
+      'Return-Path: <ar@tidewater-facilities.example>',
+      'Received: from mail.tidewater-facilities.example (192.0.2.150)',
+      '  by mx.halcyonmutual.com with ESMTPS id 8A4E2D11;',
+      '  Fri, 30 Oct 2026 08:00:41 -0400 (EDT)',
+      'Authentication-Results: mx.halcyonmutual.com;',
+      '  spf=pass smtp.mailfrom=tidewater-facilities.example;',
+      '  dkim=pass header.d=tidewater-facilities.example;',
+      '  dmarc=pass header.from=tidewater-facilities.example',
+      'From: Tidewater Facilities Accounts Receivable <ar@tidewater-facilities.example>',
+      'To: security@halcyonmutual.com',
+      'Subject: We have not changed our bank account. Please call us.',
+    ],
+    notes: { 'Return-Path:': 'tidewater-facilities.example, the real vendor domain from the contract. Compare it with the domain on the "bank details" email: tidewater-facilities-ap.example.' },
+    verdictNote: 'Real, and the most important email of the morning. It is the vendor telling you in writing that the bank change was not theirs. It also explains why Rosa never saw their earlier messages: a rule moved them to her Archive and marked them read. Verify the vendor by calling the number in your own records, then answer them.',
+    teaches: { skill: 'Verify a payment change with the real vendor on a known number', secplus: '2.2 Threat vectors: business email compromise; 5.2 Risk management' },
+  },
+  {
+    id: 'm365-expire',
+    at: t(8, 22),
+    from: { name: 'Microsoft 365 Admin Center', address: 'no-reply@m365-account-notices.example' },
+    to: ME,
+    subject: 'Action required: your Halcyon Mutual password expires in 24 hours',
+    external: true,
+    phish: true,
+    body: [
+      'Your Microsoft 365 password for analyst01@halcyonmutual.com expires in 24 hours.',
+      'To avoid losing access to your mailbox and Teams, keep your current password now.',
+      { link: 'm365-keep', text: 'Keep my password', href: 'https://m365-account-notices.example/halcyonmutual/keep' },
+      'Microsoft 365 Admin Center',
+    ],
+    headers: [
+      'Return-Path: <bounce@m365-account-notices.example>',
+      'Received: from mail.m365-account-notices.example (203.0.113.140)',
+      '  by mx.halcyonmutual.com with ESMTP id 3E6A9B07;',
+      '  Fri, 30 Oct 2026 08:22:09 -0400 (EDT)',
+      'Authentication-Results: mx.halcyonmutual.com;',
+      '  spf=pass smtp.mailfrom=m365-account-notices.example;',
+      '  dkim=none (message not signed);',
+      '  dmarc=none header.from=m365-account-notices.example',
+      'From: Microsoft 365 Admin Center <no-reply@m365-account-notices.example>',
+      'Subject: Action required: your Halcyon Mutual password expires in 24 hours',
+    ],
+    notes: {
+      'Return-Path:': 'm365-account-notices.example is not microsoft.com or office.com. A brand name in a made-up domain is the oldest trick there is.',
+      'Authentication-Results:': 'SPF passes because the sender owns this look-alike domain. No DKIM, no DMARC.',
+    },
+    verdictNote: 'Phishing, the opportunistic kind. Not the Tidewater attacker, but it shows the same shape: a login page that says Microsoft and a pressure clock. A real Microsoft sign-in lives on login.microsoftonline.com. If this had been an AiTM page it would have relayed your MFA too, so the address bar is your only clue, and a FIDO2 key would simply refuse to work on the wrong domain.',
+    credsCost: { amount: 25000, text: 'Reset your password, revoke your sessions, check your mailbox rules and MFA methods (estimate for this lab)' },
+    teaches: { skill: 'Spot credential phishing with a fake Microsoft login, and know why a phishing-resistant key refuses it', secplus: '2.2 Threat vectors: phishing' },
+  },
+  {
+    id: 'hugo-travel',
+    at: t(7, 10),
+    from: { name: 'Hugo Pereira', address: 'h.pereira@halcyonmutual.com' },
+    to: 'security@halcyonmutual.com',
+    subject: 'FYI: I am in Lisbon this week (SupplyChain Expo)',
+    external: false,
+    phish: false,
+    body: [
+      'Hi Security,',
+      'Heads up in case it pings you: I flew to Lisbon on Monday night for the SupplyChain Expo and I am back Sunday. I use my work laptop (WS-0182) and approve MFA on my phone as usual.',
+      'My hotel wifi is awful, so I might also hotspot from my phone. Hugo',
+    ],
+    headers: [
+      'Return-Path: <h.pereira@halcyonmutual.com>',
+      'Received: from mail01.halcyonmutual.local (10.0.3.40)',
+      '  by mx.halcyonmutual.com with ESMTPS id 5F2D18C1;',
+      '  Fri, 30 Oct 2026 07:10:48 -0400 (EDT)',
+      ...AUTH_OK,
+      'From: Hugo Pereira <h.pereira@halcyonmutual.com>',
+      'To: security@halcyonmutual.com',
+      'Subject: FYI: I am in Lisbon this week (SupplyChain Expo)',
+    ],
+    notes: { 'Received:': 'Internal, a real message. It also matches the sign-ins from Lisbon on his managed laptop.' },
+    verdictNote: 'Real. It explains the "impossible travel" alert on Hugo: new country, but the same managed and compliant laptop, a completed MFA prompt, and no new MFA method or rules. Compare it with Rosa, where the new location came with a new operating system, no MFA prompt and a hiding rule. Travel is a reason to look, not a verdict.',
+    teaches: { skill: 'Separate a real traveler from a stolen session using device, MFA and what changed afterwards', secplus: '4.4 Alerting and monitoring: false positives' },
+  },
+];
+
+export const PAGES = {
+  'm365-keep': { kind: 'phish-login', url: 'https://m365-account-notices.example/halcyonmutual/keep', secure: true, brand: 'Microsoft', heading: 'Keep your password', small: 'Sign in to confirm.', done: 'Thank you. Your password is kept. (It is not. It just went to a stranger, and a real AiTM kit would have taken your MFA too.)' },
+};
+
+export const REPLY_DRAFTS = {
+  'rosa-report': 'Thanks, Rosa. You did the right thing. Do not delete anything and do not sign in anywhere new; I am looking now.',
+  'idp-digest': 'Opening the findings now.',
+  'tidewater-ar': 'Thank you. We are verifying by phone and will call you on the number in our vendor file.',
+  'm365-expire': 'Done, I kept it.',
+  'hugo-travel': 'Thanks, noted.',
+};

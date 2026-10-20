@@ -21,8 +21,9 @@ import awslab2026 from './awslab2026/index.js';
 import midnightblizzard2024 from './midnightblizzard2024/index.js';
 import notpetya2017 from './notpetya2017/index.js';
 import linuxlab2026 from './linuxlab2026/index.js';
+import beclab2026 from './beclab2026/index.js';
 
-export const CASES = [uber2022, mgm2023, colonial2021, target2013, equifax2017, capitalone2019, moveit2023, change2024, adlab2026, awslab2026, midnightblizzard2024, notpetya2017, linuxlab2026];
+export const CASES = [uber2022, mgm2023, colonial2021, target2013, equifax2017, capitalone2019, moveit2023, change2024, adlab2026, awslab2026, midnightblizzard2024, notpetya2017, linuxlab2026, beclab2026];
 
 export const getCase = (id) => CASES.find((c) => c.caseFile.id === id) || CASES[0];
 
