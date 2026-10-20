@@ -226,6 +226,31 @@ await page.evaluate(() => window.__game.scene.getScene('Menu').quit());
 await page.waitForFunction(() => window.__game.scene.isActive('CaseFiles'), null, { timeout: 5000 }).catch(() => {});
 check('Quit returns to Case Files', await active('CaseFiles'));
 
+// Search box: typed after leaving the office (where W/A/S/D/Space were captured by the game).
+const shown = () => page.$$eval('#cases .case-card', (els) => els.filter((e) => !e.hidden).map((e) => e.dataset.case));
+await page.click('#case-search');
+await page.keyboard.type('active directory');
+await page.waitForTimeout(150);
+check('search: typing works after a case (no key capture)', (await page.inputValue('#case-search')) === 'active directory');
+let hits = await shown();
+check('search: "active directory" shows the AD lab and NotPetya only', hits.length === 2 && hits.includes('halcyon-ad-2026') && hits.includes('notpetya-2017'), hits.join(','));
+await page.screenshot({ path: `${out}/6-search-ad.png` });
+await page.fill('#case-search', 'zzqq');
+check('search: empty state shown for no match', (await vis('#cases .search-empty')) && (await shown()).length === 0);
+await page.keyboard.press('Escape');
+await page.waitForTimeout(150);
+check('search: Esc clears the search and stays on Case Files', (await active('CaseFiles')) && (await page.inputValue('#case-search')) === '' && (await shown()).length > 10);
+await page.click('#cases .topic[data-topic=Cloud]');
+hits = await shown();
+check('search: Cloud topic chip filters (AWS lab, Capital One)', hits.includes('halcyon-aws-2026') && hits.includes('capital-one-2019') && !hits.includes('target-2013'), hits.join(','));
+await page.click('#cases .topic[data-topic=Cloud]');
+check('search: clicking the chip again clears it', (await shown()).length > 10);
+await page.click('#cases [data-case=uber-2022] .tag >> text=MFA fatigue');
+hits = await shown();
+check('search: clicking a card tag filters by it', hits.includes('uber-2022') && hits.length < 5, hits.join(','));
+await page.fill('#case-search', '');
+await page.dispatchEvent('#case-search', 'input');
+
 }
 // ---------- Generic runner for the other cases: a "good run" plan per case ----------
 async function readAll(reportIds = []) {
