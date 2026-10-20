@@ -1,0 +1,51 @@
+// Lab: the server hardening queue. Each ticket is one habit behind the WEB02 compromise.
+export const TICKETS = [
+  {
+    id: 'wwwdata-sudo',
+    num: 7301,
+    title: 'www-data needs sudo to run the backup script on WEB02',
+    from: 'Platform (a contractor)',
+    via: 'Cloud/infra queue, Thu 8:20 AM',
+    priority: 'High',
+    facts: [['Request', 'Keep (root) NOPASSWD: /usr/local/bin/backup-pull.sh for www-data'], ['Reason', '"The web app triggers the backup"'], ['Script', 'calls tar with a shell wildcard'], ['Reviewed', 'Never']],
+    body: ['The app apparently shells out to the backup script, so www-data was given sudo to run it. It works.', 'Can we leave it?'],
+    teaches: { skill: 'Keep service accounts out of sudo; never run a wildcard script as root', secplus: '4.6 Identity and access management: least privilege' },
+    options: [
+      { id: 'remove', text: 'Remove the sudo rule entirely. The web app should never run backups; have the backup server pull on its own schedule as its own user, and rewrite the script without a wildcard.', outcome: 'good', points: 10, why: 'Right. A web account with sudo to a wildcard script is a root shell waiting to happen — it is exactly how this attacker went from www-data to root. Backups belong to the backup system, not the web app.', reply: 'Platform: OK, moving the trigger to the backup server.' },
+      { id: 'narrow', text: 'Keep the rule but lock the script down (no wildcard, full paths)', outcome: 'ok', points: 4, why: 'Fixing the wildcard removes this exact trick, but a web account with any sudo is still a prize. Take the sudo away.', reply: 'Platform: I can do that.' },
+      { id: 'leave', text: 'Leave it. It works and changing it might break uploads.', outcome: 'bad', points: 0, why: '"It works" is how this rule sat unreviewed until an attacker used it. This is the single step that turned a web shell into root.', reply: 'Platform: Great.', cost: { amount: 60000, text: 'The root path stays open (estimate for this lab)' } },
+    ],
+  },
+  {
+    id: 'egress',
+    num: 7302,
+    title: 'Allow WEB02 outbound to the internet for a vendor API',
+    from: 'App team',
+    via: 'Firewall change queue, Thu 8:30 AM',
+    priority: 'Medium',
+    facts: [['Request', 'Allow WEB02 outbound to the internet on 443 (any destination)'], ['Reason', '"Might need a vendor API later"'], ['Today', 'The server VLAN has no default-deny outbound'], ['Last night', 'WEB02 sent ~180 MB out on 443']],
+    body: ['The app team wants WEB02 to reach the internet in case they integrate a vendor API.', 'Open it?'],
+    teaches: { skill: 'Default-deny egress; allow only the destinations a server actually needs', secplus: '3.2 Secure enterprise infrastructure: segmentation, egress' },
+    options: [
+      { id: 'deny', text: 'Default-deny outbound from the server VLAN. Allow only the specific vendor hostnames when there is a real integration, through a proxy, and alert on anything else.', outcome: 'good', points: 10, why: 'Right. A public web server that initiates outbound to the internet is almost always bad news — it is how the 180 MB left last night. Allow-list the few destinations that are real.', reply: 'App team: Fine, we will file the hostnames when we build it.' },
+      { id: 'proxy', text: 'Allow outbound only through the logging proxy', outcome: 'ok', points: 5, why: 'Better than open: you would at least see it. But default-deny plus an allow-list is what stops exfiltration, not just records it.', reply: 'App team: OK.' },
+      { id: 'open', text: 'Open outbound 443 to any destination. Simpler.', outcome: 'bad', points: 0, why: 'This is the hole the data left through. "Any destination on 443" is a blank cheque for exfiltration and C2.', reply: 'App team: Thanks.', cost: { amount: 40000, text: 'Exfiltration stays easy (estimate for this lab)' } },
+    ],
+  },
+  {
+    id: 'uploads',
+    num: 7303,
+    title: 'Uploads folder on WEB02 can execute PHP',
+    from: 'AppSec',
+    via: 'Security backlog, Thu 8:40 AM',
+    priority: 'High',
+    facts: [['Today', '/var/www/html/uploads is inside the web root and runs PHP'], ['Result', 'An uploaded .php (status.php) ran as the web server'], ['Options', 'Store uploads outside the web root, disable execution, validate type']],
+    body: ['The claims portal lets customers upload documents. The folder they land in will run PHP, so an uploaded script executes.', 'How do we fix it?'],
+    teaches: { skill: 'Make upload directories non-executable and validate file types', secplus: '2.3 Vulnerabilities: insecure file upload' },
+    options: [
+      { id: 'harden', text: 'Store uploads outside the web root, serve them through a handler, disable script execution in the folder, and validate type and extension on upload.', outcome: 'good', points: 10, why: 'Right. The web shell only ran because an uploaded file could execute where it landed. Uploads should be inert data, served back deliberately, never executed.', reply: 'AppSec: Writing the change now.' },
+      { id: 'ext', text: 'Just block the .php extension on upload', outcome: 'ok', points: 4, why: 'Blocklists get bypassed (.phtml, .php5, double extensions, content sniffing). Make the folder non-executable and store uploads outside the web root so the extension does not matter.', reply: 'AppSec: I will do both.' },
+      { id: 'accept', text: 'Accept it. Customers need to upload files.', outcome: 'bad', points: 0, why: 'They need to upload data, not run code. An executable upload folder on a public app is how this started.', reply: 'AppSec: Noted.', cost: { amount: 40000, text: 'The entry point stays open (estimate for this lab)' } },
+    ],
+  },
+];
