@@ -19,7 +19,8 @@ Each case rebuilds a documented incident from public reports: the same way in, t
 - **Uber, Sept 2022:** a bought contractor password, 50+ MFA pushes, a WhatsApp message from "IT", and an admin password hardcoded in a PowerShell script on a network share.
 - **MGM Resorts, Sept 2023:** a help-desk phone call, an Okta super admin, a rogue identity provider, and encrypted hypervisors.
 - **Colonial Pipeline, May 2021:** a forgotten VPN account with no MFA, DarkSide ransomware, and the decision to shut down the pipeline.
-- Also: Target 2013, Equifax 2017, Capital One 2019, MOVEit 2023, Change Healthcare 2024, plus cases for Maersk/NotPetya 2017 (Active Directory) and Midnight Blizzard 2024 (Microsoft Entra ID / Microsoft 365) when merged.
+- **SolarWinds, Dec 2020 (SUNBURST):** a signed, trojanized Orion update, generated avsvmcloud.com DNS names, a hands-on follow-up on the identity server, a stolen SAML signing certificate (Golden SAML), a forged administrator sign-in, and a certificate added to a Microsoft 365 app that reads mail. Investigate in resolver, Sysmon, ADFS, Entra ID and Unified Audit Log records, with grep/jq and the `az` CLI.
+- Also: Target 2013, Equifax 2017, Capital One 2019, MOVEit 2023, Change Healthcare 2024, Maersk/NotPetya 2017 (Active Directory) and Midnight Blizzard 2024 (Microsoft Entra ID / Microsoft 365).
 
 ### Labs: invented scenarios, real techniques and real logs
 Cards marked LAB are fictional incidents at Halcyon Mutual built from documented techniques:
@@ -36,7 +37,10 @@ Each decision is graded with what happened and why, a cost to the company, and t
 
 ## Controls
 - Move: WASD / arrow keys, or click where you want to go (click a person or object to walk over and use it)
-- Use / talk: E, Space or Enter · Choices: 1-4 or click · Menu: P or Esc · Mute: M
+- Use / talk: E, Space or Enter · Choices: 1-4 or click · Menu: P or Esc · Mute: M · Music on/off: in the P menu
+- Title screen: click a weekday or press 1-5 to jump straight to it
+- Phones: play in landscape. On small screens the computer, report and Case Files screens fill the whole display so text stays readable, with a Stand up button at the bottom.
+- Reduced motion: if your OS asks for reduced motion, alerts don't shake the screen.
 - Title screen: F opens Case Files
 
 ## Run it locally
@@ -62,5 +66,5 @@ npm run smoke:case                          # plays every Case File
 - The in-game screens (mail, browser, SIEM, terminal, tickets) are real HTML laid over the canvas and scaled to the pixel-art monitor. All content goes in through `textContent`, never `innerHTML`.
 - The terminal is a small simulated Ubuntu shell with real flags and pipes (`src/game/shell.js`, `shellplus.js`: grep, awk, sed, jq, base64, find; unit tested), a PowerShell console with the Active Directory cmdlets and `Get-WinEvent` over the day's logs (`src/game/pwsh.js`), and working `aws` and `az` CLIs (`src/game/cloudcli.js`).
 - Log formats: `src/game/winevents.js` (Windows events), `cloudfmt.js` (CloudTrail, GuardDuty, Okta, Entra, Purview), `siemfmt.js` (sourcetypes and fields), `spl.js` (the search language). AD Users and Computers is `src/ui/apps/AdApp.js`, fed by `src/game/directory.js`.
-- Sound is synthesized with Web Audio; no asset files.
+- Sound effects and the background music are synthesized with Web Audio (`src/game/sound.js`, `src/game/music.js`): no audio files. The music has four moods (menus, the workday, alerts, the report card) and follows what is happening.
 - Deployed to GitHub Pages by `.github/workflows/deploy.yml` on every push to `main`.

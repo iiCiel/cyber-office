@@ -22,13 +22,14 @@ import midnightblizzard2024 from './midnightblizzard2024/index.js';
 import notpetya2017 from './notpetya2017/index.js';
 import linuxlab2026 from './linuxlab2026/index.js';
 import beclab2026 from './beclab2026/index.js';
+import solarwinds2020 from './solarwinds2020/index.js';
 
-export const CASES = [uber2022, mgm2023, colonial2021, target2013, equifax2017, capitalone2019, moveit2023, change2024, adlab2026, awslab2026, midnightblizzard2024, notpetya2017, linuxlab2026, beclab2026];
+export const CASES = [uber2022, mgm2023, colonial2021, target2013, equifax2017, capitalone2019, moveit2023, change2024, adlab2026, awslab2026, midnightblizzard2024, notpetya2017, linuxlab2026, beclab2026, solarwinds2020];
 
 export const getCase = (id) => CASES.find((c) => c.caseFile.id === id) || CASES[0];
 
 // On the roadmap: shown as locked cards in the Case Files menu.
 const soon = (id, company, when, title, pitch, tags) => ({ comingSoon: true, caseFile: { id, company, when, title, pitch, tags, difficulty: 'Coming soon' } });
 export const COMING_SOON = [
-  soon('solarwinds-2020', 'SolarWinds', 'Sept 2019 - Dec 2020', 'The update everyone trusted', 'Attackers slip malicious code into a signed software update that thousands of organizations install.', ['Supply chain', 'Build system', 'APT29']),
+  // soon('next-case-id', 'Company', 'When', 'Title', 'One-line pitch', ['Tag', 'Tag']),
 ];

@@ -1,5 +1,5 @@
 import { VIEW_W, VIEW_H, FONT } from '../config.js';
-import { h } from './dom.js';
+import { h, placeOnCanvas } from './dom.js';
 import './screen.css';
 
 // Base class for full-screen "you are looking at a monitor" views.
@@ -37,16 +37,22 @@ export class Overlay {
     this.root.style.width = `${this.sw}px`;
     this.root.style.height = `${this.sh}px`;
     document.body.append(this.root);
+    // In compact mode (small screens) the HTML covers the whole viewport, including the Phaser
+    // "Stand up" button, so an HTML bar with its own close button sits under it.
+    this.bar = h(
+      'div',
+      { class: 'screen-bar', id: `screen-bar-${name}` },
+      h('span', {}, 'Esc goes back'),
+      h('button', { type: 'button', 'data-action': 'stand-up', onclick: () => this.close() }, 'Stand up ✕'),
+    );
+    document.body.append(this.bar);
     // A soft click for any button pressed inside an HTML screen.
     this.root.addEventListener('pointerdown', (e) => {
       if (e.target.closest('button, .item, .folder, .topt, .titem, .icon, .tab, .link, .pivot, .attachment, .qr')) this.scene.sound?.play('click');
     });
     this.layout = () => {
-      const r = scene.game.canvas.getBoundingClientRect();
-      const k = r.width / VIEW_W;
-      this.root.style.left = `${r.left + this.sx * k}px`;
-      this.root.style.top = `${r.top + this.sy * k}px`;
-      this.root.style.transform = `scale(${k})`;
+      const compact = placeOnCanvas(this.root, scene.game.canvas, { x: this.sx, y: this.sy, w: this.sw, h: this.sh }, { viewW: VIEW_W, reserveBottom: 36 });
+      this.bar.classList.toggle('show', compact && this.isOpen);
     };
     window.addEventListener('resize', this.layout);
     scene.scale.on('resize', this.layout);
@@ -72,6 +78,7 @@ export class Overlay {
     this.c.setVisible(true);
     this.layout();
     this.root.classList.add('open');
+    this.layout();
     // Let the HTML have the keyboard: stop Phaser from handling or swallowing keys.
     const kb = this.scene.input.keyboard;
     kb.resetKeys();
@@ -86,6 +93,7 @@ export class Overlay {
     this.scene.sound?.play('back');
     this.c.setVisible(false);
     this.root.classList.remove('open');
+    this.bar.classList.remove('show');
     const kb = this.scene.input.keyboard;
     kb.enabled = true;
     kb.enableGlobalCapture();
@@ -107,5 +115,6 @@ export class Overlay {
     this.scene.scale.off('resize', this.layout);
     document.removeEventListener('keydown', this.onKey);
     this.root.remove();
+    this.bar.remove();
   }
 }

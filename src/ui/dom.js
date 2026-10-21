@@ -27,3 +27,32 @@ export function clear(el) {
   while (el.firstChild) el.removeChild(el.firstChild);
   return el;
 }
+
+// Place an HTML screen over the game canvas. `area` is the screen's rectangle in the game's logical
+// 960x720 space. Normally the screen is laid out at that size and scaled with the canvas, so it lines
+// up with the pixel art. When the canvas is small (a phone in landscape, a narrow window) that makes
+// text tiny, so instead the screen fills the whole viewport at close to 1:1 ("compact" mode) and is
+// laid out at whatever logical size that gives. Returns true when compact.
+export function placeOnCanvas(el, canvas, area, { minW = 700, viewW = 960, reserveBottom = 0 } = {}) {
+  const r = canvas.getBoundingClientRect();
+  const k = r.width / viewW;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const kc = Math.min(1, vw / minW);
+  const compact = kc > k * 1.15;
+  if (compact) {
+    el.style.left = '0px';
+    el.style.top = '0px';
+    el.style.width = `${vw / kc}px`;
+    el.style.height = `${(vh - reserveBottom) / kc}px`;
+    el.style.transform = `scale(${kc})`;
+  } else {
+    el.style.left = `${r.left + area.x * k}px`;
+    el.style.top = `${r.top + area.y * k}px`;
+    el.style.width = `${area.w}px`;
+    el.style.height = `${area.h}px`;
+    el.style.transform = `scale(${k})`;
+  }
+  el.classList.toggle('compact', compact);
+  return compact;
+}

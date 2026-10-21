@@ -13,31 +13,34 @@ D:\Projects\cyber-office
 
 ## Notes (what is done, in progress, next, issues)
 #### Status
-The 5-day week, Case Files (8 real-breach replays + 3 fictional labs; 14 playable cases in total incl. Midnight Blizzard, NotPetya, AD/AWS/Linux/BEC labs) and the realism + AD/cloud pass are DONE, pushed and live at https://iiciel.github.io/cyber-office/ . Real vendor log formats, Splunk-ES-style SIEM with SPL subset (src/ui/SocScreen.js, src/game/spl.js), terminal jq/awk/sed/base64/find, PowerShell + AD cmdlets (src/game/pwsh.js), aws/az CLIs (cloudcli.js), AD Users and Computers app (src/ui/apps/AdApp.js). Title screen: click a weekday or press 1-5 to jump in; F = Case Files. Only locked card left: SolarWinds 2020 (COMING_SOON in src/cases/index.js). OPEN: rename the 'splunk>' look-alike branding? A few Midnight Blizzard/NotPetya facts came from search snippets; some Graph IDs/one role name are invented stand-ins (disclaimers note this). Deploy: git push origin main (Actions about 30s, green on Ubuntu 26), then node scripts/smoke.mjs https://iiciel.github.io/cyber-office/ smoke-out/live . Repo (public): https://github.com/iiCiel/cyber-office . PROJECT.md on disk is the source of truth: never git checkout/revert it; edit Command Center rewrites in place and commit.
+The 5-day week, Case Files (8 real-breach replays + 3 fictional labs; 14 playable cases in total incl. Midnight Blizzard, NotPetya, AD/AWS/Linux/BEC labs) and the realism + AD/cloud pass are DONE, pushed and live at https://iiciel.github.io/cyber-office/ . Real vendor log formats, Splunk-ES-style SIEM with SPL subset (src/ui/SocScreen.js, src/game/spl.js), terminal jq/awk/sed/base64/find, PowerShell + AD cmdlets (src/game/pwsh.js), aws/az CLIs (cloudcli.js), AD Users and Computers app (src/ui/apps/AdApp.js). Title screen: click a weekday or press 1-5 to jump in; F = Case Files. SolarWinds 2020 / SUNBURST case DONE (15 cases now; COMING_SOON is empty). Procedural background music (src/game/music.js, 4 moods, Music toggle in P menu). Small screens: HTML screens go full-viewport 'compact' mode (placeOnCanvas in src/ui/dom.js) with a Stand up bar. Reduced-motion respected. OPEN: rename the 'splunk>' look-alike branding? A few Midnight Blizzard/NotPetya facts came from search snippets; some Graph IDs/one role name are invented stand-ins (disclaimers note this). Deploy: git push origin main (Actions about 30s, green on Ubuntu 26), then node scripts/smoke.mjs https://iiciel.github.io/cyber-office/ smoke-out/live . Repo (public): https://github.com/iiCiel/cyber-office . PROJECT.md on disk is the source of truth: never git checkout/revert it; edit Command Center rewrites in place and commit.
 
 #### Milestones
 - [x] Concept, M1-M6, Days 2-5, polish pass, VT323 font, Case Files (14 cases), realism pass, day-picker
 - [ ] M7 Playtest with 2-3 people (BLOCKED: Soliman picks testers). Kit ready: PLAYTEST.md in repo root (message to send, what to watch, 8 questions, results table). When done: put top 3 fixes into milestones, check off M7.
-- [ ] Later: SolarWinds case, original art, music, more weeks, difficulty, real-device mobile test
+- [x] Oct 20 improvements pass: SolarWinds case, background music, phone-readable screens, reduced motion
+- [ ] Later: original art, more weeks, difficulty, real-device mobile test
 
 #### Code map
 src/config.js; src/days/ (dayN data); src/cases/ (index.js CASES/getCase/COMING_SOON); src/game/ (GameState, scoring, logkit, shell, spl, pwsh, cloudcli, sound); src/scenes/ (Boot, Title, Office = engine, Report, Menu, CaseFilesScene); src/ui/. Controls: WASD/arrows/click walk, E/Space/Enter interact, Esc close screen, P pause (glossary inside), M mute.
-Tests: npm test (111 unit). Browser: npm run build; npx vite preview --port 4173 --strictPort; npm run smoke (67), smoke:bad (15), smoke:week (37), smoke:case (228). Smoke scripts accept [url] [outdir] args, so they run against the live site directly. Scratch goes in smoke-out/ (gitignored).
+Tests: npm test (126 unit). Browser: npm run build; npx vite preview --port 4173 --strictPort; npm run smoke (67), smoke:bad (15), smoke:week (37), smoke:case (251). Smoke scripts accept [url] [outdir] args, so they run against the live site directly. Scratch goes in smoke-out/ (gitignored).
 
 #### Log
+- Oct 20 night (autopilot, 'improve everything'): SolarWinds case, music, compact phone screens, reduced motion. npm test 126/126, smoke 67, bad 15, week 37, case 251.
 - Oct 19 night (autopilot): no milestone. Added PLAYTEST.md. Live verified: npm test 111/111, smoke 67/67, smoke:case 228/228; Actions green. Commit de09c3c pushed.
 - Oct 19 (interactive): realism + AD/cloud pass, day-picker, 6 new cases/labs; all deployed.
 
 #### Issues
 - Case sources: 12/15 return 200 (Bloomberg, SEC, uber.com block scripts).
-- No music. VT323 missing glyphs fall back; "fi" ligature.
-- Phones: HTML screens small, untested on a real device. smoke-week can flake on Day 4 timing (rerun).
+- Music is simple synthesized loops; could use a real composer later. VT323 missing glyphs fall back; "fi" ligature.
+- Phones: compact mode tested only in a 844x390 emulated viewport, not a real device.
+- SolarWinds case: some IOCs/details recalled from memory (DLL hashes, TEARDROP file names, Defender name); Microsoft/SEC links block scripts (403). Disclaimer notes reconstructed parts. smoke-week can flake on Day 4 timing (rerun).
 - Pacing not playtested by a human.
 
 #### Open questions (for Soliman)
 - Game title; own art or free packs; keep Halcyon Mutual/Priya/Dana/Mike Chen/j.alvarez?
 - Who are the 2-3 M7 playtesters?
-- Keep or rename the 'splunk>' look-alike branding? Build SolarWinds 2020 next?
+- Keep or rename the 'splunk>' look-alike branding? 
 
 ## Recent runs (newest first)
 ### Oct 19, 2026: done, supervisor grade B

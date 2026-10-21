@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { VIEW_W, VIEW_H } from '../config.js';
-import { h } from '../ui/dom.js';
+import { h, placeOnCanvas } from '../ui/dom.js';
 import { GameState, recordCaseBest } from '../game/GameState.js';
 import { getDay, loadDay, LAST_DAY } from '../days/index.js';
 import { money } from '../game/scoring.js';
@@ -120,13 +120,7 @@ export class ReportScene extends Phaser.Scene {
     document.body.append(root);
     this.root = root;
 
-    const layout = () => {
-      const rect = this.game.canvas.getBoundingClientRect();
-      const k = rect.width / VIEW_W;
-      root.style.left = `${rect.left}px`;
-      root.style.top = `${rect.top}px`;
-      root.style.transform = `scale(${k})`;
-    };
+    const layout = () => placeOnCanvas(root, this.game.canvas, { x: 0, y: 0, w: VIEW_W, h: VIEW_H }, { viewW: VIEW_W });
     layout();
     window.addEventListener('resize', layout);
     this.scale.on('resize', layout);

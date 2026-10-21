@@ -576,3 +576,18 @@
 .case-card[hidden], .cases .search-empty[hidden] { display: none; }
 .case-card button.tag { background: none; color: #9fd8b4; font-weight: normal; padding: 1px 6px; cursor: pointer; }
 .case-card button.tag:hover { background: #1d4a31; color: #e6e6ea; }
+
+/* ---------- small screens ---------- */
+/* Compact mode (see placeOnCanvas in dom.js): the screen fills the viewport; this bar closes it. */
+.screen-bar { position: fixed; left: 0; right: 0; bottom: 0; height: 36px; z-index: 11; display: none; align-items: center; justify-content: space-between; gap: 12px; padding: 0 10px; background: #0b0c12; border-top: 2px solid #3fe07a; color: #6c7590; font: 13px system-ui, sans-serif; }
+.screen-bar.show { display: flex; }
+.screen-bar button { background: #3fe07a; color: #12121c; border: none; border-radius: 4px; font: 700 15px system-ui, sans-serif; padding: 6px 16px; min-height: 30px; cursor: pointer; }
+/* Touch targets a little taller in compact mode. */
+.screen.compact .item, .screen.compact .folder, .screen.compact .titlebar button { min-height: 34px; }
+
+/* VT323 has no "fi"/"fl" ligature glyphs; the fallback font's ligature looked out of place. */
+.screen, .glossary, .report-screen, .cases-screen { font-variant-ligatures: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .screen *, .glossary *, .screen-bar { animation: none !important; transition: none !important; }
+}

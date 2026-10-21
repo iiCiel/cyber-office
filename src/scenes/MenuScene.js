@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { VIEW_W, VIEW_H, FONT } from '../config.js';
-import { h, clear } from '../ui/dom.js';
+import { h, clear, placeOnCanvas } from '../ui/dom.js';
 import { GLOSSARY } from '../data/glossary.js';
 
 // A pause menu, launched on top of a paused Office scene. Works with mouse, touch and keyboard.
@@ -64,14 +64,15 @@ export class MenuScene extends Phaser.Scene {
       return;
     }
 
-    add(-90, 'Resume', () => this.resume(), '#3fe07a');
-    this.muteItem = add(-40, '', () => this.toggleMute());
-    add(10, 'How to play', () => { this.showHelp = true; this.render(); });
-    add(60, 'Security glossary', () => this.openGlossary());
+    add(-110, 'Resume', () => this.resume(), '#3fe07a');
+    this.muteItem = add(-65, '', () => this.toggleMute());
+    this.musicItem = add(-20, '', () => this.toggleMusic());
+    add(25, 'How to play', () => { this.showHelp = true; this.render(); });
+    add(70, 'Security glossary', () => this.openGlossary());
     const inCase = !!this.scene.get('Office')?.state?.caseId;
-    add(110, inCase ? 'Restart this case' : 'Restart this day', () => this.restartDay());
+    add(115, inCase ? 'Restart this case' : 'Restart this day', () => this.restartDay());
     add(160, inCase ? 'Quit to Case Files' : 'Quit to title', () => this.quit(), '#ff8a8a');
-    add(210, '[ Esc or P to resume ]', () => this.resume(), '#6c7590');
+    add(205, '[ Esc or P to resume ]', () => this.resume(), '#6c7590');
     this.refreshMute();
   }
 
@@ -80,8 +81,14 @@ export class MenuScene extends Phaser.Scene {
     this.refreshMute();
   }
 
+  toggleMusic() {
+    this.sound2?.music?.toggle();
+    this.refreshMute();
+  }
+
   refreshMute() {
     if (this.muteItem) this.muteItem.setText(this.sound2?.muted ? '🔇 Sound: off' : '🔊 Sound: on');
+    if (this.musicItem) this.musicItem.setText(this.sound2?.music?.enabled ? '♪ Music: on' : '♪ Music: off');
   }
 
   openGlossary() {
@@ -99,15 +106,7 @@ export class MenuScene extends Phaser.Scene {
         ),
       );
       document.body.append(this.glossaryEl);
-      this.layoutGlossary = () => {
-        const r = this.game.canvas.getBoundingClientRect();
-        const k = r.width / VIEW_W;
-        this.glossaryEl.style.left = `${r.left}px`;
-        this.glossaryEl.style.top = `${r.top}px`;
-        this.glossaryEl.style.width = `${VIEW_W}px`;
-        this.glossaryEl.style.height = `${VIEW_H}px`;
-        this.glossaryEl.style.transform = `scale(${k})`;
-      };
+      this.layoutGlossary = () => placeOnCanvas(this.glossaryEl, this.game.canvas, { x: 0, y: 0, w: VIEW_W, h: VIEW_H }, { viewW: VIEW_W });
       window.addEventListener('resize', this.layoutGlossary);
       this.events.once('shutdown', () => {
         window.removeEventListener('resize', this.layoutGlossary);
