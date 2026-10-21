@@ -1,6 +1,6 @@
 # Project: Cyber Office
 
-> Project file from the Command Center, Oct 20, 2026, 12:17 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
+> Project file from the Command Center, Oct 20, 2026, 2:44 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
 
 ## Goal
 A pixel-art browser game where you live a real day as a junior security analyst: walk the office, read real-looking email, dig through logs, deal with coworkers, and watch your choices play out. Not a quiz and not a wall of text. Built in public as a portfolio piece for internship applications.
@@ -13,7 +13,7 @@ D:\Projects\cyber-office
 
 ## Notes (what is done, in progress, next, issues)
 #### Status
-The 5-day week, Case Files (8 real-breach replays + 3 fictional labs; 14 playable cases in total incl. Midnight Blizzard, NotPetya, AD/AWS/Linux/BEC labs) and the realism + AD/cloud pass are DONE, pushed and live at https://iiciel.github.io/cyber-office/ . Real vendor log formats, Splunk-ES-style SIEM with SPL subset (src/ui/SocScreen.js, src/game/spl.js), terminal jq/awk/sed/base64/find, PowerShell + AD cmdlets (src/game/pwsh.js), aws/az CLIs (cloudcli.js), AD Users and Computers app (src/ui/apps/AdApp.js). Title screen: click a weekday or press 1-5 to jump in; F = Case Files (search box + topic chips + clickable tags, src/cases/search.js; "/" focuses it, Esc clears). Only locked card left: SolarWinds 2020 (COMING_SOON in src/cases/index.js). OPEN: rename the 'splunk>' look-alike branding? A few Midnight Blizzard/NotPetya facts came from search snippets; some Graph IDs/one role name are invented stand-ins (disclaimers note this). Deploy: git push origin main (Actions about 30s, green on Ubuntu 26), then node scripts/smoke.mjs https://iiciel.github.io/cyber-office/ smoke-out/live . Repo (public): https://github.com/iiCiel/cyber-office . PROJECT.md on disk is the source of truth: never git checkout/revert it; edit Command Center rewrites in place and commit.
+The 5-day week, Case Files (8 real-breach replays + 3 fictional labs; 14 playable cases in total incl. Midnight Blizzard, NotPetya, AD/AWS/Linux/BEC labs) and the realism + AD/cloud pass are DONE, pushed and live at https://iiciel.github.io/cyber-office/ . Real vendor log formats, Splunk-ES-style SIEM with SPL subset (src/ui/SocScreen.js, src/game/spl.js), terminal jq/awk/sed/base64/find, PowerShell + AD cmdlets (src/game/pwsh.js), aws/az CLIs (cloudcli.js), AD Users and Computers app (src/ui/apps/AdApp.js). Title screen: click a weekday or press 1-5 to jump in; F = Case Files. Only locked card left: SolarWinds 2020 (COMING_SOON in src/cases/index.js). OPEN: rename the 'splunk>' look-alike branding? A few Midnight Blizzard/NotPetya facts came from search snippets; some Graph IDs/one role name are invented stand-ins (disclaimers note this). Deploy: git push origin main (Actions about 30s, green on Ubuntu 26), then node scripts/smoke.mjs https://iiciel.github.io/cyber-office/ smoke-out/live . Repo (public): https://github.com/iiCiel/cyber-office . PROJECT.md on disk is the source of truth: never git checkout/revert it; edit Command Center rewrites in place and commit.
 
 #### Milestones
 - [x] Concept, M1-M6, Days 2-5, polish pass, VT323 font, Case Files (14 cases), realism pass, day-picker
@@ -22,10 +22,9 @@ The 5-day week, Case Files (8 real-breach replays + 3 fictional labs; 14 playabl
 
 #### Code map
 src/config.js; src/days/ (dayN data); src/cases/ (index.js CASES/getCase/COMING_SOON); src/game/ (GameState, scoring, logkit, shell, spl, pwsh, cloudcli, sound); src/scenes/ (Boot, Title, Office = engine, Report, Menu, CaseFilesScene); src/ui/. Controls: WASD/arrows/click walk, E/Space/Enter interact, Esc close screen, P pause (glossary inside), M mute.
-Tests: npm test (119 unit). Browser: npm run build; npx vite preview --port 4173 --strictPort; npm run smoke (67), smoke:bad (15), smoke:week (37), smoke:case (235). Smoke scripts accept [url] [outdir] args, so they run against the live site directly. Scratch goes in smoke-out/ (gitignored).
+Tests: npm test (111 unit). Browser: npm run build; npx vite preview --port 4173 --strictPort; npm run smoke (67), smoke:bad (15), smoke:week (37), smoke:case (228). Smoke scripts accept [url] [outdir] args, so they run against the live site directly. Scratch goes in smoke-out/ (gitignored).
 
 #### Log
-- Oct 20 (interactive): Soliman asked for search on Case Files. Added search box, topic chips (Active Directory, Cloud, Ransomware...), clickable card tags, abbreviations (AD, AWS, M365, SQLi, BEC) and MITRE IDs. npm test 119/119, smoke:case 235/235.
 - Oct 19 night (autopilot): no milestone. Added PLAYTEST.md. Live verified: npm test 111/111, smoke 67/67, smoke:case 228/228; Actions green. Commit de09c3c pushed.
 - Oct 19 (interactive): realism + AD/cloud pass, day-picker, 6 new cases/labs; all deployed.
 
