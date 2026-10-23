@@ -55,6 +55,12 @@ export function checkCase(c, { getCase } = {}) {
     assert.ok(!logs.some((e) => e.attack && e.noise));
     // Every IP in an attack line can be looked up.
     for (const e of logs.filter((x) => x.attack && x.ip)) assert.ok(c.ipInfo[e.ip], `no IP info for ${e.ip}`);
+    // Windows paths and accounts keep their backslashes (a lone backslash in a JS string silently disappears).
+    const BS = String.fromCharCode(92);
+    const text = JSON.stringify(logs);
+    assert.ok(!/NT AUTHORITY(SYSTEM|NETWORK|LOCAL)/.test(text), 'an NT AUTHORITY account lost its backslash');
+    assert.ok(!/(Folders?|FolderPath)[":= ]+(Inbox|Sent Items|Deleted Items)/.test(text), 'a mail folder path lost its leading backslash');
+    assert.ok(!text.includes(':' + BS + BS + BS + BS + BS + BS), 'tripled backslashes');
   });
 
   test(`${cf.id}: scoring: an empty run fails, a perfect case write-up scores well`, () => {

@@ -344,11 +344,11 @@ export function generateLogs({ nowMinutes = 24 * 60 } = {}) {
   for (const [m, dd] of [[10, 12], [10, 19], [10, 26], [11, 2], [11, 9], [11, 16], [11, 23], [11, 30], [12, 4], [12, 9]].filter(([m, dd]) => m < 12 || dd < 10)) {
     const t = D(m, dd, 9 + jitter(10), jitter(60), jitter(60));
     beacon(t);
-    b.sysmon3(t + 4, 'orion01', { user: 'NT AUTHORITY\SYSTEM', image: HOST_EXE, srcIp: ORION.ip, dstIp: STAGE2.ip, dstPort: 443, dstHost: STAGE2.host, dstPortName: 'https', rule: '-' }, { attack: true });
+    b.sysmon3(t + 4, 'orion01', { user: 'NT AUTHORITY\\SYSTEM', image: HOST_EXE, srcIp: ORION.ip, dstIp: STAGE2.ip, dstPort: 443, dstHost: STAGE2.host, dstPortName: 'https', rule: '-' }, { attack: true });
   }
   [[D(11, 5, 3, 41), 'sec'], [D(11, 18, 4, 7), 'cfo']].forEach(([t, who]) => {
     spSignin(t - 20, { app: HRSYNC, ip: VPS, geo: { city: 'Ashburn', state: 'Virginia', lat: 39.04, lon: -77.49 }, credType: 'certificate', keyGen: 77 }, { attack: true });
-    for (let k = 0; k < 2; k++) readMail(t + k * 150, { mailbox: MAILBOXES[who].upn, ip: VPS, count: 8 + jitter(30), folder: ['\Inbox', '\Sent Items'][k] }, { attack: true });
+    for (let k = 0; k < 2; k++) readMail(t + k * 150, { mailbox: MAILBOXES[who].upn, ip: VPS, count: 8 + jitter(30), folder: ['\\Inbox', '\\Sent Items'][k] }, { attack: true });
   });
 
   return finishDays(b.ev, { nowMinutes, date: DATE });

@@ -57,11 +57,11 @@ await page.screenshot({ path: `${out}/3-hint.png` });
 await ev(() => { localStorage.setItem('cyber-office:difficulty', 'analyst'); const sc = window.__game.scene.getScene('Office'); sc.applyDifficulty(); sc.soc.go('case'); });
 await page.waitForTimeout(300);
 check('Analyst: no hint, 4 s per minute', await page.locator('#screen-soc details[data-hint=case]').count() === 0 && (await o()).delay === 4000);
-// Report label: end the day directly on Trainee
-await ev(() => { localStorage.setItem('cyber-office:difficulty', 'trainee'); const sc = window.__game.scene.getScene('Office'); sc.applyDifficulty(); sc.soc.close(); sc.endDay(); });
+// Report label: the hint was opened on Trainee, then the player switched back to Analyst. The report must still say so.
+await ev(() => { const sc = window.__game.scene.getScene('Office'); sc.soc.close(); sc.endDay(); });
 await page.waitForSelector('#report', { timeout: 10000 });
 const lbl = await page.locator('#report [data-difficulty]').innerText().catch(() => '');
-check('report says Trainee and that the hint was used', /Trainee, with the write-up hint/.test(lbl), lbl);
+check('report says Analyst and that the hint was used (hint opened on Trainee)', /Analyst, with the write-up hint/.test(lbl), lbl);
 await page.screenshot({ path: `${out}/4-report.png` });
 check('no page errors', errors.length === 0, errors.join(' | '));
 await browser.close();

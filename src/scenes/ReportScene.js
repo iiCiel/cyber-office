@@ -73,7 +73,7 @@ export class ReportScene extends Phaser.Scene {
             h('h1', {}, cf ? `Case report: ${cf.title}` : `Day ${day.n} report`),
             h('p', { class: 'sum' }, `You handled ${caught} of ${r.items.length} things well. ${cf ? 'Cost in this replay' : 'Cost to the company today'}: `, h('b', { class: r.cost > 20000 ? 'bad' : '' }, r.costText), '.'),
             r.capped ? h('p', { class: 'sum capped' }, 'Your points say A, but one outright miss caps the day at B.') : null,
-            st.difficulty && st.difficulty !== 'analyst' ? h('p', { class: 'sum difficulty', 'data-difficulty': st.difficulty }, `Played on ${DIFFICULTIES[st.difficulty]?.label || st.difficulty}${st.hasEvent('hint-used') ? ', with the write-up hint' : ''}. The grading is the same at every level.`) : null,
+            st.difficulty && (st.difficulty !== 'analyst' || st.hasEvent('hint-used')) ? h('p', { class: 'sum difficulty', 'data-difficulty': st.difficulty }, `Played on ${DIFFICULTIES[st.difficulty]?.label || st.difficulty}${st.hasEvent('hint-used') ? ', with the write-up hint' : ''}. The grading is the same at every level.`) : null,
           ),
           h('div', { class: `grade g${r.grade}`, 'data-grade': r.grade }, r.grade, h('small', {}, `${r.pct}%`)),
         ),
