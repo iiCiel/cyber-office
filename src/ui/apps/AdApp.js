@@ -74,6 +74,14 @@ export class AdApp {
             if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(); }
             else if (e.key === 'ArrowRight' && hasKids && !this.open.has(dn)) { e.preventDefault(); this.open.add(dn); this.renderTree(); this.focusTree(dn); }
             else if (e.key === 'ArrowLeft' && hasKids && this.open.has(dn)) { e.preventDefault(); this.open.delete(dn); this.renderTree(); this.focusTree(dn); }
+            else if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Home' || e.key === 'End') {
+              // Move focus between visible tree items, stopping at the ends (WAI-ARIA tree pattern).
+              e.preventDefault();
+              const items = [...this.tree.querySelectorAll('[role=treeitem]')];
+              const i = items.indexOf(e.currentTarget);
+              const j = e.key === 'Home' ? 0 : e.key === 'End' ? items.length - 1 : Math.max(0, Math.min(items.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)));
+              items[j]?.focus();
+            }
           } },
         h('span', { class: 'tw', 'aria-hidden': 'true', onclick: (e) => { if (!hasKids) return; e.stopPropagation(); this.open.has(dn) ? this.open.delete(dn) : this.open.add(dn); this.renderTree(); } }, hasKids ? (this.open.has(dn) ? '▾' : '▸') : ''),
         h('span', { class: 'ti' }, icon), label);

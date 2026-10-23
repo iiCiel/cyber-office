@@ -20,7 +20,7 @@ DONE, pushed and live at https://iiciel.github.io/cyber-office/ :
 - Day-picker: on the title screen, press 1-5. F opens Case Files.
 - Oct 20 (dcda50e): procedural music, compact phone screens, prefers-reduced-motion.
 
-Oct 23: on branch overnight-2026-10-23, commits 3b5b310..7d6c655. NOT pushed and NOT live. To ship: git checkout main && git merge overnight-2026-10-23 && git push origin main, then node scripts/smoke.mjs https://iiciel.github.io/cyber-office/ smoke-out/live
+Oct 23: on branch overnight-2026-10-23, commits 3b5b310 onward (see git log main..overnight-2026-10-23). NOT pushed and NOT live. To ship: git checkout main && git merge overnight-2026-10-23 && git push origin main, then node scripts/smoke.mjs https://iiciel.github.io/cyber-office/ smoke-out/live
 - DST fix (src/game/siemfmt.js easternOffset, real US Eastern rules). The SolarWinds replay now has its Oct-Dec beacons and November mail reads.
 - Fact fixes: SolarWinds hashes and domains (checked against the FireEye CSVs). The Change Healthcare "March 13" claim was removed.
 - Difficulty setting (src/game/difficulty.js, localStorage cyber-office:difficulty):
@@ -29,11 +29,11 @@ Oct 23: on branch overnight-2026-10-23, commits 3b5b310..7d6c655. NOT pushed and
   - Senior: 3 s per minute, no arrow, ransomware at 1.4x.
   - Scoring is the same at every level.
 - Fix-up cb725d2: SolarWinds backslashes, and the report card keeps the hint note.
-- Round 2 (this run):
+- Round 2:
   - bd3aafc fixes a clock freeze on the 2nd day started in a tab. The difficulty code caused it, and it was never live. Fix: OfficeScene.create() sets clockEvent = null. smoke-difficulty checks real-time ticking after Next day: old code 537->537, fixed 537->539. A finished day keeps the level it was played on, and saved junk like "toString" falls back to Analyst.
   - 6d8b7ab: Midnight Blizzard "access removed on or about Jan 13, 2024" is verified against the Jan 19 8-K (sec.gov/Archives/edgar/data/789019/000119312524011295/d708866d8k.htm) and cited.
   - 97b8a24, accessibility:
-    - The AD tree works with Tab, Enter, Space and the arrow keys (checked in Chrome).
+    - The AD tree: Enter/Space select, Right/Left expand and collapse, Up/Down move between items, Home/End jump to the first/last item (Up/Down/Home/End added in the fix-up below).
     - Overlays take focus when they open. When they close, focus goes back, but never into a text field, and the game keys still work.
     - Icon buttons have aria-labels. The +/- buttons work with the keyboard. The mail list uses native buttons.
     - Text and badges reach AA contrast.
@@ -43,16 +43,17 @@ Oct 23: on branch overnight-2026-10-23, commits 3b5b310..7d6c655. NOT pushed and
 - [x] Oct 20: SolarWinds case, music, phone screens, reduced motion
 - [x] Oct 23: DST fix, fact fixes, difficulty, fix-up
 - [x] Oct 23 round 2: clock-freeze fix, MB date verified, accessibility pass, all suites re-run (on the branch, waiting for merge and push)
+- [x] Oct 23 fix-up 2: AD tree ArrowUp/ArrowDown/Home/End (the round-2 note overstated arrow support), with 2 new smoke-case checks
 - [ ] M7 Playtest with 2-3 people (BLOCKED: Soliman picks testers). Kit: PLAYTEST.md.
 - [ ] Later: a second week, original art, real-device mobile test
 
 ###### Tests (ALL re-run Oct 23 on the final branch build 97b8a24)
-- npm test: 130/130.
+- npm test: 130/130 (output saved in smoke-out/unit.log; smoke-out/ is gitignored, so it is local only).
 - smoke: 67
 - smoke:bad: 15
 - smoke:week: 37, with 4 clean runs today and no Day 4 flake.
 - smoke:difficulty: 15
-- smoke:case: 251/251, 0 FAIL. It passed 3 times today: smoke-out/case-branch.log, case-r2.log and case-final.log.
+- smoke:case: 253/253, 0 FAIL after the AD-tree fix-up (smoke-out/case-fixup.log). Before it: 251/251 three times (case-branch.log, case-r2.log, case-final.log). The 2 new checks are in the halcyon-ad-2026 plan: ArrowDown x2 + ArrowUp moves #root > #queries > domain > #queries; on the old AdApp.js they FAIL (focus stays on #root, smoke-out/case-adkeys-oldcode.log).
 - To test one case: ONLY=<id> (the AD lab is halcyon-ad-2026).
 - Local build: npx vite build --outDir smoke-out/dist-mine, then npx vite preview --outDir smoke-out/dist-mine --port 4180 --strictPort.
 

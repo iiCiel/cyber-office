@@ -312,6 +312,29 @@ async function playCase(p) {
   await page.waitForTimeout(500);
   await readAll(p.report || []);
   for (const id of p.report || []) check(`${p.id}: reported ${id}`, await sc((o, i) => !!o.state.mail[i]?.reported, id));
+  if (p.id === 'halcyon-ad-2026') {
+    // AD tree keyboard: ArrowDown x2 then ArrowUp must move focus down 2 items and back 1; Home/End jump to the ends.
+    await page.click(`${W} [data-app=ad]`);
+    await page.waitForTimeout(300);
+    const T = `${W} .aduc-tree [role=treeitem]`;
+    await page.locator(T).first().focus();
+    const dnNow = () => page.evaluate(() => document.activeElement?.dataset?.dn ?? null);
+    const order = await page.locator(T).evaluateAll((els) => els.map((e) => e.dataset.dn));
+    const seen = [await dnNow()];
+    for (const k of ['ArrowDown', 'ArrowDown', 'ArrowUp']) { await page.keyboard.press(k); await page.waitForTimeout(80); seen.push(await dnNow()); }
+    console.log(`  AD tree focus: start ${seen[0]} | Down ${seen[1]} | Down ${seen[2]} | Up ${seen[3]}`);
+    check(`${p.id}: AD tree ArrowDown/ArrowUp move focus (down 2, back 1)`, seen[0] === order[0] && seen[1] === order[1] && seen[2] === order[2] && seen[3] === order[1], seen.join(' > '));
+    await page.keyboard.press('End'); await page.waitForTimeout(80);
+    const endDn = await dnNow();
+    await page.keyboard.press('ArrowDown'); await page.waitForTimeout(80);
+    const pastEnd = await dnNow();
+    await page.keyboard.press('Home'); await page.waitForTimeout(80);
+    const homeDn = await dnNow();
+    await page.keyboard.press('ArrowUp'); await page.waitForTimeout(80);
+    const pastHome = await dnNow();
+    check(`${p.id}: AD tree Home/End jump to the ends and arrows stop there`, endDn === order[order.length - 1] && pastEnd === endDn && homeDn === order[0] && pastHome === homeDn, `${endDn} | ${homeDn}`);
+    await page.click(`${W} [data-app=mail]`).catch(() => {});
+  }
   if (p.terminalEarly) await runTerminal(p);
   await closeOverlay();
   await drain();
