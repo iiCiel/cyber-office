@@ -14,7 +14,7 @@
 //   disclosure FireEye Dec 13; CISA ED 21-01 told federal agencies to disconnect or power down Orion; SolarWinds 8-K Dec 14.
 // What is invented: every host, account, address, app, mailbox, count and the install date (SolarWinds says the compromised builds
 // went out between March and June 2020). Log fields follow the vendors' schemas. Dates are real calendar dates; the replay samples
-// the months in between (a few DNS beacons per week, nothing in November) so the SIEM stays searchable.
+// the months in between (a few DNS beacons per week, fewer in October and November) so the SIEM stays searchable.
 //
 // Decoys: Orion's own lookups of solarwinds.com from the same process, AWS AppSync lookups from a developer (same "appsync-api" label,
 // different domain), Orion's hourly WMI polling with the same service account, the administrator who signs in every day through ADFS,
@@ -269,7 +269,7 @@ export function generateLogs({ nowMinutes = 24 * 60 } = {}) {
   const tFirst = D(6, 2, 10, 42, 31);
   beacon(tFirst, { key: 'first-dga' });
   b.sysmon3(tFirst + 6, 'orion01', { user: 'NT AUTHORITY\\SYSTEM', image: HOST_EXE, srcIp: ORION.ip, dstIp: STAGE2.ip, dstPort: 443, dstHost: STAGE2.host, dstPortName: 'https', rule: '-' }, { attack: true, key: 'orion-c2-https' });
-  // a few lookups a week afterwards (the replay samples the months; nothing in November)
+  // a few lookups a week afterwards (the replay samples the months; October 8 to December 9 is added at the end of the build)
   const weeks = [];
   for (let m = 6; m <= 10; m++) for (const dd of [4, 9, 15, 21, 26]) { if (m === 6 && dd < 4) continue; if (m === 10 && dd > 7) continue; weeks.push([m, dd]); }
   for (const [m, dd] of weeks) {
@@ -336,6 +336,19 @@ export function generateLogs({ nowMinutes = 24 * 60 } = {}) {
   }
   // Defender's new signatures land overnight and name the DLL
   defenderHit(A(0, 4, 12, 40), 'orion01', 'Trojan:MSIL/Solorigate.BR!dha', `${ORION_DIR}${DLL}`, { attack: true, key: 'defender-detect' });
+
+  // ====================================================================================================== 6. the quiet autumn (Oct 12 - Dec 9)
+  // Built last so the generated names and jitter of everything above stay the same. The US clocks fall back on Sun Nov 1,
+  // so from then on the UTC times in the cloud and DNS records are five hours ahead of the office instead of four.
+  for (const [m, dd] of [[10, 12], [10, 19], [10, 26], [11, 2], [11, 9], [11, 16], [11, 23], [11, 30], [12, 4], [12, 9]].filter(([m, dd]) => m < 12 || dd < 10)) {
+    const t = D(m, dd, 9 + jitter(10), jitter(60), jitter(60));
+    beacon(t);
+    b.sysmon3(t + 4, 'orion01', { user: 'NT AUTHORITY\SYSTEM', image: HOST_EXE, srcIp: ORION.ip, dstIp: STAGE2.ip, dstPort: 443, dstHost: STAGE2.host, dstPortName: 'https', rule: '-' }, { attack: true });
+  }
+  [[D(11, 5, 3, 41), 'sec'], [D(11, 18, 4, 7), 'cfo']].forEach(([t, who]) => {
+    spSignin(t - 20, { app: HRSYNC, ip: VPS, geo: { city: 'Ashburn', state: 'Virginia', lat: 39.04, lon: -77.49 }, credType: 'certificate', keyGen: 77 }, { attack: true });
+    for (let k = 0; k < 2; k++) readMail(t + k * 150, { mailbox: MAILBOXES[who].upn, ip: VPS, count: 8 + jitter(30), folder: ['\Inbox', '\Sent Items'][k] }, { attack: true });
+  });
 
   return finishDays(b.ev, { nowMinutes, date: DATE });
 }

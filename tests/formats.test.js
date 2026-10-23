@@ -65,3 +65,27 @@ test('PowerShell -enc commands round-trip through base64 -d', () => {
   assert.equal(b64, 'SQBFAFgAIAAxAA=='.slice(0, b64.length) === b64 ? b64 : b64);
   assert.match(b64, /^[A-Za-z0-9+/]+=*$/);
 });
+
+test('US Eastern offset follows the real DST rules (2007+ and before)', async () => {
+  const { easternOffset, stamps } = await import('../src/game/siemfmt.js');
+  // 2020: DST Mar 8 - Nov 1
+  assert.equal(easternOffset(2020, 2, 8, T(1, 59)), 5);
+  assert.equal(easternOffset(2020, 2, 8, T(3, 0)), 4);
+  assert.equal(easternOffset(2020, 9, 31, T(12, 0)), 4);
+  assert.equal(easternOffset(2020, 10, 1, T(1, 30)), 4);
+  assert.equal(easternOffset(2020, 10, 1, T(3, 0)), 5);
+  assert.equal(easternOffset(2020, 10, 15, T(12, 0)), 5);
+  assert.equal(easternOffset(2020, 2, 1, T(12, 0)), 5);
+  // 2026: Mar 8 - Nov 1
+  assert.equal(easternOffset(2026, 9, 24, T(12, 0)), 4);
+  assert.equal(easternOffset(2026, 10, 2, T(12, 0)), 5);
+  // 2006 (old rules): Apr 2 - Oct 29
+  assert.equal(easternOffset(2006, 2, 20, T(12, 0)), 5);
+  assert.equal(easternOffset(2006, 3, 2, T(3, 0)), 4);
+  assert.equal(easternOffset(2006, 9, 29, T(3, 0)), 5);
+  // time of day past midnight rolls into the next day
+  assert.equal(easternOffset(2020, 9, 31, T(27, 0)), 5);
+  assert.equal(stamps({ month: 'Nov', day: 15, year: 2020 }, T(10, 0)).iso, '2020-11-15T15:00:00Z');
+  assert.equal(stamps({ month: 'Jul', day: 15, year: 2020 }, T(10, 0)).iso, '2020-07-15T14:00:00Z');
+  assert.equal(stamps({ month: 'Jun', day: 27, year: 2017, utcOffset: 0 }, T(10, 0)).iso, '2017-06-27T10:00:00Z');
+});

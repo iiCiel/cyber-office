@@ -16,11 +16,45 @@ import { parseKv, legacyOkta, legacyCloudTrail, legacyUal, legacyAzureAudit } fr
 const pad = (n) => String(n).padStart(2, '0');
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+/** Day of the month of the nth (1-based) Sunday of a month; n = -1 means the last Sunday. */
+function nthSunday(year, mon, n) {
+  if (n < 0) {
+    const last = new Date(Date.UTC(year, mon + 1, 0));
+    return last.getUTCDate() - last.getUTCDay();
+  }
+  const first = new Date(Date.UTC(year, mon, 1)).getUTCDay();
+  return 1 + ((7 - first) % 7) + (n - 1) * 7;
+}
+
+/**
+ * Hours behind UTC for US Eastern wall-clock time (4 = EDT, 5 = EST). DST starts at 2:00 AM local and ends at 2:00 AM
+ * local: second Sunday of March to first Sunday of November since 2007, first Sunday of April to last Sunday of
+ * October before that. In the repeated hour on the fall-back day, the first (EDT) reading is used.
+ */
+export function easternOffset(year, mon, day, t = 0) {
+  const [startMon, startDay, endMon, endDay] = year >= 2007
+    ? [2, nthSunday(year, 2, 2), 10, nthSunday(year, 10, 1)]
+    : [3, nthSunday(year, 3, 1), 9, nthSunday(year, 9, -1)];
+  // Normalise day overflow (t can run past midnight) into a real calendar day.
+  const extra = Math.floor(t / 86400);
+  const d = new Date(Date.UTC(year, mon, day + extra));
+  const m = d.getUTCMonth();
+  const dd = d.getUTCDate();
+  const sec = t - extra * 86400;
+  const key = m * 100 + dd;
+  const start = startMon * 100 + startDay;
+  const end = endMon * 100 + endDay;
+  if (key < start || key > end) return 5;
+  if (key > start && key < end) return 4;
+  if (key === start) return sec < 2 * 3600 ? 5 : 4;
+  return sec < 2 * 3600 ? 4 : 5; // fall-back day
+}
+
 /** Wall-clock seconds since midnight on `date` -> { iso (UTC), us ('10/21/2026 02:24:31 AM'), splunk ('10/21/26 2:24:31.000 AM') }. */
 export function stamps(date, t) {
   const year = date.year || 2026;
   const mon = MONTHS.indexOf(date.month);
-  const offset = date.utcOffset ?? (mon >= 3 && mon <= 9 ? 4 : mon === 2 || mon === 10 ? 4 : 5); // US Eastern, roughly
+  const offset = date.utcOffset ?? easternOffset(year, mon, date.day, t);
   const utc = new Date(Date.UTC(year, mon, date.day, 0, 0, 0) + (t + offset * 3600) * 1000);
   const iso = `${utc.getUTCFullYear()}-${pad(utc.getUTCMonth() + 1)}-${pad(utc.getUTCDate())}T${pad(utc.getUTCHours())}:${pad(utc.getUTCMinutes())}:${pad(utc.getUTCSeconds())}Z`;
   const h = Math.floor(t / 3600);
