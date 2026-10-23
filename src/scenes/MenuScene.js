@@ -77,7 +77,7 @@ export class MenuScene extends Phaser.Scene {
     const inCase = !!this.scene.get('Office')?.state?.caseId;
     add(144, inCase ? 'Restart this case' : 'Restart this day', () => this.restartDay());
     add(188, inCase ? 'Quit to Case Files' : 'Quit to title', () => this.quit(), '#ff8a8a');
-    add(232, '[ Esc or P to resume ]', () => this.resume(), '#6c7590');
+    add(232, '[ Esc or P to resume ]', () => this.resume(), '#8b94b0');
     this.refreshMute();
   }
 

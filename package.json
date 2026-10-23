@@ -14,7 +14,8 @@
     "smoke:bad": "node scripts/smoke-bad.mjs",
     "smoke:week": "node scripts/smoke-week.mjs",
     "smoke:case": "node scripts/smoke-case.mjs",
-    "smoke:difficulty": "node scripts/smoke-difficulty.mjs"
+    "smoke:difficulty": "node scripts/smoke-difficulty.mjs",
+    "smoke:a11y": "node scripts/smoke-a11y.mjs"
   },
   "dependencies": {
     "@fontsource/vt323": "^5.3.0",

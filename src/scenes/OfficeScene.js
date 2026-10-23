@@ -240,7 +240,7 @@ export class OfficeScene extends Phaser.Scene {
   buildHud() {
     this.ui(this.add.rectangle(12, 12, 400, 64, 0x12121c, 0.82).setOrigin(0).setStrokeStyle(2, 0x3fe07a).setDepth(10));
     this.clockText = this.ui(this.add.text(24, 20, '', { fontFamily: FONT, fontSize: '25px', color: '#3fe07a' }).setDepth(11));
-    this.stepText = this.ui(this.add.text(400, 22, '', { fontFamily: FONT, fontSize: '18px', color: '#6c7590' }).setOrigin(1, 0).setDepth(11));
+    this.stepText = this.ui(this.add.text(400, 22, '', { fontFamily: FONT, fontSize: '18px', color: '#8b94b0' }).setOrigin(1, 0).setDepth(11));
     this.objectiveText = this.ui(this.add.text(24, 48, '', { fontFamily: FONT, fontSize: '19px', color: '#e6e6ea' }).setDepth(11));
 
     this.minutes = this.state.minutes ?? this.day.start;

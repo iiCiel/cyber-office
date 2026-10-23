@@ -62,6 +62,8 @@ export class Overlay {
       if (e.key === 'Escape') {
         e.preventDefault();
         this.back();
+      } else if (e.key === 'Tab') {
+        this.trapTab(e);
       } else {
         this.onKeyDown?.(e);
       }
@@ -112,6 +114,54 @@ export class Overlay {
     const cb = this.onClose;
     this.onClose = null;
     cb?.();
+  }
+
+  // Visible, enabled, tabbable elements inside the screen, in DOM order. Recomputed on every Tab
+  // because the content changes (windows open and close, lists re-render).
+  focusables() {
+    const sel = 'a[href], button, input, select, textarea, summary, [tabindex], [contenteditable=""], [contenteditable="true"]';
+    return [...this.root.querySelectorAll(sel)].filter((el) => {
+      if (el.disabled || el.getAttribute('tabindex') === '-1' || el.getAttribute('aria-hidden') === 'true') return false;
+      if (el.tagName === 'INPUT' && el.type === 'hidden') return false;
+      if (el.closest('[hidden], [inert]')) return false;
+      const cs = getComputedStyle(el);
+      if (cs.visibility === 'hidden' || cs.display === 'none') return false;
+      return el.getClientRects().length > 0;
+    });
+  }
+
+  // Focus trap: Tab on the last item wraps to the first, Shift+Tab on the first wraps to the last,
+  // and focus that is outside the screen is pulled back in. Respects handlers that already used Tab
+  // (the terminal's completion).
+  trapTab(e) {
+    if (e.defaultPrevented) return;
+    const items = this.focusables();
+    if (!items.length) {
+      e.preventDefault();
+      this.root.focus?.({ preventScroll: true });
+      return;
+    }
+    const first = items[0];
+    const last = items[items.length - 1];
+    const active = document.activeElement;
+    const inside = this.root.contains(active) && active !== this.root;
+    if (!inside) {
+      e.preventDefault();
+      (e.shiftKey ? last : first).focus({ preventScroll: true });
+    } else if (!items.includes(active)) {
+      // Focus is on a non-tabbable element (e.g. a roving-tabindex item): step to the nearest tabbable one.
+      e.preventDefault();
+      const after = (el) => !!(active.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING) && !active.contains(el);
+      const before = (el) => !!(active.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_PRECEDING) && !el.contains(active);
+      const target = e.shiftKey ? [...items].reverse().find(before) || last : items.find(after) || first;
+      target.focus({ preventScroll: true });
+    } else if (e.shiftKey && active === first) {
+      e.preventDefault();
+      last.focus({ preventScroll: true });
+    } else if (!e.shiftKey && active === last) {
+      e.preventDefault();
+      first.focus({ preventScroll: true });
+    }
   }
 
   // Esc: subclasses close an inner window first.

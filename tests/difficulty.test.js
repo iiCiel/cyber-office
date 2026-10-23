@@ -30,6 +30,31 @@ test('difficulty is saved, cycles in order and ignores junk', () => {
   assert.equal(setDifficulty('trainee').id, 'trainee');
 });
 
+test('a choice still sticks when storage is blocked or full (until reload)', () => {
+  const real = globalThis.localStorage;
+  try {
+    // Full: setItem throws, getItem still returns the old saved value.
+    store.set('cyber-office:difficulty', 'analyst');
+    globalThis.localStorage = { getItem: real.getItem, setItem: () => { throw new Error('QuotaExceededError'); } };
+    assert.equal(setDifficulty('senior').id, 'senior');
+    assert.equal(getDifficulty().id, 'senior');
+    assert.equal(cycleDifficulty().id, 'trainee');
+    assert.equal(getDifficulty().id, 'trainee');
+    // Blocked: both throw.
+    globalThis.localStorage = { getItem: () => { throw new Error('SecurityError'); }, setItem: () => { throw new Error('SecurityError'); } };
+    assert.equal(cycleDifficulty().id, 'analyst');
+    assert.equal(cycleDifficulty().id, 'senior');
+    assert.equal(getDifficulty().id, 'senior');
+  } finally {
+    globalThis.localStorage = real;
+  }
+  // Once saving works again, storage is the source of truth again.
+  setDifficulty('trainee');
+  assert.equal(store.get('cyber-office:difficulty'), 'trainee');
+  store.set('cyber-office:difficulty', 'analyst');
+  assert.equal(getDifficulty().id, 'analyst');
+});
+
 test('levels get harder in order', () => {
   const [a, b, c] = ORDER.map((k) => DIFFICULTIES[k]);
   assert.ok(a.minuteMs > b.minuteMs && b.minuteMs > c.minuteMs);

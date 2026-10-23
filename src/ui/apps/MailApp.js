@@ -117,7 +117,9 @@ export class MailApp {
   }
 
   afterMove() {
-    // Select the next email in the folder, like a real client.
+    // Select the next email in the folder, like a real client. Keyboard focus goes to that email, not back to the
+    // Report/Delete button, so a second Enter can't act on the next message by accident.
+    this.focusSelected = true;
     const list = this.emailsIn(this.folder);
     this.selected = list[0]?.id ?? null;
     if (this.selected) this.select(this.selected);
@@ -257,7 +259,25 @@ export class MailApp {
     this.status = h('div', { class: 'status' }, 'Hover over a link to see where it really goes.');
     const reader = h('div', { class: 'reader' }, this.renderReader(e, inMailbox));
 
+    // Rebuilding the DOM removes the focused button, which would drop keyboard focus to <body>.
+    // Remember what had focus and put it back on the same email/folder/action (or the nearest sensible one).
+    const had = this.el.contains(document.activeElement) ? document.activeElement : null;
+    const key = had && ['data-email', 'data-folder', 'data-action'].find((a) => had.hasAttribute(a));
+    const sel = key && !this.focusSelected ? `[${key}="${CSS.escape(had.getAttribute(key))}"]` : null;
+    this.focusSelected = false;
+
     clear(this.el).append(toolbar, folders, list, reader, this.status);
+
+    if (had) {
+      const usable = (n) => n && !n.disabled;
+      const next = [
+        sel && this.el.querySelector(sel),
+        this.selected && this.el.querySelector(`[data-email="${CSS.escape(this.selected)}"]`),
+        this.el.querySelector('[data-email]'),
+        this.el.querySelector('.folder.active'),
+      ].find(usable);
+      next?.focus({ preventScroll: true });
+    }
   }
 
   renderReader(e, inMailbox) {

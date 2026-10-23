@@ -39,10 +39,12 @@ export class TitleScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    let started = false;
+    // One guard for every way out of this screen (Start/Continue/New week and the day picker), reset on each visit:
+    // Phaser reuses the scene object, so a flag left true would block the picker after "Quit to title".
+    this.leaving = false;
     const go = (resume) => {
-      if (started) return;
-      started = true;
+      if (this.leaving) return;
+      this.leaving = true;
       const s = this.game.registry.get('sound');
       s?.resume();
       s?.play('select');
@@ -62,8 +64,8 @@ export class TitleScene extends Phaser.Scene {
     };
 
     const toCases = () => {
-      if (started) return;
-      started = true;
+      if (this.leaving) return;
+      this.leaving = true;
       this.game.registry.get('sound')?.play('select');
       this.scene.start('CaseFiles');
     };
@@ -97,16 +99,16 @@ export class TitleScene extends Phaser.Scene {
 
     this.buildSettings(cx, 600);
 
-    this.add.text(cx, 268, 'click a day to jump to it  ·  1-5 keys', { fontFamily: FONT, fontSize: '16px', color: '#4a6a5a' }).setOrigin(0.5);
+    this.add.text(cx, 268, 'click a day to jump to it  ·  1-5 keys', { fontFamily: FONT, fontSize: '16px', color: '#6f9a84' }).setOrigin(0.5);
     this.input.keyboard.on('keydown', (e) => { const n = Number(e.key); if (n >= 1 && n <= LAST_DAY) this.jumpTo(n); });
-    this.add.text(cx, VIEW_H - 76, 'Move: WASD / arrows / click   ·   Use: E / Space   ·   Menu: P', { fontFamily: FONT, fontSize: '19px', color: '#6c7590' }).setOrigin(0.5);
-    this.add.text(cx, VIEW_H - 48, 'A playable CompTIA Security+ scenario · built in public', { fontFamily: FONT, fontSize: '16px', color: '#4a5a52' }).setOrigin(0.5);
+    this.add.text(cx, VIEW_H - 76, 'Move: WASD / arrows / click   ·   Use: E / Space   ·   Menu: P', { fontFamily: FONT, fontSize: '19px', color: '#8b94b0' }).setOrigin(0.5);
+    this.add.text(cx, VIEW_H - 48, 'A playable CompTIA Security+ scenario · built in public', { fontFamily: FONT, fontSize: '16px', color: '#7f9488' }).setOrigin(0.5);
     const gh = this.add
-      .text(cx, VIEW_H - 26, 'github.com/iiCiel/cyber-office', { fontFamily: FONT, fontSize: '16px', color: '#5a7a68' })
+      .text(cx, VIEW_H - 26, 'github.com/iiCiel/cyber-office', { fontFamily: FONT, fontSize: '16px', color: '#78a68c' })
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true })
       .on('pointerover', () => gh.setColor('#8fb6ff'))
-      .on('pointerout', () => gh.setColor('#5a7a68'))
+      .on('pointerout', () => gh.setColor('#78a68c'))
       .on('pointerdown', () => window.open('https://github.com/iiCiel/cyber-office', '_blank', 'noopener'));
   }
 
@@ -117,7 +119,7 @@ export class TitleScene extends Phaser.Scene {
     const link = (t, fn) => t.setInteractive({ useHandCursor: true }).on('pointerover', () => t.setColor('#ffffff')).on('pointerout', () => t.setColor('#9aa3b8')).on('pointerdown', fn);
     const diff = link(this.add.text(cx - 12, y, '', style).setOrigin(1, 0.5).setName('title-difficulty'), () => { sound?.play('click'); cycleDifficulty(); refresh(); });
     const music = link(this.add.text(cx + 12, y, '', style).setOrigin(0, 0.5).setName('title-music'), () => { sound?.resume(); sound?.music?.toggle(); refresh(); });
-    const blurb = this.add.text(cx, y + 22, '', { fontFamily: FONT, fontSize: '15px', color: '#5a7a68' }).setOrigin(0.5);
+    const blurb = this.add.text(cx, y + 22, '', { fontFamily: FONT, fontSize: '15px', color: '#78a68c' }).setOrigin(0.5);
     const refresh = () => {
       const d = getDifficulty();
       diff.setText(`◆ Difficulty: ${d.label} (D)`);
@@ -146,8 +148,8 @@ export class TitleScene extends Phaser.Scene {
 
   // Jump to any day of the week without replaying the ones before it. Earlier days' results and carry-over stay as they are.
   jumpTo(n) {
-    if (this.jumping) return;
-    this.jumping = true;
+    if (this.leaving) return;
+    this.leaving = true;
     const st = new GameState();
     st.load();
     st.caseId = null;
@@ -174,8 +176,8 @@ export class TitleScene extends Phaser.Scene {
       const hit = this.add.rectangle(x, y + 8, 120, 56, 0xffffff, 0.001).setInteractive({ useHandCursor: true }).setName(`day-${d}`);
       hit.on('pointerover', () => dot.setScale(1.6)).on('pointerout', () => dot.setScale(1)).on('pointerdown', () => this.jumpTo(d));
       if (d < n) this.add.rectangle(x + 8, y, gap - 16, 2, 0x2a3a32).setOrigin(0, 0.5);
-      this.add.text(x, y + 16, getDay(d).date.weekday, { fontFamily: FONT, fontSize: '15px', color: done ? '#9fd8b4' : current ? '#e8c547' : '#4a5a52' }).setOrigin(0.5, 0);
-      this.add.text(x, y + 34, getDay(d).title.split(' · ')[1] || '', { fontFamily: FONT, fontSize: '13px', color: '#4a6a5a' }).setOrigin(0.5, 0);
+      this.add.text(x, y + 16, getDay(d).date.weekday, { fontFamily: FONT, fontSize: '15px', color: done ? '#9fd8b4' : current ? '#e8c547' : '#7f9488' }).setOrigin(0.5, 0);
+      this.add.text(x, y + 34, getDay(d).title.split(' · ')[1] || '', { fontFamily: FONT, fontSize: '13px', color: '#6f9a84' }).setOrigin(0.5, 0);
       if (h) this.add.text(x, y - 22, h.grade, { fontFamily: FONT, fontSize: '20px', fontStyle: 'bold', color: '#3fe07a' }).setOrigin(0.5);
     }
   }

@@ -38,6 +38,13 @@ Oct 23: on branch overnight-2026-10-23, commits 3b5b310 onward (see git log main
     - Icon buttons have aria-labels. The +/- buttons work with the keyboard. The mail list uses native buttons.
     - Text and badges reach AA contrast.
 - Fix-up 2 (66cee88, 8454052): src/ui/apps/AdApp.js renderTree treeitem onkeydown handles ArrowUp/ArrowDown/Home/End and stops at the ends. scripts/smoke-case.mjs has 2 new checks in the halcyon-ad-2026 plan.
+- Round 3 (last ~1 h of usage; a bug-hunt helper read the branch code, and its findings were fixed and tested):
+  - Focus trap (src/ui/Overlay.js focusables()/trapTab()): on the computer and SOC screens, Tab wraps last->first, Shift+Tab first->last, and focus outside is pulled back in. The terminal's Tab completion still works. 4 new checks in scripts/smoke.mjs; on the old code 2 of them FAIL.
+  - Mail list keeps keyboard focus when it re-renders (src/ui/apps/MailApp.js render). Before, Enter on an email dropped focus to <body>. After Report/Delete, focus goes to the next selected email (not the Report button, so a 2nd Enter can't hit the next mail).
+  - Title-screen bug (older, also live): after "Quit to title" the 1-5 day picker did nothing (this.jumping never reset). TitleScene now has one this.leaving guard, reset in create(), shared by Start/Continue/New week/Case Files/day picker.
+  - Difficulty sticks for the session even when localStorage is blocked or full (src/game/difficulty.js unsaved fallback) + unit test.
+  - Contrast: the leftover grey text plus green/red status text, JSON null, AD twisty and dim canvas captions (Title/Office/Menu) now reach AA. tests/contrast.test.js checks 13 rules against their background.
+  - New browser test scripts/smoke-a11y.mjs (npm run smoke:a11y), 11 checks. On the old Mail/Title code it fails 7 of 11 (smoke-out/a11y-oldcode.log).
 
 ###### Milestones
 - [x] Concept, M1-M6, Days 2-5, polish, VT323 font, Case Files (15), realism pass, day-picker
@@ -45,17 +52,19 @@ Oct 23: on branch overnight-2026-10-23, commits 3b5b310 onward (see git log main
 - [x] Oct 23: DST fix, fact fixes, difficulty, fix-up
 - [x] Oct 23 round 2: clock-freeze fix, MB date verified, accessibility pass, all suites re-run (on the branch, waiting for merge and push)
 - [x] Oct 23 fix-up 2: AD tree ArrowUp/ArrowDown/Home/End (the round-2 note overstated arrow support), with 2 new smoke-case checks
+- [x] Oct 23 round 3: focus trap, mail-list focus, title day-picker fix, difficulty storage fallback, contrast pass, smoke:a11y
 - [ ] M7 Playtest with 2-3 people (BLOCKED: Soliman picks testers). Kit: PLAYTEST.md.
 - [ ] Later: a second week, original art, real-device mobile test
 
-###### Tests (Oct 23. npm test and smoke:case re-run on 66cee88 after the AD-tree fix-up; smoke, smoke:bad, smoke:week and smoke:difficulty last run on 97b8a24, and the fix-up only touched the AD tree keydown)
-- npm test: 130/130 (output in smoke-out/unit.log; smoke-out/ is gitignored, so it is local only).
-- smoke: 67
+###### Tests (Oct 23 round 3, ALL suites re-run on the final round-3 build, logs in smoke-out/final-*.log)
+- npm test: 145/145 (smoke-out/unit.log)
+- smoke: 71 (4 new focus-trap checks)
 - smoke:bad: 15
-- smoke:week: 37, with 4 clean runs and no Day 4 flake.
+- smoke:week: 37 (5th clean run, no Day 4 flake)
 - smoke:difficulty: 15
-- smoke:case: 253/253, 0 FAIL after fix-up 2 (smoke-out/case-fixup.log). Before that: 251/251 three times (case-branch.log, case-r2.log, case-final.log). The new AD checks: ArrowDown x2 + ArrowUp moves #root > #queries > domain > #queries. On the old AdApp.js they FAIL because focus stays on #root (smoke-out/case-adkeys-oldcode.log).
-- To test one case: ONLY=<id> (the AD lab is halcyon-ad-2026). ONLY=halcyon-ad-2026: 18/18.
+- smoke:a11y: 11 (new)
+- smoke:case: 253/253 run alone (final-smoke-case2.log). While 6 suites ran in parallel it once timed out on Equifax (terminal icon "not visible"); Equifax alone was 16/16 and the full rerun was clean, so run smoke:case on its own.
+- To test one case: ONLY=<id> (the AD lab is halcyon-ad-2026).
 - Local build: npx vite build --outDir smoke-out/dist-mine, then npx vite preview --outDir smoke-out/dist-mine --port 4180 --strictPort.
 
 ###### Issues
@@ -65,8 +74,10 @@ Oct 23: on branch overnight-2026-10-23, commits 3b5b310 onward (see git log main
 - The week test's Day 4 flake did not show up in 4 runs. Close this issue if it stays clean.
 - Smokes that call tickMinute() can hide real-time clock bugs. Keep the real-time check in smoke-difficulty.
 - Accessibility leftovers:
-  - Some grey text is still below AA: .statusbar .jobs, .fcard .x, .meta .lookup, .evt-fields td.ty, .empty, .tnum.
-  - There is no focus trap.
+  - The focus trap covers only the computer and SOC screens (Overlay subclasses). Report card, Case Files, glossary and the P menu are not trapped. The phone "Stand up" bar sits outside the trap.
+  - AD Users and Computers still drops focus to <body> after a twisty click, a list-row click, a Properties tab click or closing a dialog (only the tree's own keys refocus).
+  - Hypothesis, not confirmed: pressing Enter and then a digit within the 250 ms title fade could start two scenes. The shared this.leaving guard should cover this now, but there is no test.
+  - .titem.done uses opacity 0.6, so finished tickets are dimmer than AA (on purpose).
   - index.html blocks pinch-zoom.
 - The report card records only the LAST difficulty of the day.
 - Some files are CRLF and some LF. Watch for apostrophes in single-quoted JS strings. Backslashes need two in JS source. Use the Edit tool or node for edits with backslashes; Bash heredocs collapse them.

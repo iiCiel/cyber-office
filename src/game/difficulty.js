@@ -19,7 +19,11 @@ export const DEFAULT_DIFFICULTY = 'analyst';
 // Own keys only: a stored "toString" must not resolve to Object.prototype.toString.
 const pick = (id) => (Object.hasOwn(DIFFICULTIES, id) ? DIFFICULTIES[id] : DIFFICULTIES[DEFAULT_DIFFICULTY]);
 
+// If saving fails (storage blocked or full), remember the choice in memory so it still sticks until reload.
+let unsaved = null;
+
 export function getDifficulty() {
+  if (unsaved) return unsaved;
   let id = DEFAULT_DIFFICULTY;
   try {
     id = globalThis.localStorage?.getItem(KEY) || DEFAULT_DIFFICULTY;
@@ -31,10 +35,13 @@ export function getDifficulty() {
 
 export function setDifficulty(id) {
   const d = pick(id);
+  unsaved = null;
   try {
-    globalThis.localStorage?.setItem(KEY, d.id);
+    const ls = globalThis.localStorage; // reading this can itself throw when site data is blocked
+    if (!ls) throw new Error('no storage');
+    ls.setItem(KEY, d.id);
   } catch {
-    /* ignore */
+    unsaved = d;
   }
   return d;
 }

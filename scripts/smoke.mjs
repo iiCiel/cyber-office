@@ -157,6 +157,30 @@ check('inbox objective counts progress', /4\/5 read/.test(s.goal), s.goal);
 await page.evaluate(() => { const sc = window.__game.scene.getScene('Office'); sc.minutes = 9 * 60 + 5; sc.tickMinute(); });
 await page.waitForTimeout(1300);
 check('the CEO email arrives while you are at the desk', (await page.locator(`${W} [data-email=ceo-giftcards]`).count()) === 1);
+
+// Focus trap: Tab / Shift+Tab wrap inside the open screen and never reach the page behind.
+{
+  const ov = () => page.evaluate(() => {
+    const o = window.__game.scene.getScene('Office').computer;
+    const f = o.focusables();
+    const a = document.activeElement;
+    return { n: f.length, inside: o.root.contains(a), first: a === f[0], last: a === f[f.length - 1] };
+  });
+  const n = (await ov()).n;
+  check('focus trap: the screen has several focusable elements', n >= 3, `${n}`);
+  await page.evaluate(() => { const o = window.__game.scene.getScene('Office').computer; const f = o.focusables(); f[f.length - 1].focus(); });
+  await page.keyboard.press('Tab');
+  let r = await ov();
+  check('focus trap: Tab on the last focusable wraps to the first', r.inside && r.first, JSON.stringify(r));
+  await page.evaluate(() => { const o = window.__game.scene.getScene('Office').computer; o.focusables()[0].focus(); });
+  await page.keyboard.press('Shift+Tab');
+  r = await ov();
+  check('focus trap: Shift+Tab on the first focusable wraps to the last', r.inside && r.last, JSON.stringify(r));
+  let stayed = true;
+  for (let i = 0; i < n * 2 + 3; i++) { await page.keyboard.press('Tab'); if (!(await ov()).inside) stayed = false; }
+  for (let i = 0; i < n * 2 + 3; i++) { await page.keyboard.press('Shift+Tab'); if (!(await ov()).inside) stayed = false; }
+  check('focus trap: focus stays inside after many Tab / Shift+Tab presses', stayed);
+}
 await page.click(`${W} [data-email=ceo-giftcards]`);
 check('Reply-To is shown on the CEO email', (await text(`${W} .reader .head`)).includes('gmail.com'));
 await page.click(`${W} [data-action=reply]`);
