@@ -13,7 +13,8 @@
     "tiles": "node scripts/make-tileset.mjs",
     "smoke:bad": "node scripts/smoke-bad.mjs",
     "smoke:week": "node scripts/smoke-week.mjs",
-    "smoke:case": "node scripts/smoke-case.mjs"
+    "smoke:case": "node scripts/smoke-case.mjs",
+    "smoke:difficulty": "node scripts/smoke-difficulty.mjs"
   },
   "dependencies": {
     "@fontsource/vt323": "^5.3.0",

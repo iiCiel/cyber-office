@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { VIEW_W, VIEW_H, FONT } from '../config.js';
 import { GameState } from '../game/GameState.js';
 import { getDay, LAST_DAY } from '../days/index.js';
+import { getDifficulty, cycleDifficulty } from '../game/difficulty.js';
 
 const GLYPHS = '0123456789ABCDEF<>/\\|=+*#';
 
@@ -91,8 +92,10 @@ export class TitleScene extends Phaser.Scene {
       const start = button(450, '▶  Start your first day', false, '#3fe07a');
       this.tweens.add({ targets: start, alpha: { from: 1, to: 0.55 }, duration: 800, yoyo: true, repeat: -1 });
       casesBtn(520);
-      this.input.keyboard.on('keydown', (e) => (e.key === 'f' || e.key === 'F' ? toCases() : /^[1-9]$/.test(e.key) ? null : go(false)));
+      this.input.keyboard.on('keydown', (e) => (e.key === 'f' || e.key === 'F' ? toCases() : /^[1-9dD]$/.test(e.key) ? null : go(false)));
     }
+
+    this.buildSettings(cx, 600);
 
     this.add.text(cx, 268, 'click a day to jump to it  ·  1-5 keys', { fontFamily: FONT, fontSize: '16px', color: '#4a6a5a' }).setOrigin(0.5);
     this.input.keyboard.on('keydown', (e) => { const n = Number(e.key); if (n >= 1 && n <= LAST_DAY) this.jumpTo(n); });
@@ -105,6 +108,24 @@ export class TitleScene extends Phaser.Scene {
       .on('pointerover', () => gh.setColor('#8fb6ff'))
       .on('pointerout', () => gh.setColor('#5a7a68'))
       .on('pointerdown', () => window.open('https://github.com/iiCiel/cyber-office', '_blank', 'noopener'));
+  }
+
+  // Difficulty (D or click) and music on/off, so both are visible before the first day starts.
+  buildSettings(cx, y) {
+    const sound = this.game.registry.get('sound');
+    const style = { fontFamily: FONT, fontSize: '19px', color: '#9aa3b8', backgroundColor: '#12201a66', padding: { x: 10, y: 4 } };
+    const link = (t, fn) => t.setInteractive({ useHandCursor: true }).on('pointerover', () => t.setColor('#ffffff')).on('pointerout', () => t.setColor('#9aa3b8')).on('pointerdown', fn);
+    const diff = link(this.add.text(cx - 12, y, '', style).setOrigin(1, 0.5).setName('title-difficulty'), () => { sound?.play('click'); cycleDifficulty(); refresh(); });
+    const music = link(this.add.text(cx + 12, y, '', style).setOrigin(0, 0.5).setName('title-music'), () => { sound?.resume(); sound?.music?.toggle(); refresh(); });
+    const blurb = this.add.text(cx, y + 22, '', { fontFamily: FONT, fontSize: '15px', color: '#5a7a68' }).setOrigin(0.5);
+    const refresh = () => {
+      const d = getDifficulty();
+      diff.setText(`◆ Difficulty: ${d.label} (D)`);
+      blurb.setText(d.blurb);
+      music.setText(sound?.music?.enabled === false ? '♪ Music: off' : '♪ Music: on');
+    };
+    this.input.keyboard.on('keydown-D', () => { sound?.play('click'); cycleDifficulty(); refresh(); });
+    refresh();
   }
 
   // Faint "matrix" glyph columns drifting down behind everything.

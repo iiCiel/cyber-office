@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { VIEW_W, VIEW_H, FONT } from '../config.js';
 import { h, clear, placeOnCanvas } from '../ui/dom.js';
 import { GLOSSARY } from '../data/glossary.js';
+import { getDifficulty, cycleDifficulty } from '../game/difficulty.js';
 
 // A pause menu, launched on top of a paused Office scene. Works with mouse, touch and keyboard.
 export class MenuScene extends Phaser.Scene {
@@ -30,7 +31,7 @@ export class MenuScene extends Phaser.Scene {
 
   render() {
     this.panel.removeAll(true);
-    const ph = this.showHelp ? 420 : 480;
+    const ph = this.showHelp ? 420 : 540;
     this.panel.add(this.add.rectangle(0, 0, 520, ph, 0x12121c, 0.96).setStrokeStyle(2, 0x3fe07a));
     const add = (y, label, fn, color = '#e8c547') => {
       const t = this.add
@@ -44,7 +45,7 @@ export class MenuScene extends Phaser.Scene {
       return t;
     };
 
-    this.panel.add(this.add.text(0, -170, 'PAUSED', { fontFamily: FONT, fontSize: '55px', fontStyle: 'bold', color: '#3fe07a' }).setOrigin(0.5));
+    this.panel.add(this.add.text(0, this.showHelp ? -170 : -205, 'PAUSED', { fontFamily: FONT, fontSize: '55px', fontStyle: 'bold', color: '#3fe07a' }).setOrigin(0.5));
 
     if (this.showHelp) {
       const help = [
@@ -64,15 +65,19 @@ export class MenuScene extends Phaser.Scene {
       return;
     }
 
-    add(-110, 'Resume', () => this.resume(), '#3fe07a');
-    this.muteItem = add(-65, '', () => this.toggleMute());
-    this.musicItem = add(-20, '', () => this.toggleMusic());
-    add(25, 'How to play', () => { this.showHelp = true; this.render(); });
-    add(70, 'Security glossary', () => this.openGlossary());
+    add(-135, 'Resume', () => this.resume(), '#3fe07a');
+    this.muteItem = add(-91, '', () => this.toggleMute());
+    this.musicItem = add(-47, '', () => this.toggleMusic());
+    this.diffItem = add(-3, '', () => this.toggleDifficulty());
+    this.diffItem.setName('menu-difficulty');
+    this.diffBlurb = this.add.text(0, 22, '', { fontFamily: FONT, fontSize: '16px', color: '#9aa3b8' }).setOrigin(0.5);
+    this.panel.add(this.diffBlurb);
+    add(56, 'How to play', () => { this.showHelp = true; this.render(); });
+    add(100, 'Security glossary', () => this.openGlossary());
     const inCase = !!this.scene.get('Office')?.state?.caseId;
-    add(115, inCase ? 'Restart this case' : 'Restart this day', () => this.restartDay());
-    add(160, inCase ? 'Quit to Case Files' : 'Quit to title', () => this.quit(), '#ff8a8a');
-    add(205, '[ Esc or P to resume ]', () => this.resume(), '#6c7590');
+    add(144, inCase ? 'Restart this case' : 'Restart this day', () => this.restartDay());
+    add(188, inCase ? 'Quit to Case Files' : 'Quit to title', () => this.quit(), '#ff8a8a');
+    add(232, '[ Esc or P to resume ]', () => this.resume(), '#6c7590');
     this.refreshMute();
   }
 
@@ -86,7 +91,15 @@ export class MenuScene extends Phaser.Scene {
     this.refreshMute();
   }
 
+  toggleDifficulty() {
+    cycleDifficulty();
+    this.refreshMute();
+  }
+
   refreshMute() {
+    const d = getDifficulty();
+    if (this.diffItem) this.diffItem.setText(`◆ Difficulty: ${d.label}`);
+    if (this.diffBlurb) this.diffBlurb.setText(d.blurb);
     if (this.muteItem) this.muteItem.setText(this.sound2?.muted ? '🔇 Sound: off' : '🔊 Sound: on');
     if (this.musicItem) this.musicItem.setText(this.sound2?.music?.enabled ? '♪ Music: on' : '♪ Music: off');
   }

@@ -8,6 +8,7 @@ import { NavGrid } from '../world/pathfinding.js';
 import { GameState } from '../game/GameState.js';
 import { loadDay } from '../days/index.js';
 import { deliveredEmails } from '../ui/apps/MailApp.js';
+import { getDifficulty } from '../game/difficulty.js';
 
 // The office, and the engine that runs a day. Everything that happens on a given day comes from its
 // definition in src/days/dayN (emails, alerts, encounters, objectives...). See src/days/index.js.
@@ -244,8 +245,8 @@ export class OfficeScene extends Phaser.Scene {
     this.state.minutes = this.minutes;
     this.updateClock();
     this.knownMail = deliveredEmails(this.day, this.minutes).length;
-    // One in-game minute every 4 real seconds.
-    this.time.addEvent({ delay: 4000, loop: true, callback: () => this.tickMinute() });
+    // One in-game minute every few real seconds (4 at Analyst; the difficulty setting changes it).
+    this.applyDifficulty();
 
     this.notice = this.ui(
       this.add
@@ -322,7 +323,17 @@ export class OfficeScene extends Phaser.Scene {
     this.scene.pause();
   }
 
+  /** (Re)read the difficulty setting: clock speed, guide arrow and hint. Called at start and when the pause menu closes. */
+  applyDifficulty() {
+    this.difficulty = getDifficulty();
+    this.state.difficulty = this.difficulty.id;
+    if (this.clockEvent?.delay === this.difficulty.minuteMs) return;
+    this.clockEvent?.remove(false);
+    this.clockEvent = this.time.addEvent({ delay: this.difficulty.minuteMs, loop: true, callback: () => this.tickMinute() });
+  }
+
   onMenuClosed() {
+    this.applyDifficulty();
     this.refreshMute();
   }
 
@@ -987,7 +998,7 @@ export class OfficeScene extends Phaser.Scene {
     // Day 5: the counter only runs while you're actually able to act (not during dialogs or fades).
     const c = this.state.crisis;
     if (c && !c.stopped && !this.ending && !this.dialog.isOpen) {
-      c.elapsed += delta / 1000;
+      c.elapsed += (delta / 1000) * (this.difficulty?.crisisRate ?? 1);
       if (Math.floor(c.elapsed) !== this.lastCrisisSave) {
         this.lastCrisisSave = Math.floor(c.elapsed);
         if (this.lastCrisisSave % 5 === 0) this.state.save();
@@ -1044,7 +1055,7 @@ export class OfficeScene extends Phaser.Scene {
     }
 
     const mt = this.markerTarget;
-    if (mt && mt !== this.nearest && !this.busy()) {
+    if (mt && mt !== this.nearest && !this.busy() && this.difficulty?.marker !== false) {
       const bob = Math.sin(this.time.now / 250) * 1.5;
       this.marker.setPosition(mt.px, this.topOf(mt) - 3 + bob).setVisible(true);
     } else {

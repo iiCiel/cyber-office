@@ -651,6 +651,15 @@ export class SocScreen extends Overlay {
         flaggedLines.length
           ? h('pre', { class: 'evidence mono' }, flaggedLines.map(compact).join('\n'))
           : h('div', { class: 'quiet' }, 'Nothing added yet. Go to Search and add (⚑) the events that prove your answer.'),
+        // Trainee difficulty: the case's key line, in plain words, behind a click.
+        !cf && this.scene.difficulty?.hint && CASE.primaryEvidence?.note
+          ? h(
+              'details',
+              { class: 'case-hint', 'data-hint': 'case', ontoggle: (ev) => ev.target.open && !this.st.hasEvent('hint-used') && this.st.log('hint-used', { id: main.id }) },
+              h('summary', {}, 'Stuck? Show a hint (Trainee)'),
+              h('p', {}, CASE.primaryEvidence.note),
+            )
+          : null,
       ),
       h('fieldset', {}, h('legend', {}, '3. What should we do? (pick all that apply)'), actions),
       cf

@@ -30,6 +30,7 @@ export class GameState {
     this.term = { history: [], ps: [] };
     this.crisis = null; // Day 5: { startedAt, elapsed, stoppedAt }
     this.dayOver = false;
+    this.difficulty = null; // 'trainee' | 'analyst' | 'senior', the level the day was (last) played on
   }
 
   startDay(n) {
@@ -76,8 +77,8 @@ export class GameState {
   }
 
   toJSON() {
-    const { day, caseId, campaign, visited, flags, mail, events, minutes, soc, enc, tickets, term, crisis, dayOver } = this;
-    return { day, caseId, campaign, visited, flags, mail, events, minutes, soc, enc, tickets, term, crisis, dayOver };
+    const { day, caseId, campaign, visited, flags, mail, events, minutes, soc, enc, tickets, term, crisis, dayOver, difficulty } = this;
+    return { day, caseId, campaign, visited, flags, mail, events, minutes, soc, enc, tickets, term, crisis, dayOver, difficulty };
   }
 
   save() {
@@ -115,6 +116,7 @@ export class GameState {
       this.term = { history: Array.isArray(d.term?.history) ? d.term.history : [], ps: Array.isArray(d.term?.ps) ? d.term.ps : [] };
       this.crisis = obj(d.crisis, null);
       this.dayOver = !!d.dayOver;
+      this.difficulty = typeof d.difficulty === 'string' ? d.difficulty : null;
       return true;
     } catch {
       return false;

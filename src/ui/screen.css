@@ -591,3 +591,9 @@
 @media (prefers-reduced-motion: reduce) {
   .screen *, .glossary *, .screen-bar { animation: none !important; transition: none !important; }
 }
+
+/* Trainee difficulty: the write-up hint */
+.case-hint { margin-top: 10px; border: 1px dashed #c9a227; background: #fff8e1; border-radius: 4px; padding: 6px 10px; }
+.case-hint summary { cursor: pointer; color: #6b4e00; font-weight: bold; }
+.case-hint p { margin: 8px 0 2px; }
+.report .difficulty { font-size: 0.85em; opacity: 0.8; }
