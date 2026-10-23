@@ -47,7 +47,7 @@ Oct 23: on branch overnight-2026-10-23, commits 3b5b310 onward (see git log main
 - [ ] M7 Playtest with 2-3 people (BLOCKED: Soliman picks testers). Kit: PLAYTEST.md.
 - [ ] Later: a second week, original art, real-device mobile test
 
-###### Tests (ALL re-run Oct 23 on the final branch build 97b8a24)
+###### Tests (Oct 23. npm test and smoke:case re-run on 66cee88 after the AD-tree fix-up; smoke, smoke:bad, smoke:week and smoke:difficulty last run on 97b8a24, and the fix-up only touched the AD tree keydown)
 - npm test: 130/130 (output saved in smoke-out/unit.log; smoke-out/ is gitignored, so it is local only).
 - smoke: 67
 - smoke:bad: 15
