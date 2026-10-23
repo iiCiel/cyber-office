@@ -16,6 +16,9 @@ export const DIFFICULTIES = {
 export const ORDER = ['trainee', 'analyst', 'senior'];
 export const DEFAULT_DIFFICULTY = 'analyst';
 
+// Own keys only: a stored "toString" must not resolve to Object.prototype.toString.
+const pick = (id) => (Object.hasOwn(DIFFICULTIES, id) ? DIFFICULTIES[id] : DIFFICULTIES[DEFAULT_DIFFICULTY]);
+
 export function getDifficulty() {
   let id = DEFAULT_DIFFICULTY;
   try {
@@ -23,11 +26,11 @@ export function getDifficulty() {
   } catch {
     /* private mode */
   }
-  return DIFFICULTIES[id] || DIFFICULTIES[DEFAULT_DIFFICULTY];
+  return pick(id);
 }
 
 export function setDifficulty(id) {
-  const d = DIFFICULTIES[id] || DIFFICULTIES[DEFAULT_DIFFICULTY];
+  const d = pick(id);
   try {
     globalThis.localStorage?.setItem(KEY, d.id);
   } catch {

@@ -63,6 +63,14 @@ await page.waitForSelector('#report', { timeout: 10000 });
 const lbl = await page.locator('#report [data-difficulty]').innerText().catch(() => '');
 check('report says Analyst and that the hint was used (hint opened on Trainee)', /Analyst, with the write-up hint/.test(lbl), lbl);
 await page.screenshot({ path: `${out}/4-report.png` });
+// Next day from the report card: Phaser reuses the Office scene, and the clock must still run in real time (no forced ticks).
+await page.click('#report [data-action=next-day]');
+await page.waitForFunction(() => window.__game.scene.isActive('Office') && !window.__game.scene.isActive('Report'), null, { timeout: 10000 });
+await page.waitForTimeout(1000);
+const t0 = await ev(() => window.__game.scene.getScene('Office').minutes);
+await page.waitForTimeout(9000);
+const t1 = await ev(() => window.__game.scene.getScene('Office').minutes);
+check('next day: the clock ticks on its own (Analyst, 4 s per minute)', t1 - t0 >= 2, `${t0} -> ${t1}`);
 check('no page errors', errors.length === 0, errors.join(' | '));
 await browser.close();
 console.log(fails ? `DIFF FAIL (${fails} of ${n})` : `DIFF PASS (${n} checks)`);

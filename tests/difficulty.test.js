@@ -23,6 +23,10 @@ test('difficulty is saved, cycles in order and ignores junk', () => {
   assert.equal(cycleDifficulty().id, 'analyst');
   store.set('cyber-office:difficulty', 'nightmare');
   assert.equal(getDifficulty().id, 'analyst');
+  for (const junk of ['toString', 'constructor', '__proto__']) {
+    store.set('cyber-office:difficulty', junk);
+    assert.equal(getDifficulty().id, 'analyst', junk);
+  }
   assert.equal(setDifficulty('trainee').id, 'trainee');
 });
 

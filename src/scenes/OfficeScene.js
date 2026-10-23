@@ -64,6 +64,8 @@ export class OfficeScene extends Phaser.Scene {
     this.npcInfo = {};
     this.npcs = {};
     this.crisisFx = null;
+    // Phaser destroys the old timer on shutdown but keeps its delay, so forget it or applyDifficulty() sees a match and never re-arms the clock.
+    this.clockEvent = null;
 
     this.sound = this.game.registry.get('sound');
     this.buildMap();
@@ -326,7 +328,7 @@ export class OfficeScene extends Phaser.Scene {
   /** (Re)read the difficulty setting: clock speed, guide arrow and hint. Called at start and when the pause menu closes. */
   applyDifficulty() {
     this.difficulty = getDifficulty();
-    this.state.difficulty = this.difficulty.id;
+    if (!this.state.dayOver) this.state.difficulty = this.difficulty.id; // a finished day keeps the level it was played on
     if (this.clockEvent?.delay === this.difficulty.minuteMs) return;
     this.clockEvent?.remove(false);
     this.clockEvent = this.time.addEvent({ delay: this.difficulty.minuteMs, loop: true, callback: () => this.tickMinute() });
