@@ -37,7 +37,7 @@ Each decision is graded with what happened and why, a cost to the company, and t
 
 ## Controls
 - Move: WASD / arrow keys, or click where you want to go (click a person or object to walk over and use it)
-- Use / talk: E, Space or Enter · Choices: 1-4 or click · Menu: P or Esc · Mute: M · Music on/off: on the title screen or in the P menu
+- Use / talk: E, Space or Enter · Choices: 1-4 or click · Menu: P or Esc · Mute: M
 - Difficulty (title screen: click it or press D; or in the P menu): **Trainee** (slower clock, a hint in the investigation write-up, slower Day 5 ransomware), **Analyst** (the intended pace), **Senior** (faster clock, no guide arrow, faster ransomware). Grading is the same at every level; the report card says which level you played.
 - Title screen: click a weekday or press 1-5 to jump straight to it
 - Phones: play in landscape. On small screens the computer, report and Case Files screens fill the whole display so text stays readable, with a Stand up button at the bottom.
@@ -69,5 +69,5 @@ npm run smoke:difficulty                    # the difficulty setting: title, P m
 - The in-game screens (mail, browser, SIEM, terminal, tickets) are real HTML laid over the canvas and scaled to the pixel-art monitor. All content goes in through `textContent`, never `innerHTML`.
 - The terminal is a small simulated Ubuntu shell with real flags and pipes (`src/game/shell.js`, `shellplus.js`: grep, awk, sed, jq, base64, find; unit tested), a PowerShell console with the Active Directory cmdlets and `Get-WinEvent` over the day's logs (`src/game/pwsh.js`), and working `aws` and `az` CLIs (`src/game/cloudcli.js`).
 - Log formats: `src/game/winevents.js` (Windows events), `cloudfmt.js` (CloudTrail, GuardDuty, Okta, Entra, Purview), `siemfmt.js` (sourcetypes and fields), `spl.js` (the search language). AD Users and Computers is `src/ui/apps/AdApp.js`, fed by `src/game/directory.js`.
-- Sound effects and the background music are synthesized with Web Audio (`src/game/sound.js`, `src/game/music.js`): no audio files. The music has four moods (menus, the workday, alerts, the report card) and follows what is happening.
+- Sound effects are synthesized with Web Audio (`src/game/sound.js`): no audio files. There is no background music (removed on purpose).
 - Deployed to GitHub Pages by `.github/workflows/deploy.yml` on every push to `main`.
