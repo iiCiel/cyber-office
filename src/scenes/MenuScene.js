@@ -31,7 +31,7 @@ export class MenuScene extends Phaser.Scene {
 
   render() {
     this.panel.removeAll(true);
-    const ph = this.showHelp ? 420 : 540;
+    const ph = this.showHelp ? 420 : 496;
     this.panel.add(this.add.rectangle(0, 0, 520, ph, 0x12121c, 0.96).setStrokeStyle(2, 0x3fe07a));
     const add = (y, label, fn, color = '#e8c547') => {
       const t = this.add
@@ -45,7 +45,7 @@ export class MenuScene extends Phaser.Scene {
       return t;
     };
 
-    this.panel.add(this.add.text(0, this.showHelp ? -170 : -205, 'PAUSED', { fontFamily: FONT, fontSize: '55px', fontStyle: 'bold', color: '#3fe07a' }).setOrigin(0.5));
+    this.panel.add(this.add.text(0, this.showHelp ? -170 : -183, 'PAUSED', { fontFamily: FONT, fontSize: '55px', fontStyle: 'bold', color: '#3fe07a' }).setOrigin(0.5));
 
     if (this.showHelp) {
       const help = [
@@ -65,29 +65,23 @@ export class MenuScene extends Phaser.Scene {
       return;
     }
 
-    add(-135, 'Resume', () => this.resume(), '#3fe07a');
-    this.muteItem = add(-91, '', () => this.toggleMute());
-    this.musicItem = add(-47, '', () => this.toggleMusic());
-    this.diffItem = add(-3, '', () => this.toggleDifficulty());
+    add(-113, 'Resume', () => this.resume(), '#3fe07a');
+    this.muteItem = add(-69, '', () => this.toggleMute());
+    this.diffItem = add(-25, '', () => this.toggleDifficulty());
     this.diffItem.setName('menu-difficulty');
-    this.diffBlurb = this.add.text(0, 22, '', { fontFamily: FONT, fontSize: '16px', color: '#9aa3b8' }).setOrigin(0.5);
+    this.diffBlurb = this.add.text(0, 0, '', { fontFamily: FONT, fontSize: '16px', color: '#9aa3b8' }).setOrigin(0.5);
     this.panel.add(this.diffBlurb);
-    add(56, 'How to play', () => { this.showHelp = true; this.render(); });
-    add(100, 'Security glossary', () => this.openGlossary());
+    add(34, 'How to play', () => { this.showHelp = true; this.render(); });
+    add(78, 'Security glossary', () => this.openGlossary());
     const inCase = !!this.scene.get('Office')?.state?.caseId;
-    add(144, inCase ? 'Restart this case' : 'Restart this day', () => this.restartDay());
-    add(188, inCase ? 'Quit to Case Files' : 'Quit to title', () => this.quit(), '#ff8a8a');
-    add(232, '[ Esc or P to resume ]', () => this.resume(), '#8b94b0');
+    add(122, inCase ? 'Restart this case' : 'Restart this day', () => this.restartDay());
+    add(166, inCase ? 'Quit to Case Files' : 'Quit to title', () => this.quit(), '#ff8a8a');
+    add(210, '[ Esc or P to resume ]', () => this.resume(), '#8b94b0');
     this.refreshMute();
   }
 
   toggleMute() {
     this.sound2?.toggleMute();
-    this.refreshMute();
-  }
-
-  toggleMusic() {
-    this.sound2?.music?.toggle();
     this.refreshMute();
   }
 
@@ -101,7 +95,6 @@ export class MenuScene extends Phaser.Scene {
     if (this.diffItem) this.diffItem.setText(`◆ Difficulty: ${d.label}`);
     if (this.diffBlurb) this.diffBlurb.setText(d.blurb);
     if (this.muteItem) this.muteItem.setText(this.sound2?.muted ? '🔇 Sound: off' : '🔊 Sound: on');
-    if (this.musicItem) this.musicItem.setText(this.sound2?.music?.enabled ? '♪ Music: on' : '♪ Music: off');
   }
 
   openGlossary() {

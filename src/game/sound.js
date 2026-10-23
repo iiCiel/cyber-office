@@ -2,9 +2,9 @@
 // Each effect is a short list of "voices" (oscillator blips with an envelope). A tiny sequencer plays them.
 // Muted state is persisted. Audio can only start after a user gesture (handled by resume()).
 
-import { Music } from './music.js';
-
 const MUTE_KEY = 'cyber-office:muted';
+// Background music was removed at Soliman's request (Oct 23, 2026). Clear its old saved switch.
+const OLD_MUSIC_KEY = 'cyber-office:music';
 
 // A sound = array of voices. Voice: { type, freq, start, dur, gain, sweep, slide }
 // freq in Hz; start/dur in seconds; gain 0..1; sweep = end freq for a glide; type = osc wave or 'noise'.
@@ -69,7 +69,11 @@ export class Sound {
     this.master = null;
     this.muted = this.loadMuted();
     this.lastStep = 0;
-    this.music = new Music(this);
+    try {
+      localStorage.removeItem(OLD_MUSIC_KEY);
+    } catch {
+      /* ignore */
+    }
   }
 
   loadMuted() {
@@ -90,7 +94,6 @@ export class Sound {
       this.master.gain.value = this.muted ? 0 : 0.9;
       this.master.connect(this.ctx.destination);
       this.noiseBuf = this.makeNoise();
-      this.music.start();
     }
     if (this.ctx.state === 'suspended') this.ctx.resume();
   }

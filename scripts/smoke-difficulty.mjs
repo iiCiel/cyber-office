@@ -1,4 +1,4 @@
-// Difficulty smoke test: title line (D key), music toggle, P menu, clock speed per level, guide arrow, Trainee write-up hint, report label.
+// Difficulty smoke test: title line (D key), no music toggle, P menu, clock speed per level, guide arrow, Trainee write-up hint, report label.
 // Usage: npm run build; npx vite preview --port 4173 (background); node scripts/smoke-difficulty.mjs [url] [outdir]
 import { chromium } from 'playwright-core';
 const url = process.argv[2] || 'http://localhost:4173/cyber-office/';
@@ -14,18 +14,17 @@ const titleText = (name) => ev((nm) => window.__game.scene.getScene('Title').chi
 await page.goto(url); await page.waitForFunction(() => window.__game?.scene?.isActive('Title'), null, { timeout: 15000 });
 await page.waitForTimeout(500);
 check('title shows the difficulty (Analyst by default)', (await titleText('title-difficulty'))?.includes('Analyst'), await titleText('title-difficulty'));
-check('title shows the music toggle', /Music: (on|off)/.test(await titleText('title-music') || ''), await titleText('title-music'));
+check('title has no music toggle (music removed)', !(await titleText('title-music')) && !(await ev(() => window.__game.scene.getScene('Title').children.list.some((c) => /Music/i.test(c.text || '')))));
 await page.screenshot({ path: `${out}/1-title.png` });
 await page.keyboard.press('d');
 await page.waitForTimeout(150);
 check('D cycles to Senior and does not start the game', (await titleText('title-difficulty'))?.includes('Senior') && await ev(() => window.__game.scene.isActive('Title')));
 check('Senior is saved', await ev(() => localStorage.getItem('cyber-office:difficulty')) === 'senior');
-const m0 = await titleText('title-music');
-const box = await ev(() => { const t = window.__game.scene.getScene('Title').children.getByName('title-music'); const c = window.__game.canvas.getBoundingClientRect(); const s = c.width / 960; return { x: c.left + t.getCenter().x * s, y: c.top + t.getCenter().y * s }; });
+const box = await ev(() => { const t = window.__game.scene.getScene('Title').children.getByName('title-difficulty'); const c = window.__game.canvas.getBoundingClientRect(); const s = c.width / 960; return { x: c.left + t.getCenter().x * s, y: c.top + t.getCenter().y * s }; });
 await page.mouse.click(box.x, box.y); await page.waitForTimeout(150);
-const m1 = await titleText('title-music');
-check('clicking the music toggle flips it', m0 !== m1, `${m0} -> ${m1}`);
-await page.mouse.click(box.x, box.y); await page.waitForTimeout(150);
+check('clicking the difficulty line cycles it (Senior -> Trainee)', (await titleText('title-difficulty'))?.includes('Trainee'), await titleText('title-difficulty'));
+await page.mouse.click(box.x, box.y); await page.mouse.click(box.x, box.y); await page.waitForTimeout(150);
+check('two more clicks come back to Senior', (await titleText('title-difficulty'))?.includes('Senior'), await titleText('title-difficulty'));
 // Start Monday (Senior)
 await page.keyboard.press('1');
 await page.waitForFunction(() => window.__game.scene.isActive('Office'), null, { timeout: 10000 });
@@ -39,6 +38,7 @@ check('Senior: 3 s per game minute, no arrow', s.delay === 3000 && !s.marker && 
 await page.keyboard.press('p'); await page.waitForTimeout(400);
 const menuItem = () => ev(() => window.__game.scene.getScene('Menu').diffItem?.text);
 check('P menu shows the difficulty', (await menuItem())?.includes('Senior'), await menuItem());
+check('P menu has no music item (music removed)', await ev(() => { const m = window.__game.scene.getScene('Menu'); return !m.musicItem && !m.panel.list.some((c) => /Music/i.test(c.text || '')) && m.panel.list.some((c) => /Sound: (on|off)/.test(c.text || '')); }));
 await ev(() => window.__game.scene.getScene('Menu').diffItem.emit('pointerdown'));
 check('clicking it cycles to Trainee', (await menuItem())?.includes('Trainee'), await menuItem());
 await page.screenshot({ path: `${out}/2-menu.png` });

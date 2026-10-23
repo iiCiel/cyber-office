@@ -112,19 +112,17 @@ export class TitleScene extends Phaser.Scene {
       .on('pointerdown', () => window.open('https://github.com/iiCiel/cyber-office', '_blank', 'noopener'));
   }
 
-  // Difficulty (D or click) and music on/off, so both are visible before the first day starts.
+  // Difficulty (D or click), visible before the first day starts.
   buildSettings(cx, y) {
     const sound = this.game.registry.get('sound');
     const style = { fontFamily: FONT, fontSize: '19px', color: '#9aa3b8', backgroundColor: '#12201a66', padding: { x: 10, y: 4 } };
     const link = (t, fn) => t.setInteractive({ useHandCursor: true }).on('pointerover', () => t.setColor('#ffffff')).on('pointerout', () => t.setColor('#9aa3b8')).on('pointerdown', fn);
-    const diff = link(this.add.text(cx - 12, y, '', style).setOrigin(1, 0.5).setName('title-difficulty'), () => { sound?.play('click'); cycleDifficulty(); refresh(); });
-    const music = link(this.add.text(cx + 12, y, '', style).setOrigin(0, 0.5).setName('title-music'), () => { sound?.resume(); sound?.music?.toggle(); refresh(); });
+    const diff = link(this.add.text(cx, y, '', style).setOrigin(0.5).setName('title-difficulty'), () => { sound?.play('click'); cycleDifficulty(); refresh(); });
     const blurb = this.add.text(cx, y + 22, '', { fontFamily: FONT, fontSize: '15px', color: '#78a68c' }).setOrigin(0.5);
     const refresh = () => {
       const d = getDifficulty();
       diff.setText(`◆ Difficulty: ${d.label} (D)`);
       blurb.setText(d.blurb);
-      music.setText(sound?.music?.enabled === false ? '♪ Music: off' : '♪ Music: on');
     };
     this.input.keyboard.on('keydown-D', () => { sound?.play('click'); cycleDifficulty(); refresh(); });
     refresh();

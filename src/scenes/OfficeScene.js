@@ -99,7 +99,6 @@ export class OfficeScene extends Phaser.Scene {
       }
     }
     if (this.state.crisis && !this.state.crisis.stopped) this.startCrisisFx();
-    this.sound?.music?.play(this.state.crisis && !this.state.crisis.stopped ? 'tense' : 'work');
 
     this.cameras.main.fadeIn(300, 18, 18, 28);
     const intro = this.resume && this.state.events.length > 2 ? ['Back at it. Your checklist is where you left it.'] : this.day.intro;
@@ -439,7 +438,6 @@ export class OfficeScene extends Phaser.Scene {
     this.notify(a.notice || `🚨 SIEM alert: ${a.title}`);
     if (a.chat) this.say(a.chatFrom || 'Priya (chat)', a.chat);
     if (a.main && this.day.crisis) this.startCrisis();
-    if (a.main) this.tenseMusic(!this.day.crisis);
     if (this.soc?.isOpen) this.soc.onAlertsChanged();
     this.updateObjective();
   }
@@ -645,20 +643,12 @@ export class OfficeScene extends Phaser.Scene {
     this.crisisText.setVisible(true);
   }
 
-  // Music turns tense when the day's main alert fires. On normal days it eases back after a while;
-  // on the ransomware day it stays tense until the damage counter is stopped.
-  tenseMusic(eases) {
-    this.sound?.music?.play('tense');
-    if (eases) this.time.delayedCall(90000, () => { if (!this.ending) this.sound?.music?.play('work'); });
-  }
-
   stopCrisis(contained) {
     const c = this.state.crisis;
     c.stopped = true;
     c.contained = contained;
     c.filesAtStop = this.crisisFiles();
     this.sound?.play(contained ? 'success' : 'error');
-    this.sound?.music?.play('work');
     this.state.log('crisis-stopped', { contained, files: c.filesAtStop });
     if (this.crisisFx) {
       this.tweens.killTweensOf(this.crisisFx);

@@ -30,15 +30,6 @@ const unlock = () => sound.resume();
 window.addEventListener('pointerdown', unlock);
 window.addEventListener('keydown', unlock);
 
-// Background music follows the scene: calm on menus, a work groove in the office (the Office scene
-// switches it to tense during alerts), a warm loop on the report card.
-const MOOD_BY_SCENE = { Title: 'calm', CaseFiles: 'calm', Report: 'report' };
-game.events.once('ready', () => {
-  for (const [key, mood] of Object.entries(MOOD_BY_SCENE)) {
-    game.scene.getScene(key)?.sys.events.on('create', () => sound.music.play(mood));
-  }
-});
-
 // Handy for debugging and automated browser tests.
 window.__game = game;
 window.__sound = sound;
