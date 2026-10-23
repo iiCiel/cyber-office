@@ -37,7 +37,8 @@ Each decision is graded with what happened and why, a cost to the company, and t
 
 ## Controls
 - Move: WASD / arrow keys, or click where you want to go (click a person or object to walk over and use it)
-- Use / talk: E, Space or Enter · Choices: 1-4 or click · Menu: P or Esc · Mute: M · Music on/off: in the P menu
+- Use / talk: E, Space or Enter · Choices: 1-4 or click · Menu: P or Esc · Mute: M · Music on/off: on the title screen or in the P menu
+- Difficulty (title screen: click it or press D; or in the P menu): **Trainee** (slower clock, a hint in the investigation write-up, slower Day 5 ransomware), **Analyst** (the intended pace), **Senior** (faster clock, no guide arrow, faster ransomware). Grading is the same at every level; the report card says which level you played.
 - Title screen: click a weekday or press 1-5 to jump straight to it
 - Phones: play in landscape. On small screens the computer, report and Case Files screens fill the whole display so text stays readable, with a Stand up button at the bottom.
 - Reduced motion: if your OS asks for reduced motion, alerts don't shake the screen.
@@ -57,7 +58,8 @@ npx vite preview --port 4173 --strictPort   # in another terminal
 npm run smoke                               # plays Day 1 in Chrome, screenshots in smoke-out/
 npm run smoke:bad                           # plays the worst possible Day 1
 npm run smoke:week                          # plays all five days
-npm run smoke:case                          # plays every Case File
+npm run smoke:case                          # plays every Case File (ONLY=solarwinds-2020 plays just one)
+npm run smoke:difficulty                    # the difficulty setting: title, P menu, clock speed, arrow, hint, report
 ```
 
 ## How it's built
