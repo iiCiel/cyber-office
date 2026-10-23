@@ -16,7 +16,7 @@ export default {
     'SolarWinds.Orion.Core.BusinessLayer.dll',
     'freescanonline.com',
     'netsetupsvc.dll',
-    'thedoccloud.com',
+    'incomeupdate.com',
     'EventCode=4624 Logon_Type=10 Account_Name=svc-solarwinds',
     'thumbnailPhoto',
     'index=azure tokenIssuerType=ADFederationServices ipAddress=203.0.113.77',

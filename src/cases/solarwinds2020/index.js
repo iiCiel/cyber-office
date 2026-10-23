@@ -12,12 +12,12 @@ import { uuid } from '../../game/cloudfmt.js';
 
 const MAIN = 'sw-saml';
 // Hunting: grep / awk / jq on the exported logs, or the Azure CLI for app credentials.
-const HUNT_RE = /(\bgrep\b.*(avsvmcloud|appsync|businesslayer|netsetupsvc|gracious|1200|svc-solarwinds|thedoccloud|freescanonline|thumbnail|203\.0\.113\.77)|\bjq\b|\bawk\b|\baz\s+ad\s+(app|sp)\b|\bwhois\b|\bnslookup\b)/i;
+const HUNT_RE = /(\bgrep\b.*(avsvmcloud|appsync|businesslayer|netsetupsvc|gracious|1200|svc-solarwinds|thedoccloud|incomeupdate|freescanonline|thumbnail|203\.0\.113\.77)|\bjq\b|\bawk\b|\baz\s+ad\s+(app|sp)\b|\bwhois\b|\bnslookup\b)/i;
 
 function huntItem(st) {
   const cmds = st.events.filter((e) => e.type === 'terminal-cmd');
   const hit = cmds.filter((e) => HUNT_RE.test(e.cmd));
-  const found = hit.some((e) => /avsvmcloud|appsync-api|\baz\s+ad\s+(app|sp)\s+credential|businesslayerhost|netsetupsvc|gracious_truth|thedoccloud|freescanonline/i.test(e.cmd));
+  const found = hit.some((e) => /avsvmcloud|appsync-api|\baz\s+ad\s+(app|sp)\s+credential|businesslayerhost|netsetupsvc|gracious_truth|thedoccloud|incomeupdate|freescanonline/i.test(e.cmd));
   return {
     id: 'hunt',
     area: 'Terminal',
@@ -143,7 +143,8 @@ function terminal() {
         `    SHA256 ${DLL_SHA256.toLowerCase()}`,
         '  *.avsvmcloud.com                      first-stage DNS; generated names like <20 characters>.appsync-api.<region>.avsvmcloud.com',
         '  freescanonline.com                    named by FireEye as a SUNBURST second-stage domain (here resolved to ' + STAGE2.ip + ', a documentation-range stand-in)',
-        '  thedoccloud.com                       named by FireEye as a BEACON domain (here ' + BEACON.ip + ', a stand-in)',
+        '  thedoccloud.com                       another SUNBURST second-stage domain in the FireEye list (not seen in this network)',
+        '  incomeupdate.com                      named by FireEye as a Cobalt Strike BEACON domain (here ' + BEACON.ip + ', a stand-in)',
         '  netsetupsvc.dll / gracious_truth.jpg  files FireEye associates with the memory-only TEARDROP dropper',
         '',
       ].join('\n'),

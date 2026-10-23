@@ -33,16 +33,17 @@ export const CORP = 'halcyonmutual.com';
 export const TENANT = uuid('tenant-halcyon');
 export const AVS = 'avsvmcloud.com';
 export const STAGE2 = { ip: '198.51.100.44', host: 'freescanonline.com' };
-export const BEACON = { ip: '198.51.100.61', host: 'thedoccloud.com' };
+export const BEACON = { ip: '198.51.100.61', host: 'incomeupdate.com' };
 export const VPS = '203.0.113.77';
 const ORION = { name: 'ORION01', ip: '192.0.2.25' };
 const SYS = 'C:\\Windows\\System32\\';
 const ORION_DIR = 'C:\\Program Files (x86)\\SolarWinds\\Orion\\';
 const HOST_EXE = `${ORION_DIR}SolarWinds.BusinessLayerHost.exe`;
 export const DLL = 'SolarWinds.Orion.Core.BusinessLayer.dll';
-// Published by FireEye for the trojanized DLL
-export const DLL_MD5 = 'B91CE2FA41029F6955BFF20079468448';
-export const DLL_SHA256 = '32519B85C0B422E4656DE6E6C41878E95FD95026267DAAB4215EE59C107D6C77';
+// Published by FireEye for the trojanized DLL, file version 2020.2.5300.12432 (compiled May 11 2020); Indicator_Release_Hashes.csv in
+// mandiant/sunburst_countermeasures. The better-known 32519b85... sample is the 2019.4.5200.9083 build.
+export const DLL_MD5 = '846E27A652A5E1BFBD0DDD38A16DC865';
+export const DLL_SHA256 = 'CE77D116A074DAB7A22A0FD4F2C1AB475F16EEC42E1DED3C0B0AA8211FE858D6';
 
 const GRAPH = { appId: '00000003-0000-0000-c000-000000000000', name: 'Microsoft Graph' };
 const EXO = { appId: '00000002-0000-0ff1-ce00-000000000000', name: 'Office 365 Exchange Online' };
@@ -385,7 +386,7 @@ export const CASE = {
     { id: 'rebuild', text: 'Rebuild ORION01 from clean media on a patched version, and only reconnect it with a tight egress allowlist and a least-privilege account', good: true },
     { id: 'notify', text: 'Tell the CISO and Legal now, tell the mailbox owners, and prepare for a notification decision; follow the vendor\'s and CISA\'s updates', good: true },
     { id: 'upgrade-only', text: 'Install the SolarWinds hotfix on ORION01 and mark the incident as remediated', good: false, why: 'Upgrading replaces the DLL. It does not remove what the actors did after the DLL called home: the beacon, the stolen signing certificate, the certificate on the app. SolarWinds and CISA both said that the hotfix is not a cleanup.' },
-    { id: 'block-domain', text: 'Block avsvmcloud.com at the DNS server and close the case', good: false, why: 'Blocking the generated domain stops the first stage from finding its server, which is useful, but the actors were already past it: a BEACON on thedoccloud.com, a stolen certificate and an app that signs in from a rented server. None of them uses avsvmcloud.com. Block it as part of the fix, not as the fix.' },
+    { id: 'block-domain', text: 'Block avsvmcloud.com at the DNS server and close the case', good: false, why: 'Blocking the generated domain stops the first stage from finding its server, which is useful, but the actors were already past it: a BEACON on incomeupdate.com, a stolen certificate and an app that signs in from a rented server. None of them uses avsvmcloud.com. Block it as part of the fix, not as the fix.' },
     { id: 'reset-admin', text: 'Reset the Global Administrator\'s password and enforce MFA for that account', good: false, why: 'The forged token never used the password. A SAML assertion signed with the stolen certificate is accepted whatever the password or MFA state. Resetting it changes nothing until the signing certificate is rotated.' },
     { id: 'wipe-now', text: 'Uninstall Orion and reboot ORION01 right now to be safe', good: false, why: 'A reboot loses the memory-only dropper (TEARDROP) and the BEACON that FireEye describes, and removing the software does not remove the stolen credentials. Image first, then isolate.' },
   ],
