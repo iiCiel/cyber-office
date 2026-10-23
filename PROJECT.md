@@ -18,7 +18,7 @@ DONE, pushed and live at https://iiciel.github.io/cyber-office/ :
 - Case Files: 15 playable cases. That is 9 real-breach replays (including SolarWinds 2020) plus the AD/AWS/Linux/BEC labs, Midnight Blizzard and NotPetya.
 - Realism + AD/cloud pass.
 - Day-picker: on the title screen, press 1-5. F opens Case Files.
-- Oct 20 (dcda50e): procedural music, compact phone screens, prefers-reduced-motion.
+- Oct 20 (dcda50e): compact phone screens, prefers-reduced-motion. (The procedural music from this commit was removed on Oct 23, see below.)
 
 Oct 23: on branch overnight-2026-10-23, commits 3b5b310 onward (see git log main..overnight-2026-10-23; latest code commit 1c40d9c). NOT pushed and NOT live. To ship: git checkout main && git merge overnight-2026-10-23 && git push origin main, then node scripts/smoke.mjs https://iiciel.github.io/cyber-office/ smoke-out/live
 - DST fix (src/game/siemfmt.js easternOffset, real US Eastern rules). The SolarWinds replay now has its Oct-Dec beacons and November mail reads.
@@ -42,6 +42,12 @@ Oct 23: on branch overnight-2026-10-23, commits 3b5b310 onward (see git log main
   - AA contrast: the leftover grey text, green/red status text, JSON null, the AD twisty and the dim canvas captions. tests/contrast.test.js checks 13 rules.
   - New scripts/smoke-a11y.mjs (npm run smoke:a11y), 11 checks. On the old Mail/Title code it fails 7/11 (smoke-out/a11y-oldcode.log).
 
+- MUSIC REMOVED at Soliman's request ("remove music, no music in the game"). Do NOT add background music back. Commits 44acae4 (code + tests) and 6026d93 (README) on overnight-2026-10-23, not pushed:
+  - src/game/music.js deleted (the 4 moods). No music engine in Sound, no mood wiring in main.js or OfficeScene.
+  - No Music toggle on the title screen (the difficulty line is centered now) or in the P menu (the panel is 44 px shorter).
+  - Sound clears the old cyber-office:music saved key once. Sound effects and the M mute stay.
+  - Tests: the 3 music unit tests became 1 "music is gone" test. smoke-difficulty checks there is no Music text on the title or in the P menu.
+
 ###### Milestones
 - [x] Concept, M1-M6, Days 2-5, polish, VT323 font, Case Files (15), realism pass, day-picker
 - [x] Oct 20: SolarWinds case, music, phone screens, reduced motion
@@ -49,15 +55,16 @@ Oct 23: on branch overnight-2026-10-23, commits 3b5b310 onward (see git log main
 - [x] Oct 23 round 2: clock-freeze fix, MB date verified, accessibility pass
 - [x] Oct 23 fix-up 2: AD tree ArrowUp/ArrowDown/Home/End
 - [x] Oct 23 round 3: focus trap, mail-list focus, title day-picker fix, difficulty storage fallback, contrast pass, smoke:a11y
+- [x] Oct 23: background music removed at Soliman's request (do not add it back)
 - [ ] M7 Playtest with 2-3 people (BLOCKED: Soliman picks testers). Kit: PLAYTEST.md.
 - [ ] Later: a second week, original art, real-device mobile test
 
-###### Tests (Oct 23 round 3: ALL suites re-run on the final build, logs in smoke-out/final-*.log)
-- npm test: 145/145
+###### Tests (Oct 23, music removal: ALL suites re-run on build 6026d93, logs in smoke-out/nomusic-*.log)
+- npm test: 143/143 (3 music tests replaced by 1)
 - smoke: 71
 - smoke:bad: 15
 - smoke:week: 37 (5th clean run, no Day 4 flake)
-- smoke:difficulty: 15
+- smoke:difficulty: 17
 - smoke:a11y: 11
 - smoke:case: 253/253, run alone. Once, while 6 suites ran in parallel, it timed out on Equifax (the terminal icon was "not visible"). Equifax alone passed 16/16 and the full rerun was clean, so run smoke:case on its own.
 - To test one case: ONLY=<id>.
@@ -82,7 +89,6 @@ Oct 23: on branch overnight-2026-10-23, commits 3b5b310 onward (see git log main
 - Game title? Own art or free packs? Keep the character names?
 - Who are the 2-3 M7 playtesters?
 - Keep or rename the 'splunk>' look-alike?
-- Should music default to on (current) or off?
 - Are Trainee and Senior paced right? Should using the hint lower the score?
 - Merge overnight-2026-10-23 and push? (Don't cherry-pick 7b37a84 without bd3aafc.)
 - Allow pinch-zoom on phones?
@@ -119,7 +125,7 @@ Oct 23: on branch overnight-2026-10-23, commits 3b5b310 onward (see git log main
 - Advice for the next run: Create and confirm the branch overnight-2026-10-23 first. Never end while a test or note is pending: finish PROJECT.md, commit it, and call report_to_soliman first. Run long browser suites with a bounded wait, then record the real pass/fail numbers. Keep working in rounds through the night. Do not stop after one feature. Double-check apostrophes in JS strings before committing.
 
 ## Waiting on Soliman
-- Try the new settings for 3 minutes: music, difficulty, font and phone layout, and say what to keep
+- Try the new settings for 3 minutes: difficulty, font and phone layout, and say what to keep
 - Review the overnight branch and push it to make it live
 - Pick 2-3 people to playtest Cyber Office and send them the ready-made message (milestone M7)
 - Answer the open questions: game title, art plan, and whether to keep the character names
