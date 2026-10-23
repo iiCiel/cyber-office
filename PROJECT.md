@@ -1,6 +1,6 @@
 # Project: Cyber Office
 
-> Project file from the Command Center, Oct 23, 2026, 12:58 AM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
+> Project file from the Command Center, Oct 23, 2026, 1:08 AM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
 
 ## Goal
 A pixel-art browser game where you live a real day as a junior security analyst: walk the office, read real-looking email, dig through logs, deal with coworkers, and watch your choices play out. Not a quiz and not a wall of text. Built in public as a portfolio piece for internship applications.
@@ -20,50 +20,51 @@ DONE, pushed and live at https://iiciel.github.io/cyber-office/ :
 - Day-picker: on the title screen, press 1-5. F opens Case Files.
 - Oct 20 (dcda50e): procedural music (src/game/music.js, localStorage cyber-office:music), compact phone screens (placeOnCanvas in src/ui/dom.js), prefers-reduced-motion.
 
-Oct 23 overnight: on branch overnight-2026-10-23, commits 3b5b310..cb725d2 plus notes. NOT pushed and NOT live.
-- Oct 23 fix-up (cb725d2): the SolarWinds autumn entries had lone backslashes ('NT AUTHORITYSYSTEM', 'Inbox'). They are now NT AUTHORITY\SYSTEM and \Inbox / \Sent Items. A case unit test now catches lost backslashes in any case. The report card also shows the difficulty line when the hint was used and the player switched back to Analyst. To ship: git checkout main && git merge overnight-2026-10-23 && git push origin main, then run the live smoke.
-- DST fix. src/game/siemfmt.js easternOffset() uses the real US Eastern rules: since 2007, 2nd Sunday of March to 1st Sunday of November at 2 AM; before that, 1st Sunday of April to last Sunday of October. Every existing day and case gives byte-identical logs (full dump before and after).
-- The SolarWinds replay now includes beacons from Oct 12 to Dec 9 and 2 November mail-read sessions. They are appended at the end of generateLogs so the earlier DGA names and jitter stay the same.
-- SolarWinds facts were checked against the FireEye CSVs in mandiant/sunburst_countermeasures:
-  - The DLL hashes now match file version 2020.2.5300.12432 (MD5 846e27a6..., SHA256 ce77d116...).
+Oct 23: on branch overnight-2026-10-23, commits 3b5b310..c71f8e6. NOT pushed and NOT live. To ship: git checkout main && git merge overnight-2026-10-23 && git push origin main, then run the live smoke.
+- DST fix. src/game/siemfmt.js easternOffset() uses the real US Eastern rules: since 2007, 2nd Sunday of March to 1st Sunday of November at 2 AM; before that, 1st Sunday of April to last Sunday of October. Existing logs are byte-identical.
+- The SolarWinds replay now includes beacons from Oct 12 to Dec 9 and 2 November mail-read sessions. They are appended at the end of generateLogs.
+- SolarWinds facts checked against the FireEye CSVs (mandiant/sunburst_countermeasures):
+  - DLL hashes match 2020.2.5300.12432.
   - The BEACON domain is now incomeupdate.com.
-  - thedoccloud.com is a SUNBURST second-stage domain and is now labeled that way.
-- All 9 other real cases were fact-checked. One fix: the Change Healthcare "attack vector identified March 13" claim was removed. Capital One's Oct 2022 sentencing and Target's Best1_user framing were confirmed.
+  - thedoccloud.com is labeled as a second-stage domain.
+- The other 9 real cases were fact-checked. The Change Healthcare "March 13" claim was removed.
 - Difficulty setting in src/game/difficulty.js (localStorage cyber-office:difficulty):
-  - Trainee: 6 s per game minute, a "Stuck?" hint in the write-up showing the case's primaryEvidence.note, Day 5 ransomware at 0.6x.
-  - Analyst: the default, unchanged.
-  - Senior: 3 s per game minute, no guide arrow, ransomware at 1.4x.
-  - Scoring rules are the same at every level. The report card names a non-default level and says if the hint was used. Set it on the title screen (click or D) or in the P menu. The title screen also has a Music on/off toggle.
+  - Trainee: 6 s per game minute, a "Stuck?" hint, ransomware at 0.6x.
+  - Analyst: the default.
+  - Senior: 3 s per game minute, no arrow, ransomware at 1.4x.
+  - Scoring is the same at every level. The report card shows the line if the level is not Analyst OR the hint was used.
+- Fix-up (cb725d2):
+  - The SolarWinds autumn entries had lone backslashes. They now read NT AUTHORITY\SYSTEM and \Inbox / \Sent Items.
+  - tests/helpers/caseChecks.js catches lost backslashes in every case.
+  - The report card keeps the hint note after switching back to Analyst. smoke-difficulty covers this path.
 
-Deploy: git push origin main (Actions takes about 35 s), then node scripts/smoke.mjs https://iiciel.github.io/cyber-office/ smoke-out/live . Repo: https://github.com/iiCiel/cyber-office . PROJECT.md on disk is the source of truth: never revert it.
+Deploy: git push origin main (Actions about 35 s), then node scripts/smoke.mjs https://iiciel.github.io/cyber-office/ smoke-out/live . Repo: https://github.com/iiCiel/cyber-office . PROJECT.md on disk is the source of truth: never revert it.
 
 ###### Milestones
 - [x] Concept, M1-M6, Days 2-5, polish, VT323 font, Case Files (15), realism pass, day-picker
 - [x] Oct 20: SolarWinds case, music, phone screens, reduced motion
-- [x] Oct 23 overnight: DST fix, fact fixes, difficulty setting (on the branch, waiting for merge and push)
+- [x] Oct 23: DST fix, fact fixes, difficulty setting, fix-up (on the branch, waiting for merge and push)
 - [ ] M7 Playtest with 2-3 people (BLOCKED: Soliman picks testers). Kit: PLAYTEST.md.
 - [ ] Later: a second week, original art, real-device mobile test
 
-###### Tests
-- npm test: 130 unit tests.
+###### Tests (Oct 23 fix-up results)
+- npm test: 130/130.
 - Browser smokes, each taking [url] [outdir]:
   - smoke: 67
   - smoke:bad: 15
   - smoke:week: 37
-  - smoke:case: 251 (all 15 cases, about 10 minutes)
   - smoke:difficulty: 14
-- Single case: ONLY=solarwinds-2020 node scripts/smoke-case.mjs <url> <out> (a comma-separated list works too).
+  - smoke:case: 251 for all 15 cases (last night, smoke-out/case-all.log). Today only SolarWinds was re-run: ONLY=solarwinds-2020, 17 checks.
 - Local test build: npx vite build --outDir smoke-out/dist-mine, then npx vite preview --outDir smoke-out/dist-mine --port 4180.
-- Scratch scripts (gitignored): smoke-out/edit.py (CRLF-safe edits), iso-dump.mjs (log dump to compare before and after).
 
 ###### Issues
-- The SolarWinds ADFS key-read log shape is a reconstruction (the disclaimer says so).
-- Midnight Blizzard's "access removed about Jan 13" line is unverified (the case already hedges it).
+- The SolarWinds ADFS key-read log shape is a reconstruction (disclaimed).
+- Midnight Blizzard's "access removed about Jan 13" line is unverified (hedged).
 - Microsoft, MSRC, SEC and GeekWire return 403 to scripts.
 - Phone mode has only been tested in an emulated viewport.
-- smoke-week Day 4 can flake (not reproduced in 2 runs on Oct 23).
+- smoke-week Day 4 can flake (not seen lately).
 - Pacing has not been playtested by a human.
-- Some files are CRLF and some LF. Edit with newline-aware tools. Apostrophes inside single-quoted JS strings broke twice: avoid them or escape them. Backslashes too: write two in JS source. The Bash tool's heredocs collapse \\ to \, so use the Write tool or node with String.fromCharCode(92) for edits that contain backslashes.
+- Some files are CRLF and some LF. Watch for apostrophes in single-quoted JS strings. Backslashes need two in JS source. The Bash tool's heredocs collapse \\ to \, so for edits with backslashes use the Write/Edit tools or node with String.fromCharCode(92).
 
 ###### Open questions (for Soliman)
 - Game title? Own art or free packs? Keep the character names?
@@ -74,6 +75,10 @@ Deploy: git push origin main (Actions takes about 35 s), then node scripts/smoke
 - Merge overnight-2026-10-23 and push?
 
 ## Recent runs (newest first)
+### Oct 23, 2026: done
+- He asked: Fix-up run started by the supervisor. It checked the last run's work itself and found 3 problems: 1. New SolarWinds autumn log entries have broken backslash escapes, so the text comes out wrong: 'NT AUTHORITY\SYSTEM' becomes 'NT AUTHORITYSYSTEM', and the mail folders become 'Inbox' / 'Sent Items' wi
+- Did: Fixed the 3 problems the supervisor found in last night's work. Everything is on the branch overnight-2026-10-23 (commits cb725d2 and c71f8e6); nothing is pushed. 1) The new SolarWinds log lines now read NT AUTHORITY\SYSTEM, \Inbox and \Sent Items. Checked by generating the logs: 0 "AUTHORITYSYSTEM", 97 correct, and 102 of 102 folder paths start with a backslash. A new unit test catches this mistake in every case. 2) The report card now says the hint was used even if you switch back to Analyst before the day ends. 3) This is the morning summary. Overnight work: the clock-change (DST) fix, the SolarWinds November activity, 3 fact fixes (SolarWinds file hashes, a SolarWinds domain label, a Change Healthcare date), and the Trainee/Analyst/Senior setting with a Music toggle on the title screen. Tests: 130/130 unit, Day 1 67, worst day 15, full week 37, difficulty 14, SolarWinds case 17, all 15 cases 251 (in smoke-out/case-all.log, from last night). All passed again today except the 251 suite: today I only re-ran the SolarWinds case.
+- Where it stood: The live site hasn't changed. The overnight branch is fixed, fully tested and ready to merge and push when you OK it. Only M7 (the playtest) is left, and it needs your testers.
 ### Oct 23, 2026: done, supervisor grade B
 - He asked: OVERNIGHT RUN: Soliman is asleep ~13 hours and cannot approve anything. Do as much useful work as you can on the plan, in several rounds if you can, until usage runs low: open items, bugs, tests, polish, small features already in the plan. Keep tests green. HARD RULES: do NOT push (pushing makes it 
 - Did: Overnight I made 6 commits on a local branch, overnight-2026-10-23. Nothing is pushed or live. - Fixed the game's clock-change (daylight saving) bug. Existing logs are unchanged, and the SolarWinds case now has its November activity. - Checked the facts in all 10 real-breach cases against public sources and fixed 3 errors: - SolarWinds: the file hashes didn't match the file version. - SolarWinds: a domain was mislabeled. - Change Healthcare: a date claim had no source. - New difficulty setting: Trainee, Analyst or Senior. Analyst is the game as before. You'll find a music on/off button on the title screen now. - Tests: 130/130 unit tests. In Chrome, all passed: Day 1 (67 checks), the worst day (15), the full week (37, run twice), all 15 cases (251) and the new difficulty test (14).
@@ -96,13 +101,9 @@ Deploy: git push origin main (Actions takes about 35 s), then node scripts/smoke
 - Where it stood: The 5-day game is live. Case Files (3 real-breach replays) is finished and tested, but it's only on your PC: 3 commits are waiting to go live, held until you OK naming Uber, MGM and Colonial Pipeline.
 - Problems: Three commits, including Case Files, sit unpushed, so the live site lacks Case Files. The run noted this but didn't push or ask clearly for a go-ahead.; The run committed a Command Center rewrite of PROJECT.md that cut 35 lines without reviewing what was dropped.; No browser test this run (it said so itself), so the Case Files build is still untested live.
 - Advice for the next run: Don't start a new milestone until Soliman names the playtesters for M7. If told to deploy, push the 3 waiting commits, then load the live site in a browser and confirm Case Files shows. When the diff of PROJECT.md removes content, list what was removed in the report. Paste the test summary line (pass count) into the report so it can be checked.
-### Oct 18, 2026: done, supervisor grade B
-- Did: Only M7 (the playtest) was left, and it's blocked until you pick testers, so I built nothing new this run. Instead I found and saved work an earlier session had left uncommitted (33 files): "Case Files", a second mode where you replay 3 real breaches (Uber 2022, MGM 2023, Colonial Pipeline 2021). I re-ran every test and all pass: 39 unit tests, plus 4 Chrome runs (Day 1 with 67 checks, worst day 15, full week 37, all 3 cases 61). Of the 15 source links in the cases, 12 load; Bloomberg, SEC and Uber block automated checks. It's committed (8136bd7 + notes 7583b31) but NOT pushed, so the live site doesn't have it yet. Nothing was reverted or lost: PROJECT.md was edited in place, not reverted.
-- Where it stood: The 5-day game is live. Case Files (3 real-breach replays) is finished and tested but only on your PC, waiting for your OK on the real company names. The only milestone left is M7, the playtest.
-- Problems: Did not push, so the live GitHub Pages site doesn't have Case Files. It stayed unpushed because the notes said nothing about it, which leaves the portfolio piece out of date.; Spent roughly 8 of 10 minutes re-verifying already-passing work (four smoke suites, screenshots, link checks) before committing. The supervisor had to tell it to stop and commit.; The agent killed a stale preview server process (PID 32824) without checking what it was.; A big feature was left uncommitted by an earlier session, so there was a risk of losing work.
-- Advice for the next run: Commit any leftover work first, then verify once. Only M7 is left and it needs Soliman to pick testers. Don't invent new milestones. Push only if PROJECT.md says to; otherwise report that the commit is unpushed. Keep link checks short and note which sites block bots.
 
 ## Waiting on Soliman
+- The supervisor opened the last Cyber Office run's work and found 3 problems; a fix-up run is fixing them now.
 - Try the new settings for 3 minutes: music, difficulty, font and phone layout, and say what to keep
 - Review the overnight branch and push it to make it live
 - Pick 2-3 people to playtest Cyber Office and send them the ready-made message (milestone M7)
