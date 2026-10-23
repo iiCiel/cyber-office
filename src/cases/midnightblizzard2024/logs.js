@@ -12,7 +12,7 @@
 //              full_access_as_app role".
 //   mail       The malicious apps authenticated to Exchange Online and read mail through Exchange Web Services (EWS): a very small
 //              percentage of corporate mailboxes, including senior leadership, cybersecurity and legal.
-//   detection  Microsoft detected it Jan 12, 2024, removed the access on or about Jan 13, disclosed Jan 19.
+//   detection  Microsoft detected it Jan 12, 2024, removed the access on or about Jan 13 (8-K), disclosed Jan 19.
 //
 // Everything in the JSON follows the vendor schemas (Graph signIn / servicePrincipalSignIn, directoryAudit, Purview Unified Audit
 // Log MailItemsAccessed, Graph security alert). Tenant, app, user and mailbox names, IPs, volumes and times are invented.
