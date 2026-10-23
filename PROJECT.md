@@ -25,51 +25,57 @@ Oct 20 improvements pass (commit dcda50e):
 - prefers-reduced-motion: no camera shake, softer alert flash, CSS animations off.
 - README updated.
 
+Oct 23 overnight (branch overnight-2026-10-23, 6 commits, NOT pushed, NOT live yet):
+- Engine DST fix: src/game/siemfmt.js easternOffset() uses the real US Eastern rules (2007+: 2nd Sun Mar to 1st Sun Nov, 2 AM; older: 1st Sun Apr to last Sun Oct). Every existing day and case gives byte-identical logs (full dump before/after).
+- SolarWinds replay now has Oct 12 to Dec 9 beacons plus 2 November mail-read sessions (appended at the end of generateLogs so the earlier DGA names and jitter don't change).
+- SolarWinds facts checked against FireEye's indicator CSVs (mandiant/sunburst_countermeasures). Fixed: the DLL hashes now match file version 2020.2.5300.12432 (MD5 846e27a6..., SHA256 ce77d116...); the BEACON domain is now incomeupdate.com (thedoccloud.com is a SUNBURST second-stage domain and is labeled that way in iocs.txt). Confirmed: TEARDROP files, Solorigate.BR!dha, freescanonline.com, the avsvmcloud naming.
+- The other 9 real cases were fact-checked (dates, money, counts, CVEs, MITRE pairs). One fix: Change Healthcare no longer claims the "attack vector was identified March 13" (unsourced).
+- Difficulty setting (src/game/difficulty.js, localStorage cyber-office:difficulty): Trainee (6 s per game minute, a write-up hint, Day 5 ransomware at 0.6x), Analyst (default, unchanged), Senior (3 s, no guide arrow, 1.4x). Grading is the same at every level, and the report card names a non-default level. Set it on the title screen (click or D) or in the P menu. The title screen also has a visible Music on/off toggle.
+
 Deploy: git push origin main (Actions takes about 35 s), then node scripts/smoke.mjs https://iiciel.github.io/cyber-office/ smoke-out/live . Repo (public): https://github.com/iiCiel/cyber-office . PROJECT.md on disk is the source of truth: never git checkout or revert it.
 
 ##### Milestones
 - [x] Concept, M1-M6, Days 2-5, polish pass, VT323 font, Case Files (15), realism pass, day-picker
 - [x] Oct 20 improvements: SolarWinds case, music, phone-readable screens, reduced motion
 - [ ] M7 Playtest with 2-3 people (BLOCKED: Soliman picks testers). Kit: PLAYTEST.md. When done, put the top 3 fixes into milestones.
-- [ ] Later: difficulty setting, a second week, original art, real-device mobile test
+- [x] Oct 23 overnight: DST fix, SolarWinds + Change fact fixes, difficulty setting (on branch overnight-2026-10-23, waiting for Soliman to merge and push)
+- [ ] Later: a second week, original art, real-device mobile test
 
 ##### Code map
 - src/config.js
 - src/days/
 - src/cases/ (index.js; solarwinds2020/ is new)
-- src/game/ (GameState, scoring, logkit, shell, spl, pwsh, cloudcli, sound, music)
+- src/game/ (GameState, scoring, logkit, siemfmt (stamps, easternOffset), shell, spl, pwsh, cloudcli, sound, music, difficulty)
 - src/scenes/
 - src/ui/ (dom.js has placeOnCanvas)
 
 Tests:
-- npm test: 126 unit tests.
-- Browser smokes: npm run smoke (67), smoke:bad (15), smoke:week (37), smoke:case (251, all 15 cases, about 10 minutes). Each takes [url] [outdir]. smoke-case has no single-case filter.
+- npm test: 130 unit tests.
+- Browser smokes: npm run smoke (67), smoke:bad (15), smoke:week (37), smoke:case (251, all 15 cases, about 10 minutes), smoke:difficulty (14). Each takes [url] [outdir]. Single case: ONLY=solarwinds-2020 node scripts/smoke-case.mjs <url> <out> (comma list works; this filter existed all along).
 - smoke-out/ (gitignored) holds scratch checks: mobile-check.mjs (844x390 compact mode) and music-check.mjs.
 - To test without disturbing dist/, build with: npx vite build --outDir smoke-out/dist-mine, then npx vite preview --outDir smoke-out/dist-mine --port 4180.
 
 ##### Log
+- Oct 23 overnight (autopilot, branch overnight-2026-10-23, not pushed): DST fix, SolarWinds November + 2 IOC fixes, Change Healthcare fix, difficulty setting, README. Local: 130/130 unit, smoke 67, bad 15, week 37 (twice), difficulty 14, case 251.
 - Oct 20 night (autopilot, "improve everything"): SolarWinds case, music, compact phone screens, reduced motion. Local: 126/126 unit, smoke 67, bad 15, week 37, case 251. Live: smoke 67, case 251. dcda50e pushed, Actions green.
 - Oct 19 night: PLAYTEST.md kit. Oct 19: realism/AD/cloud pass, 6 cases.
 
 ##### Issues
-- SolarWinds facts recalled from memory, worth spot-checking:
-  - DLL MD5/SHA256 and file version 2020.2.5300.12432
-  - TEARDROP files netsetupsvc.dll and gracious_truth.jpg
-  - Defender name Trojan:MSIL/Solorigate.BR!dha
-  - C2 domains thedoccloud.com and freescanonline.com
-  - The ADFS key-read log shape (reconstructed)
-- Already verified and fixed this run: the affected Orion versions (SolarWinds advisory and CISA ED 21-01 wording) and the White House fact-sheet link (now the bidenwhitehouse.archives.gov copy).
+- SolarWinds: the ADFS key-read log shape is still a reconstruction (stated in the disclaimer). Everything else listed before was checked on Oct 23.
+- Midnight Blizzard: the "access removed on or about Jan 13" line is still unverified (the case already hedges it).
 - These source links return 403 to scripts (bot blocking): Microsoft, MSRC, SEC. The SEC link points to the EDGAR 8-K list, not the filing itself.
-- The SolarWinds replay avoids November dates because of a DST bug in the engine for Nov 2020. The engine's DST handling is worth fixing.
 - Music is simple synthesized loops.
 - Phone compact mode has only been tested in an emulated 844x390 viewport, not on a real phone.
-- smoke-week can flake on Day 4 timing (rerun).
+- smoke-week can flake on Day 4 timing (rerun). It passed 2 of 2 runs on Oct 23 and was not reproduced.
 - Pacing has not been playtested by a human.
 
 ##### Open questions (for Soliman)
 - Game title? Own art or free packs? Keep the Halcyon Mutual, Priya, Dana, Mike Chen and j.alvarez names?
 - Who are the 2-3 M7 playtesters?
 - Keep or rename the 'splunk>' look-alike branding?
+- Music: keep it on by default, or default it off (the supervisor suggested off)? It can now be toggled on the title screen.
+- Difficulty: are Trainee and Senior paced right? Should the Trainee hint lower the score? (Right now it doesn't.)
+- Merge branch overnight-2026-10-23 into main and push to make it live?
 
 ## Recent runs (newest first)
 ### Oct 20, 2026: done, supervisor grade B
