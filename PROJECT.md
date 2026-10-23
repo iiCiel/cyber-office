@@ -1,6 +1,6 @@
 # Project: Cyber Office
 
-> Project file from the Command Center, Oct 23, 2026, 8:07 AM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
+> Project file from the Command Center, Oct 23, 2026, 12:53 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
 
 ## Goal
 A pixel-art browser game where you live a real day as a junior security analyst: walk the office, read real-looking email, dig through logs, deal with coworkers, and watch your choices play out. Not a quiz and not a wall of text. Built in public as a portfolio piece for internship applications.
@@ -20,7 +20,7 @@ DONE, pushed and live at https://iiciel.github.io/cyber-office/ :
 - Day-picker: on the title screen, press 1-5. F opens Case Files.
 - Oct 20 (dcda50e): procedural music, compact phone screens, prefers-reduced-motion.
 
-Oct 23: on branch overnight-2026-10-23, commits 3b5b310 onward (see git log main..overnight-2026-10-23; latest 8454052). NOT pushed and NOT live. To ship: git checkout main && git merge overnight-2026-10-23 && git push origin main, then node scripts/smoke.mjs https://iiciel.github.io/cyber-office/ smoke-out/live
+Oct 23: on branch overnight-2026-10-23, commits 3b5b310 onward (see git log main..overnight-2026-10-23; latest code commit 1c40d9c). NOT pushed and NOT live. To ship: git checkout main && git merge overnight-2026-10-23 && git push origin main, then node scripts/smoke.mjs https://iiciel.github.io/cyber-office/ smoke-out/live
 - DST fix (src/game/siemfmt.js easternOffset, real US Eastern rules). The SolarWinds replay now has its Oct-Dec beacons and November mail reads.
 - Fact fixes: SolarWinds hashes and domains (checked against the FireEye CSVs). The Change Healthcare "March 13" claim was removed.
 - Difficulty setting (src/game/difficulty.js, localStorage cyber-office:difficulty):
@@ -30,57 +30,53 @@ Oct 23: on branch overnight-2026-10-23, commits 3b5b310 onward (see git log main
   - Scoring is the same at every level.
 - Fix-up cb725d2: SolarWinds backslashes, and the report card keeps the hint note.
 - Round 2:
-  - bd3aafc fixes a clock freeze on the 2nd day started in a tab. The difficulty code caused it, and it was never live. Fix: OfficeScene.create() sets clockEvent = null. smoke-difficulty checks real-time ticking after Next day: old code 537->537, fixed 537->539. A finished day keeps the level it was played on, and saved junk like "toString" falls back to Analyst.
-  - 6d8b7ab: Midnight Blizzard "access removed on or about Jan 13, 2024" is verified against the Jan 19 8-K (sec.gov/Archives/edgar/data/789019/000119312524011295/d708866d8k.htm) and cited.
-  - 97b8a24, accessibility:
-    - The AD tree: Enter/Space select, Right/Left expand and collapse, Up/Down move between items, Home/End jump to the first/last item (Up/Down/Home/End were added in fix-up 2, 66cee88).
-    - Overlays take focus when they open. When they close, focus goes back, but never into a text field, and the game keys still work.
-    - Icon buttons have aria-labels. The +/- buttons work with the keyboard. The mail list uses native buttons.
-    - Text and badges reach AA contrast.
-- Fix-up 2 (66cee88, 8454052): src/ui/apps/AdApp.js renderTree treeitem onkeydown handles ArrowUp/ArrowDown/Home/End and stops at the ends. scripts/smoke-case.mjs has 2 new checks in the halcyon-ad-2026 plan.
-- Round 3 (last ~1 h of usage; a bug-hunt helper read the branch code, and its findings were fixed and tested):
-  - Focus trap (src/ui/Overlay.js focusables()/trapTab()): on the computer and SOC screens, Tab wraps last->first, Shift+Tab first->last, and focus outside is pulled back in. The terminal's Tab completion still works. 4 new checks in scripts/smoke.mjs; on the old code 2 of them FAIL.
-  - Mail list keeps keyboard focus when it re-renders (src/ui/apps/MailApp.js render). Before, Enter on an email dropped focus to <body>. After Report/Delete, focus goes to the next selected email (not the Report button, so a 2nd Enter can't hit the next mail).
-  - Title-screen bug (older, also live): after "Quit to title" the 1-5 day picker did nothing (this.jumping never reset). TitleScene now has one this.leaving guard, reset in create(), shared by Start/Continue/New week/Case Files/day picker.
-  - Difficulty sticks for the session even when localStorage is blocked or full (src/game/difficulty.js unsaved fallback) + unit test.
-  - Contrast: the leftover grey text plus green/red status text, JSON null, AD twisty and dim canvas captions (Title/Office/Menu) now reach AA. tests/contrast.test.js checks 13 rules against their background.
-  - New browser test scripts/smoke-a11y.mjs (npm run smoke:a11y), 11 checks. On the old Mail/Title code it fails 7 of 11 (smoke-out/a11y-oldcode.log).
+  - bd3aafc: clock-freeze fix (OfficeScene.create() sets clockEvent = null). smoke-difficulty checks that the clock ticks in real time.
+  - 6d8b7ab: Midnight Blizzard "access removed on or about Jan 13, 2024" is verified and cited (sec.gov/Archives/edgar/data/789019/000119312524011295/d708866d8k.htm).
+  - 97b8a24: accessibility. AD tree keys, overlay focus in and out, aria-labels, native mail buttons, AA badges.
+- Fix-up 2 (66cee88): AD tree ArrowUp/ArrowDown/Home/End, with 2 smoke-case checks.
+- Round 3 (1c40d9c). A bug-hunt helper read the branch code, and its findings were fixed and tested:
+  - Focus trap (src/ui/Overlay.js focusables()/trapTab()): on the computer and SOC screens, Tab wraps last->first, Shift+Tab first->last, and focus outside is pulled back in. The terminal's Tab completion still works. 4 new checks in smoke.mjs; on the old code 2 of them FAIL.
+  - MailApp.render keeps keyboard focus on the same email/folder/action. After Report/Delete, focus goes to the next selected email.
+  - Title-screen bug (older, also LIVE): after "Quit to title" the 1-5 day picker did nothing. TitleScene now has one this.leaving guard, reset in create().
+  - difficulty.js: if storage is blocked or full, the choice still sticks for the session (the unsaved fallback) + a unit test.
+  - AA contrast: the leftover grey text, green/red status text, JSON null, the AD twisty and the dim canvas captions. tests/contrast.test.js checks 13 rules.
+  - New scripts/smoke-a11y.mjs (npm run smoke:a11y), 11 checks. On the old Mail/Title code it fails 7/11 (smoke-out/a11y-oldcode.log).
 
 ###### Milestones
 - [x] Concept, M1-M6, Days 2-5, polish, VT323 font, Case Files (15), realism pass, day-picker
 - [x] Oct 20: SolarWinds case, music, phone screens, reduced motion
 - [x] Oct 23: DST fix, fact fixes, difficulty, fix-up
-- [x] Oct 23 round 2: clock-freeze fix, MB date verified, accessibility pass, all suites re-run (on the branch, waiting for merge and push)
-- [x] Oct 23 fix-up 2: AD tree ArrowUp/ArrowDown/Home/End (the round-2 note overstated arrow support), with 2 new smoke-case checks
+- [x] Oct 23 round 2: clock-freeze fix, MB date verified, accessibility pass
+- [x] Oct 23 fix-up 2: AD tree ArrowUp/ArrowDown/Home/End
 - [x] Oct 23 round 3: focus trap, mail-list focus, title day-picker fix, difficulty storage fallback, contrast pass, smoke:a11y
 - [ ] M7 Playtest with 2-3 people (BLOCKED: Soliman picks testers). Kit: PLAYTEST.md.
 - [ ] Later: a second week, original art, real-device mobile test
 
-###### Tests (Oct 23 round 3, ALL suites re-run on the final round-3 build, logs in smoke-out/final-*.log)
-- npm test: 145/145 (smoke-out/unit.log)
-- smoke: 71 (4 new focus-trap checks)
+###### Tests (Oct 23 round 3: ALL suites re-run on the final build, logs in smoke-out/final-*.log)
+- npm test: 145/145
+- smoke: 71
 - smoke:bad: 15
 - smoke:week: 37 (5th clean run, no Day 4 flake)
 - smoke:difficulty: 15
-- smoke:a11y: 11 (new)
-- smoke:case: 253/253 run alone (final-smoke-case2.log). While 6 suites ran in parallel it once timed out on Equifax (terminal icon "not visible"); Equifax alone was 16/16 and the full rerun was clean, so run smoke:case on its own.
-- To test one case: ONLY=<id> (the AD lab is halcyon-ad-2026).
+- smoke:a11y: 11
+- smoke:case: 253/253, run alone. Once, while 6 suites ran in parallel, it timed out on Equifax (the terminal icon was "not visible"). Equifax alone passed 16/16 and the full rerun was clean, so run smoke:case on its own.
+- To test one case: ONLY=<id>.
 - Local build: npx vite build --outDir smoke-out/dist-mine, then npx vite preview --outDir smoke-out/dist-mine --port 4180 --strictPort.
 
 ###### Issues
 - The SolarWinds ADFS key-read log shape is a reconstruction (disclaimed).
-- Microsoft, MSRC, SEC and GeekWire return 403 to scripts. Web search still finds the text.
+- Microsoft, MSRC, SEC and GeekWire return 403 to scripts.
 - Phone mode has only been tested in an emulated viewport. Pacing has not been playtested by a human.
-- The week test's Day 4 flake did not show up in 4 runs. Close this issue if it stays clean.
 - Smokes that call tickMinute() can hide real-time clock bugs. Keep the real-time check in smoke-difficulty.
 - Accessibility leftovers:
-  - The focus trap covers only the computer and SOC screens (Overlay subclasses). Report card, Case Files, glossary and the P menu are not trapped. The phone "Stand up" bar sits outside the trap.
-  - AD Users and Computers still drops focus to <body> after a twisty click, a list-row click, a Properties tab click or closing a dialog (only the tree's own keys refocus).
-  - Hypothesis, not confirmed: pressing Enter and then a digit within the 250 ms title fade could start two scenes. The shared this.leaving guard should cover this now, but there is no test.
-  - .titem.done uses opacity 0.6, so finished tickets are dimmer than AA (on purpose).
+  - The focus trap covers only the computer and SOC screens. The report card, Case Files, glossary and P menu are not trapped, and the phone "Stand up" bar sits outside the trap.
+  - AD Users and Computers drops focus to <body> after a twisty click, a list-row click, a Properties tab click or closing a dialog (AdApp.js renderTree/renderList/closeDialog).
   - index.html blocks pinch-zoom.
+  - .titem.done uses opacity 0.6 (on purpose).
+- Unconfirmed: pressing Enter and then a digit within the 250 ms title fade may start two scenes. The shared this.leaving guard should cover it now, but there is no test.
 - The report card records only the LAST difficulty of the day.
-- Some files are CRLF and some LF. Watch for apostrophes in single-quoted JS strings. Backslashes need two in JS source. Use the Edit tool or node for edits with backslashes; Bash heredocs collapse them.
+- Some files are CRLF and some LF. Watch apostrophes in single-quoted JS strings. Backslashes need two in JS source. Use the Edit tool or node for edits.
+- Running 6 browser suites in parallel can cause flakes. Run smoke:case alone.
 
 ###### Open questions (for Soliman)
 - Game title? Own art or free packs? Keep the character names?
@@ -88,15 +84,21 @@ Oct 23: on branch overnight-2026-10-23, commits 3b5b310 onward (see git log main
 - Keep or rename the 'splunk>' look-alike?
 - Should music default to on (current) or off?
 - Are Trainee and Senior paced right? Should using the hint lower the score?
-- Merge overnight-2026-10-23 and push? Don't cherry-pick the difficulty commit 7b37a84 without the clock fix bd3aafc.
+- Merge overnight-2026-10-23 and push? (Don't cherry-pick 7b37a84 without bd3aafc.)
 - Allow pinch-zoom on phones?
 - Should the report card show Trainee if it was used at any point in the day?
 
 ## Recent runs (newest first)
 ### Oct 23, 2026: done
+- He asked: About 1 hour of usage left: make as much progress as you can on the plan (realism, polish, new content already planned, bugs), using parallel helper agents if it helps. Stay on the branch overnight-2026-10-23 and keep tests green. Do NOT push (pushing = live deploy). Nothing destructive. Update the 
+- Did: I fixed 4 bugs and improved keyboard use and text contrast. Everything is in one commit (1c40d9c) on the branch overnight-2026-10-23. Nothing is pushed, so the live site hasn't changed. - Bug: after "Quit to title", pressing 1-5 to pick a day did nothing. This bug is also on the live site. Fixed. - Bug: reading mail with the keyboard lost your place after every email. Now focus stays on the email. - Bug: Tab could leave the computer screen. Now it wraps around inside the screen. - Bug: if the browser blocks saving, the difficulty choice wouldn't stick. Now it sticks for the session. - Contrast: all the remaining grey text now meets the readability standard (AA). Every test passed: 145/145 unit, Day 1 71, worst day 15, full week 37, difficulty 15, a new keyboard test 11, and all 15 cases 253/253.
+- Where it stood: The live site hasn't changed. The branch overnight-2026-10-23 is fully tested and ready to merge and push when you say so. Only the playtest (M7) is left, and it needs your testers.
+### Oct 23, 2026: done, supervisor grade A
 - He asked: Fix-up run started by the supervisor. It checked the last run's work itself and found 1 problem: 1. The AD tree's arrow-key support is overstated. Only ArrowRight/ArrowLeft (expand/collapse) are handled. ArrowUp/ArrowDown don't move between items, so the tree is navigated with Tab, not the arrow key
 - Did: I fixed the one problem the supervisor found. Last round's notes said the Active Directory list worked with the arrow keys, but only Left/Right (open and close a folder) did anything. Now Up and Down move between items, and Home and End jump to the first and last one (commit 66cee88). I added 2 browser checks for this. They fail on the old code, where focus stays stuck on the top item, and pass now. Down, Down, Up goes #root > #queries > domain > #queries. Tests: unit 130/130, saved in smoke-out/unit.log. The AD case: 18/18. All 15 cases: 253/253 with 0 failures. Nothing is pushed.
 - Where it stood: The live site hasn't changed. The branch overnight-2026-10-23 is tested and ready to merge and push when you say so. Only M7, the playtest, is left, and it needs your testers.
+- Problems: smoke-out/ is gitignored, so unit.log is not committed and cannot be checked from git history, only from disk.; The run took a few minutes of idle gap between 7:58 and 8:07 with no visible reason, a small time cost.
+- Advice for the next run: Stay on branch overnight-2026-10-23 and do not push. When a doc claims a feature, add a test that exercises that exact claim. Print changed doc lines back after editing. Prove edge cases (first and last item), not just the middle path.
 ### Oct 23, 2026: done, supervisor grade A
 - He asked: ROUND 2 (Soliman asleep until he checks later today; can't approve anything). Keep moving the plan forward on the local branch overnight-2026-10-23 in several rounds until usage runs low: open items, bugs, realism, polish, tests. Re-run the full 15-case suite (251 checks) at some point so it's verif
 - Did: I found and fixed a serious bug in last night's difficulty setting. After your first day in a browser tab, the game clock stopped, so you couldn't finish Day 2 or a second case. The live site never had it: the bug is only on the branch, and it's fixed there now with a test that catches it. I also confirmed the Midnight Blizzard "access removed about Jan 13" date in Microsoft's SEC filing, and made the computer screens work better with a keyboard and screen readers, with clearer text. Every test was re-run today on the branch: 130/130 unit tests, Day 1 (67 checks), worst day (15), full week (37), difficulty (15), and all 15 cases (251, passed 3 times). Nothing is pushed.
@@ -115,15 +117,8 @@ Oct 23: on branch overnight-2026-10-23, commits 3b5b310 onward (see git log main
 - Where it stood: The live site is unchanged. Tonight's work is tested and waiting on the overnight-2026-10-23 branch for you to review and push. The only milestone left is M7, the playtest, which still needs your testers.
 - Problems: The run stopped while waiting on the background test. It left no final summary, no committed notes and an uncommitted PROJECT.md. Soliman wakes up to unfinished handoff.; Soliman asked for several rounds until usage runs low, but it used only ~26 min of 13 hours and 121k output tokens. Most of the budget was left unused.; Two quote-escaping slips in edited JS strings cost extra test and fix loops (the SolarWinds one was caught by tests).; It spent time on the new difficulty feature and fact edits, rather than open items already in the plan, which is hard to judge from here.; The wakeup was scheduled for 01:01, but the run ended at 12:56 AM, so the follow-up never ran.
 - Advice for the next run: Create and confirm the branch overnight-2026-10-23 first. Never end while a test or note is pending: finish PROJECT.md, commit it, and call report_to_soliman first. Run long browser suites with a bounded wait, then record the real pass/fail numbers. Keep working in rounds through the night. Do not stop after one feature. Double-check apostrophes in JS strings before committing.
-### Oct 20, 2026: done, supervisor grade B
-- He asked: ok go do improvements, improve on everything
-- Did: You asked me to improve everything, so I did four things. All of them are live: - **SolarWinds 2020 (SUNBURST) case:** the last locked card is now playable, so Case Files has 15 cases. - **Background music:** made in code, with 4 moods (menus, workday, alerts, report card). You can turn it off in the P menu. - **Phones:** in landscape, the computer, report, Case Files and glossary screens now fill the whole screen, so text is about 2x bigger. A "Stand up" button sits at the bottom. - **Reduced motion:** if your device asks for less motion, alerts no longer shake the screen. Tests: 126/126 unit tests pass. In Chrome, Day 1 (67 checks), the worst day (15) and the full week (37) all pass. The live site passed all 15 cases (251 checks) and Day 1 (67). Committed and pushed as dcda50e.
-- Where it stood: Everything is live at https://iiciel.github.io/cyber-office/: the 5-day week, 15 Case Files and labs, plus music and phone-friendly screens. The only milestone left is M7, the playtest, which is waiting on you to pick testers.
-- Problems: The scope was 'improve everything' but the run did only four items. It also did not pick a single milestone as PROJECT.md says.; The Case Files smoke test has no single-case filter on the live site, so it re-ran all 15 cases. Two commands hit timeouts and were moved to the background, costing about 10 minutes.; The live full-case run took about 8 minutes just to prove one new case.; The sub-agent had only a partial view of the shared code, and wrote some log entries that needed fixes (the AD thumbnail log, a query count) before the tests passed.; It closed a stale 'close_for_you' item with a vague reason.
-- Advice for the next run: Run only the new case's smoke test (ONLY=<id>) during development, then one full pass before pushing. Test every claimed number in the transcript, including the worst-day run, and show its output. For accessibility changes, test them with the setting actually on. Keep the music toggle obvious and consider defaulting it off.
 
 ## Waiting on Soliman
-- The supervisor opened the last Cyber Office run's work and found 1 problem; a fix-up run is fixing them now.
 - Try the new settings for 3 minutes: music, difficulty, font and phone layout, and say what to keep
 - Review the overnight branch and push it to make it live
 - Pick 2-3 people to playtest Cyber Office and send them the ready-made message (milestone M7)
