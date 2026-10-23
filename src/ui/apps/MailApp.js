@@ -233,19 +233,19 @@ export class MailApp {
       const items = this.emailsIn(this.folder);
       list = h(
         'div',
-        { class: 'list', role: 'list' },
+        { class: 'list' },
         items.length
           ? items.map((m) =>
               h(
                 'button',
                 {
                   type: 'button',
-                  role: 'listitem',
+                  'aria-current': m.id === this.selected ? 'true' : undefined,
                   class: `item${this.state.mail[m.id]?.read ? '' : ' unread'}${m.id === this.selected ? ' active' : ''}${this.freshIds?.has(m.id) ? ' new' : ''}`,
                   'data-email': m.id,
                   onclick: () => this.select(m.id),
                 },
-                h('div', { class: 'who' }, h('span', {}, m.from.name), h('span', { class: 'time' }, fmtTime(m.at))),
+                h('div', { class: 'who' }, h('span', {}, this.state.mail[m.id]?.read ? null : h('span', { class: 'sr-only' }, 'Unread, '), m.from.name), h('span', { class: 'time' }, fmtTime(m.at))),
                 h('div', { class: 'subj' }, m.subject),
               ),
             )

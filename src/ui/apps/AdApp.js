@@ -42,12 +42,12 @@ export class AdApp {
       h('label', { class: 'view', title: 'View: Advanced Features' }, 'View ▾ ', h('input', { type: 'checkbox', 'data-action': 'advanced', checked: this.advanced, onchange: (e) => { this.advanced = e.target.checked; this.render(); } }), ' Advanced Features'),
       h('span', {}, 'Help'));
     const tool = h('div', { class: 'aduc-tool' },
-      h('button', { type: 'button', title: 'Back', onclick: () => this.up() }, '◀'),
-      h('button', { type: 'button', title: 'Forward', disabled: true }, '▶'),
-      h('button', { type: 'button', title: 'Up one level', onclick: () => this.up() }, '⬆'),
+      h('button', { type: 'button', title: 'Back', 'aria-label': 'Back', onclick: () => this.up() }, '◀'),
+      h('button', { type: 'button', title: 'Forward', 'aria-label': 'Forward', disabled: true }, '▶'),
+      h('button', { type: 'button', title: 'Up one level', 'aria-label': 'Up one level', onclick: () => this.up() }, '⬆'),
       h('span', { class: 'sep' }),
       h('button', { type: 'button', 'data-action': 'find', title: 'Find objects in Active Directory Domain Services', onclick: () => this.openFind() }, '🔍 Find…'),
-      h('button', { type: 'button', title: 'Refresh', onclick: () => this.render() }, '⟳'));
+      h('button', { type: 'button', title: 'Refresh', 'aria-label': 'Refresh', onclick: () => this.render() }, '⟳'));
     this.tree = h('div', { class: 'aduc-tree', role: 'tree' });
     this.list = h('div', { class: 'aduc-list', role: 'table' });
     this.status = h('div', { class: 'aduc-status' });
@@ -66,10 +66,18 @@ export class AdApp {
 
   renderTree() {
     const d = this.dir;
-    const row = (label, icon, dn, depth, hasKids, obj) =>
-      h('div', { class: `tn${this.selected === dn ? ' on' : ''}`, role: 'treeitem', 'data-dn': dn, style: { paddingLeft: `${6 + depth * 14}px` }, onclick: () => { this.selected = dn; this.sel = null; this.renderTree(); this.renderList(); } },
-        h('span', { class: 'tw', onclick: (e) => { if (!hasKids) return; e.stopPropagation(); this.open.has(dn) ? this.open.delete(dn) : this.open.add(dn); this.renderTree(); } }, hasKids ? (this.open.has(dn) ? '▾' : '▸') : ''),
+    const row = (label, icon, dn, depth, hasKids, obj) => {
+      const select = () => { this.selected = dn; this.sel = null; this.renderTree(); this.renderList(); this.focusTree(dn); };
+      return h('div', { class: `tn${this.selected === dn ? ' on' : ''}`, role: 'treeitem', tabindex: '0', 'aria-selected': this.selected === dn ? 'true' : 'false', 'aria-expanded': hasKids ? (this.open.has(dn) ? 'true' : 'false') : undefined, 'data-dn': dn, style: { paddingLeft: `${6 + depth * 14}px` }, onclick: select,
+          onkeydown: (e) => {
+            if (e.target !== e.currentTarget) return;
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(); }
+            else if (e.key === 'ArrowRight' && hasKids && !this.open.has(dn)) { e.preventDefault(); this.open.add(dn); this.renderTree(); this.focusTree(dn); }
+            else if (e.key === 'ArrowLeft' && hasKids && this.open.has(dn)) { e.preventDefault(); this.open.delete(dn); this.renderTree(); this.focusTree(dn); }
+          } },
+        h('span', { class: 'tw', 'aria-hidden': 'true', onclick: (e) => { if (!hasKids) return; e.stopPropagation(); this.open.has(dn) ? this.open.delete(dn) : this.open.add(dn); this.renderTree(); } }, hasKids ? (this.open.has(dn) ? '▾' : '▸') : ''),
         h('span', { class: 'ti' }, icon), label);
+    };
     const out = [];
     out.push(row(`Active Directory Users and Computers [${d.dc}.${d.domain}]`, '🖥', '#root', 0, false));
     out.push(row('Saved Queries', '📁', '#queries', 1, false));
@@ -80,6 +88,11 @@ export class AdApp {
     };
     walk(d.dn, 1, d.domain, ICON.domain);
     clear(this.tree).append(...out);
+  }
+
+  focusTree(dn) {
+    const el = [...this.tree.children].find((n) => n.dataset.dn === dn);
+    el?.focus();
   }
 
   // ---------- list ----------
@@ -101,10 +114,10 @@ export class AdApp {
     clear(this.list).append(
       h('div', { class: 'lh' }, h('span', { class: 'c-name' }, 'Name'), h('span', { class: 'c-type' }, 'Type'), h('span', { class: 'c-desc' }, 'Description')),
       ...items.map((o) =>
-        h('div', { class: `li${this.sel === o ? ' on' : ''}`, role: 'row', 'data-name': o.sam || o.name, tabindex: '0',
+        h('div', { class: `li${this.sel === o ? ' on' : ''}`, role: 'row', 'aria-selected': this.sel === o ? 'true' : 'false', 'data-name': o.sam || o.name, tabindex: '0',
           onclick: () => { this.sel = o; this.renderList(); },
           ondblclick: () => this.openObject(o),
-          onkeydown: (e) => { if (e.key === 'Enter') this.openObject(o); } },
+          onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.openObject(o); } } },
           h('span', { class: 'c-name' }, h('span', { class: 'ti' }, iconOf(o)), o.name),
           h('span', { class: 'c-type' }, TYPE_LABEL(o)),
           h('span', { class: 'c-desc' }, o.desc || ''))),
@@ -186,7 +199,7 @@ export class AdApp {
     const d = this.dir;
     const tabs = this.tabsFor(o);
     if (!tabs.includes(dlg.tab)) dlg.tab = 'General';
-    const bar = h('div', { class: 'dlg-tabs', role: 'tablist' }, tabs.map((t) => h('button', { type: 'button', role: 'tab', class: dlg.tab === t ? 'on' : '', 'data-ptab': t, onclick: () => { dlg.tab = t; this.renderDialog(); } }, t)));
+    const bar = h('div', { class: 'dlg-tabs', role: 'tablist' }, tabs.map((t) => h('button', { type: 'button', role: 'tab', 'aria-selected': dlg.tab === t ? 'true' : 'false', class: dlg.tab === t ? 'on' : '', 'data-ptab': t, onclick: () => { dlg.tab = t; this.renderDialog(); } }, t)));
     let page;
     const folder = (x) => `${d.domain}/${x.dn.split(',').slice(1).filter((p) => /^(OU|CN)=/.test(p)).map((p) => p.slice(3)).reverse().join('/')}`;
     const memberTable = (names, label) => h('table', { class: 'dlg-table' }, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'Active Directory Domain Services Folder')),

@@ -33,7 +33,7 @@ export class Overlay {
     this.c.add([dim, frame, stand, foot, led, close]);
 
     // The HTML screen.
-    this.root = h('div', { class: 'screen', id: `screen-${name}`, role: 'dialog', 'aria-label': name });
+    this.root = h('div', { class: 'screen', id: `screen-${name}`, role: 'dialog', 'aria-modal': 'true', tabindex: '-1', 'aria-label': name.charAt(0).toUpperCase() + name.slice(1) });
     this.root.style.width = `${this.sw}px`;
     this.root.style.height = `${this.sh}px`;
     document.body.append(this.root);
@@ -73,6 +73,7 @@ export class Overlay {
 
   open(onClose) {
     this.onClose = onClose;
+    this.prevFocus = document.activeElement;
     this.isOpen = true;
     this.scene.sound?.play('select');
     this.c.setVisible(true);
@@ -85,6 +86,8 @@ export class Overlay {
     kb.enabled = false;
     kb.disableGlobalCapture();
     this.onOpen?.();
+    // Move focus into the screen unless a subclass already did (Terminal/Search focus on a timer and win).
+    if (!this.root.contains(document.activeElement)) (this.root.querySelector('[data-app], button, input') || this.root).focus?.({ preventScroll: true });
   }
 
   close() {
@@ -98,7 +101,13 @@ export class Overlay {
     kb.enabled = true;
     kb.enableGlobalCapture();
     kb.resetKeys();
-    document.activeElement?.blur?.();
+    // Give focus back to where it was, but never to a text field: Phaser reads keys from window, so
+    // typing-capable focus would swallow nothing yet look wrong; blur instead for those.
+    const back = this.prevFocus;
+    this.prevFocus = null;
+    const typing = back && (/^(INPUT|TEXTAREA|SELECT)$/.test(back.tagName) || back.isContentEditable);
+    if (back && !typing && back !== document.body && document.contains(back) && !this.root.contains(back)) back.focus?.({ preventScroll: true });
+    else document.activeElement?.blur?.();
     this.onCloseInternal?.();
     const cb = this.onClose;
     this.onClose = null;

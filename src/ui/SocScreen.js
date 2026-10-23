@@ -109,7 +109,7 @@ export class SocScreen extends Overlay {
 
   render() {
     const tab = (id, label) =>
-      h('button', { type: 'button', role: 'tab', class: `tab${this.view === id || (id === 'overview' && this.view === 'alert') ? ' on' : ''}`, 'data-tab': id, onclick: () => this.go(id) }, label);
+      h('button', { type: 'button', role: 'tab', 'aria-selected': (this.view === id || (id === 'overview' && this.view === 'alert')) ? 'true' : 'false', class: `tab${this.view === id || (id === 'overview' && this.view === 'alert') ? ' on' : ''}`, 'data-tab': id, onclick: () => this.go(id) }, label);
     clear(this.tabs).append(tab('overview', 'Incident Review'), tab('search', 'Search'), tab('case', this.caseFile ? 'Investigation ✓' : 'Investigation'));
     clear(this.main);
     if (this.view === 'overview') this.renderOverview();
@@ -214,6 +214,7 @@ export class SocScreen extends Overlay {
         type: 'button',
         class: 'iplookup',
         title: `Look up ${ip}`,
+        'aria-label': `Look up IP ${ip}`,
         'data-ip': ip,
         onclick: (e) => {
           e.stopPropagation();
@@ -409,6 +410,7 @@ export class SocScreen extends Overlay {
         type: 'button',
         class: `bar${this.bucket && this.bucket.from === b.from ? ' sel' : ''}`,
         title: `${b.count} event${b.count === 1 ? '' : 's'} · ${hms(b.from % 86400)}-${hms(b.to % 86400)}`,
+        'aria-label': `${b.count} event${b.count === 1 ? '' : 's'} · ${hms(b.from % 86400)}-${hms(b.to % 86400)}`,
         style: { height: `${b.count ? Math.max(3, Math.round((b.count / max) * 38)) : 1}px` },
         onclick: () => {
           this.bucket = this.bucket && this.bucket.from === b.from ? null : { from: b.from, to: b.to };
@@ -526,7 +528,7 @@ export class SocScreen extends Overlay {
     const row = h(
       'div',
       { class: `row${isFlagged ? ' flagged' : ''}${open ? ' open' : ''}`, role: 'row', 'data-log': e.id, 'data-key': e.key || null },
-      h('button', { type: 'button', class: 'flag', 'aria-pressed': String(isFlagged), title: isFlagged ? 'Remove from the investigation' : 'Add to the investigation (evidence)', onclick: () => this.toggleFlag(e) }, '⚑'),
+      h('button', { type: 'button', class: 'flag', 'aria-label': 'Flag as evidence', 'aria-pressed': String(isFlagged), title: isFlagged ? 'Remove from the investigation' : 'Add to the investigation (evidence)', onclick: () => this.toggleFlag(e) }, '⚑'),
       h('button', { type: 'button', class: 'exp', 'aria-expanded': String(open), 'aria-label': open ? 'Collapse event' : 'Expand event', onclick: toggle }, open ? '▾' : '▸'),
       h('span', { class: 'time mono' }, h('div', {}, e.splunkTime.split(' ')[0]), h('div', {}, e.splunkTime.split(' ').slice(1).join(' '))),
       h('div', { class: 'evt' },
@@ -561,8 +563,8 @@ export class SocScreen extends Overlay {
       h('td', { class: 'ty' }, type),
       h('td', { class: 'k' }, k),
       h('td', { class: 'v' }, [].concat(vals).map((v) => h('div', {}, h('button', { type: 'button', class: 'val', title: `Add ${k}=${v} to the search`, onclick: () => this.addTerm(k, v) }, String(v)),
-        h('button', { type: 'button', class: 'pm', title: 'Add to search', onclick: () => this.addTerm(k, v) }, '＋'),
-        h('button', { type: 'button', class: 'pm', title: 'Exclude from search', onclick: () => this.addTerm(k, v, true) }, '－')))),
+        h('button', { type: 'button', class: 'pm', 'aria-label': 'Add to search', title: 'Add to search', onclick: () => this.addTerm(k, v) }, '＋'),
+        h('button', { type: 'button', class: 'pm', 'aria-label': 'Exclude from search', title: 'Exclude from search', onclick: () => this.addTerm(k, v, true) }, '－')))),
       h('td', { class: 'ac' }, '▾'));
     return h('table', { class: 'evt-fields' },
       h('tr', {}, h('th', {}, 'Type'), h('th', {}, 'Field'), h('th', {}, 'Value'), h('th', {}, 'Actions')),
