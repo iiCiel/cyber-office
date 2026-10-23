@@ -20,7 +20,8 @@ DONE, pushed and live at https://iiciel.github.io/cyber-office/ :
 - Day-picker: on the title screen, press 1-5. F opens Case Files.
 - Oct 20 (dcda50e): procedural music (src/game/music.js, localStorage cyber-office:music), compact phone screens (placeOnCanvas in src/ui/dom.js), prefers-reduced-motion.
 
-Oct 23 overnight: on branch overnight-2026-10-23, 7 commits (3b5b310..63d0ba4). NOT pushed and NOT live. To ship: git checkout main && git merge overnight-2026-10-23 && git push origin main, then run the live smoke.
+Oct 23 overnight: on branch overnight-2026-10-23, commits 3b5b310..cb725d2 plus notes. NOT pushed and NOT live.
+- Oct 23 fix-up (cb725d2): the SolarWinds autumn entries had lone backslashes ('NT AUTHORITYSYSTEM', 'Inbox'). They are now NT AUTHORITY\SYSTEM and \Inbox / \Sent Items. A case unit test now catches lost backslashes in any case. The report card also shows the difficulty line when the hint was used and the player switched back to Analyst. To ship: git checkout main && git merge overnight-2026-10-23 && git push origin main, then run the live smoke.
 - DST fix. src/game/siemfmt.js easternOffset() uses the real US Eastern rules: since 2007, 2nd Sunday of March to 1st Sunday of November at 2 AM; before that, 1st Sunday of April to last Sunday of October. Every existing day and case gives byte-identical logs (full dump before and after).
 - The SolarWinds replay now includes beacons from Oct 12 to Dec 9 and 2 November mail-read sessions. They are appended at the end of generateLogs so the earlier DGA names and jitter stay the same.
 - SolarWinds facts were checked against the FireEye CSVs in mandiant/sunburst_countermeasures:
@@ -62,7 +63,7 @@ Deploy: git push origin main (Actions takes about 35 s), then node scripts/smoke
 - Phone mode has only been tested in an emulated viewport.
 - smoke-week Day 4 can flake (not reproduced in 2 runs on Oct 23).
 - Pacing has not been playtested by a human.
-- Some files are CRLF and some LF. Edit with newline-aware tools. Apostrophes inside single-quoted JS strings broke twice: avoid them or escape them.
+- Some files are CRLF and some LF. Edit with newline-aware tools. Apostrophes inside single-quoted JS strings broke twice: avoid them or escape them. Backslashes too: write two in JS source. The Bash tool's heredocs collapse \\ to \, so use the Write tool or node with String.fromCharCode(92) for edits that contain backslashes.
 
 ###### Open questions (for Soliman)
 - Game title? Own art or free packs? Keep the character names?
