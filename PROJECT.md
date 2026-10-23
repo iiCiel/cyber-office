@@ -1,6 +1,6 @@
 # Project: Cyber Office
 
-> Project file from the Command Center, Oct 20, 2026, 11:42 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
+> Project file from the Command Center, Oct 21, 2026, 9:00 AM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
 
 ## Goal
 A pixel-art browser game where you live a real day as a junior security analyst: walk the office, read real-looking email, dig through logs, deal with coworkers, and watch your choices play out. Not a quiz and not a wall of text. Built in public as a portfolio piece for internship applications.
@@ -72,10 +72,12 @@ Tests:
 - Keep or rename the 'splunk>' look-alike branding?
 
 ## Recent runs (newest first)
-### Oct 20, 2026: done
+### Oct 20, 2026: done, supervisor grade B
 - He asked: ok go do improvements, improve on everything
 - Did: You asked me to improve everything, so I did four things. All of them are live: - **SolarWinds 2020 (SUNBURST) case:** the last locked card is now playable, so Case Files has 15 cases. - **Background music:** made in code, with 4 moods (menus, workday, alerts, report card). You can turn it off in the P menu. - **Phones:** in landscape, the computer, report, Case Files and glossary screens now fill the whole screen, so text is about 2x bigger. A "Stand up" button sits at the bottom. - **Reduced motion:** if your device asks for less motion, alerts no longer shake the screen. Tests: 126/126 unit tests pass. In Chrome, Day 1 (67 checks), the worst day (15) and the full week (37) all pass. The live site passed all 15 cases (251 checks) and Day 1 (67). Committed and pushed as dcda50e.
 - Where it stood: Everything is live at https://iiciel.github.io/cyber-office/: the 5-day week, 15 Case Files and labs, plus music and phone-friendly screens. The only milestone left is M7, the playtest, which is waiting on you to pick testers.
+- Problems: The scope was 'improve everything' but the run did only four items. It also did not pick a single milestone as PROJECT.md says.; The Case Files smoke test has no single-case filter on the live site, so it re-ran all 15 cases. Two commands hit timeouts and were moved to the background, costing about 10 minutes.; The live full-case run took about 8 minutes just to prove one new case.; The sub-agent had only a partial view of the shared code, and wrote some log entries that needed fixes (the AD thumbnail log, a query count) before the tests passed.; It closed a stale 'close_for_you' item with a vague reason.
+- Advice for the next run: Run only the new case's smoke test (ONLY=<id>) during development, then one full pass before pushing. Test every claimed number in the transcript, including the worst-day run, and show its output. For accessibility changes, test them with the setting actually on. Keep the music toggle obvious and consider defaulting it off.
 ### Oct 19, 2026: done, supervisor grade B
 - Did: No new milestone this run: the only one left is M7 (the playtest), and it's waiting on you to pick testers. To make that easy, I wrote PLAYTEST.md: a message you can paste to testers, what to watch for, 8 questions and a results table. I also checked the live site in Chrome. Unit tests: "pass 111, fail 0". Day 1: "SMOKE PASS (67 checks)". All 14 cases: "CASE PASS (228 checks)". The last 5 GitHub deploys passed on the new Ubuntu 26 runner. Committed and pushed as de09c3c, and the site returns 200. Changes to PROJECT.md: I removed 2 issues that are no longer true ("Case Files not deployed yet" and "check the Ubuntu 26 run"), rewrote the old real-company-names question, and updated the test counts. Nothing was reverted.
 - Where it stood: Everything built so far is live at https://iiciel.github.io/cyber-office/: the 5-day week plus 14 Case Files and labs. The only milestone left is M7, a playtest with 2-3 people, and the kit for it is ready.
