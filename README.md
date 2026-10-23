@@ -42,6 +42,7 @@ Each decision is graded with what happened and why, a cost to the company, and t
 - Title screen: click a weekday or press 1-5 to jump straight to it
 - Phones: play in landscape. On small screens the computer, report and Case Files screens fill the whole display so text stays readable, with a Stand up button at the bottom.
 - Reduced motion: if your OS asks for reduced motion, alerts don't shake the screen.
+- Keyboard and screen readers: the computer screens take focus when they open and give it back when they close. Every button has a name, the AD Users and Computers tree works with Tab, Enter and the arrow keys, and text meets WCAG AA contrast.
 - Title screen: F opens Case Files
 
 ## Run it locally

@@ -20,7 +20,7 @@ DONE, pushed and live at https://iiciel.github.io/cyber-office/ :
 - Day-picker: on the title screen, press 1-5. F opens Case Files.
 - Oct 20 (dcda50e): procedural music (src/game/music.js, localStorage cyber-office:music), compact phone screens (placeOnCanvas in src/ui/dom.js), prefers-reduced-motion.
 
-Oct 23: on branch overnight-2026-10-23, commits 3b5b310..c71f8e6. NOT pushed and NOT live. To ship: git checkout main && git merge overnight-2026-10-23 && git push origin main, then run the live smoke.
+Oct 23: on branch overnight-2026-10-23, commits 3b5b310..97b8a24 (plus notes). NOT pushed and NOT live. To ship: git checkout main && git merge overnight-2026-10-23 && git push origin main, then run the live smoke.
 - DST fix. src/game/siemfmt.js easternOffset() uses the real US Eastern rules: since 2007, 2nd Sunday of March to 1st Sunday of November at 2 AM; before that, 1st Sunday of April to last Sunday of October. Existing logs are byte-identical.
 - The SolarWinds replay now includes beacons from Oct 12 to Dec 9 and 2 November mail-read sessions. They are appended at the end of generateLogs.
 - SolarWinds facts checked against the FireEye CSVs (mandiant/sunburst_countermeasures):
@@ -37,6 +37,17 @@ Oct 23: on branch overnight-2026-10-23, commits 3b5b310..c71f8e6. NOT pushed and
   - The SolarWinds autumn entries had lone backslashes. They now read NT AUTHORITY\SYSTEM and \Inbox / \Sent Items.
   - tests/helpers/caseChecks.js catches lost backslashes in every case.
   - The report card keeps the hint note after switching back to Analyst. smoke-difficulty covers this path.
+- Round 2 (Oct 23 morning, commits 6d8b7ab, bd3aafc, 97b8a24 + notes):
+  - BIG FIX (bd3aafc): the game clock froze on the 2nd day started in the same tab (Next day, Restart this day, a day jump, a 2nd case). This bug came from the new difficulty code, so it is only on this branch, never live. Cause: Phaser keeps a destroyed timer's delay, so applyDifficulty() thought the clock was already running. Fix: clockEvent = null in OfficeScene.create(). smoke-difficulty now checks the clock ticks by itself after "Start Tuesday". That check failed on the old code (537 -> 537) and passes now (537 -> 539).
+  - Also in bd3aafc: a finished day keeps the level it was played on, and saved junk like "toString" falls back to Analyst (unit test).
+  - Midnight Blizzard (6d8b7ab): "access removed on or about Jan 13, 2024" is now verified against the Jan 19, 2024 8-K. The filing is added to the sources.
+  - Accessibility (97b8a24):
+    - The AD Users and Computers tree works with Tab, Enter, Space and the arrow keys, checked by hand in Chrome.
+    - Computer screens take focus when they open. When they close, focus goes back, but never into a text field, so the game keys still work (checked).
+    - Icon buttons have names.
+    - The +/- field buttons work with the keyboard.
+    - The mail list uses real buttons.
+    - Secondary text and badges reach WCAG AA contrast.
 
 Deploy: git push origin main (Actions about 35 s), then node scripts/smoke.mjs https://iiciel.github.io/cyber-office/ smoke-out/live . Repo: https://github.com/iiCiel/cyber-office . PROJECT.md on disk is the source of truth: never revert it.
 
@@ -44,25 +55,35 @@ Deploy: git push origin main (Actions about 35 s), then node scripts/smoke.mjs h
 - [x] Concept, M1-M6, Days 2-5, polish, VT323 font, Case Files (15), realism pass, day-picker
 - [x] Oct 20: SolarWinds case, music, phone screens, reduced motion
 - [x] Oct 23: DST fix, fact fixes, difficulty setting, fix-up (on the branch, waiting for merge and push)
+- [x] Oct 23 round 2: clock-freeze fix, Midnight Blizzard date verified, accessibility pass, all suites re-run on the branch (waiting for merge and push)
 - [ ] M7 Playtest with 2-3 people (BLOCKED: Soliman picks testers). Kit: PLAYTEST.md.
 - [ ] Later: a second week, original art, real-device mobile test
 
-###### Tests (Oct 23 fix-up results)
-- npm test: 130/130.
+###### Tests (Oct 23 round 2, ALL re-run today on the final branch build 97b8a24)
+- npm test: 130/130 (the junk-value checks were added inside an existing test).
 - Browser smokes, each taking [url] [outdir]:
   - smoke: 67
   - smoke:bad: 15
-  - smoke:week: 37
-  - smoke:difficulty: 14
-  - smoke:case: 251 for all 15 cases (last night, smoke-out/case-all.log). Today only SolarWinds was re-run: ONLY=solarwinds-2020, 17 checks.
+  - smoke:week: 37. It ran 3 times in a row on bd3aafc plus once on the final build, with no Day 4 flake.
+  - smoke:difficulty: 15 (new: the clock ticks after Next day)
+  - smoke:case: 251 for all 15 cases, 0 FAIL. It passed 3 times today:
+    - on c71f8e6 (smoke-out/case-branch.log)
+    - on bd3aafc (smoke-out/case-r2.log)
+    - on the final build (smoke-out/case-final.log)
+- Single case: ONLY=<case id> (the AD lab id is halcyon-ad-2026).
 - Local test build: npx vite build --outDir smoke-out/dist-mine, then npx vite preview --outDir smoke-out/dist-mine --port 4180.
 
 ###### Issues
 - The SolarWinds ADFS key-read log shape is a reconstruction (disclaimed).
-- Midnight Blizzard's "access removed about Jan 13" line is unverified (hedged).
-- Microsoft, MSRC, SEC and GeekWire return 403 to scripts.
+- Microsoft, MSRC, SEC and GeekWire return 403 to scripts. Web search still finds the text: that is how the 8-K was checked.
 - Phone mode has only been tested in an emulated viewport.
-- smoke-week Day 4 can flake (not seen lately).
+- smoke-week Day 4 used to flake: 4 clean runs today. Remove this issue if it stays clean.
+- Smokes that move the clock with tickMinute() can hide real-time clock bugs. Keep the real-time check in smoke-difficulty.
+- Accessibility leftovers (small):
+  - Some grey text is still below AA: .statusbar .jobs, .fcard .x, .meta .lookup, .evt-fields td.ty, .empty, .tnum (#7d8a96 / #6c7590).
+  - There is no focus trap in the overlays.
+  - index.html blocks pinch-zoom (user-scalable=no). That is a game trade-off, so it is in Open questions.
+- Report card records only the LAST difficulty of the day: switching Trainee -> Analyst mid-day (without opening the hint) shows no level line.
 - Pacing has not been playtested by a human.
 - Some files are CRLF and some LF. Watch for apostrophes in single-quoted JS strings. Backslashes need two in JS source. The Bash tool's heredocs collapse \\ to \, so for edits with backslashes use the Write/Edit tools or node with String.fromCharCode(92).
 
@@ -72,7 +93,9 @@ Deploy: git push origin main (Actions about 35 s), then node scripts/smoke.mjs h
 - Keep or rename the 'splunk>' look-alike?
 - Should music default to on (current) or off?
 - Are Trainee and Senior paced right? Should using the hint lower the score?
-- Merge overnight-2026-10-23 and push?
+- Merge overnight-2026-10-23 and push? (All suites pass on it. It fixes a clock bug that exists only on the branch, so do NOT cherry-pick 7b37a84 (difficulty) without bd3aafc.)
+- Allow pinch-zoom on phones (an accessibility win, but it may fight the game canvas)?
+- Should the report card show "Trainee" if you used it at any point in the day, not just at the end?
 
 ## Recent runs (newest first)
 ### Oct 23, 2026: done
