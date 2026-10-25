@@ -20,7 +20,7 @@ DONE, pushed and live at https://iiciel.github.io/cyber-office/ :
 - Day-picker: on the title screen, press 1-5. F opens Case Files.
 - Oct 20 (dcda50e): compact phone screens, prefers-reduced-motion. (The procedural music from this commit was removed on Oct 23, see below.)
 
-Oct 23: on branch overnight-2026-10-23, commits 3b5b310 onward (see git log main..overnight-2026-10-23; latest code commit 1c40d9c). NOT pushed and NOT live. To ship: git checkout main && git merge overnight-2026-10-23 && git push origin main, then node scripts/smoke.mjs https://iiciel.github.io/cyber-office/ smoke-out/live
+Oct 23: on branch overnight-2026-10-23, commits 3b5b310 onward (see git log main..overnight-2026-10-23; latest code commit c812800). NOT pushed and NOT live. To ship: git checkout main && git merge overnight-2026-10-23 && git push origin main, then node scripts/smoke.mjs https://iiciel.github.io/cyber-office/ smoke-out/live
 - DST fix (src/game/siemfmt.js easternOffset, real US Eastern rules). The SolarWinds replay now has its Oct-Dec beacons and November mail reads.
 - Fact fixes: SolarWinds hashes and domains (checked against the FireEye CSVs). The Change Healthcare "March 13" claim was removed.
 - Difficulty setting (src/game/difficulty.js, localStorage cyber-office:difficulty):
@@ -48,6 +48,11 @@ Oct 23: on branch overnight-2026-10-23, commits 3b5b310 onward (see git log main
   - Sound clears the old cyber-office:music saved key once. Sound effects and the M mute stay.
   - Tests: the 3 music unit tests became 1 "music is gone" test. smoke-difficulty checks there is no Music text on the title or in the P menu.
 
+- Oct 25 (Soliman asked: "add the php breach that just happened" + "make the main menu and case files page look nicer, it looks like ai slop"). On overnight-2026-10-23, not live:
+  - c812800: NEW CASE php2shell-2026 (src/cases/php2shell2026/). PHP2Shell = CVE-2026-109618 + CVE-2026-109619, PHP runtime RCE, disclosed Oct 21 2026, fixed in 8.5.12/8.4.27/8.3.36/8.2.35. Fictional victim (Halcyon agent portal on mod_php 8.2.34, claims app on FPM 8.3.35, EOL 7.4 intranet). Facts from php.net, GHSA advisories, Wiz, AWS MadPot blog, VirusTotal, THN, NCSC, NSA. As of Oct 25 NO publicly confirmed breaches (disclaimer says so). It is first in Case Files with a "New" tag (caseFile.fresh: true). getCase() fallback is now uber2022. New 'httpd-error' sourcetype in siemfmt.js. tests/php2shell.test.js (9 tests), scripts/case-plans/php2shell-2026.mjs.
+  - a637d0e: REDESIGN. Title (src/scenes/TitleScene.js): real office map dimmed at 2x, left-aligned game menu (arrows/W/S/hover move, Enter picks; C/N/F/D/1-5 shortcuts), week on a whiteboard "SOC rota" (rows named day-1..5), one light-flicker intro (skipped with reduced motion). Matrix rain and green glow are gone. Case Files (CaseFilesScene.js + screen.css "Case Files: a steel filing drawer"): hanging manila folders with staggered tabs, blue folders = labs, red stamp = best grade, "New" sticker. Same test hooks (.case-card[data-case], .tag, .best, [data-action=open-case], .topic). Design screenshots in smoke-out/design/.
+  - Update the case once more is known (breaches confirmed? CISA KEV?). Re-check sources before claiming anything new.
+
 ###### Milestones
 - [x] Concept, M1-M6, Days 2-5, polish, VT323 font, Case Files (15), realism pass, day-picker
 - [x] Oct 20: SolarWinds case, music, phone screens, reduced motion
@@ -56,17 +61,18 @@ Oct 23: on branch overnight-2026-10-23, commits 3b5b310 onward (see git log main
 - [x] Oct 23 fix-up 2: AD tree ArrowUp/ArrowDown/Home/End
 - [x] Oct 23 round 3: focus trap, mail-list focus, title day-picker fix, difficulty storage fallback, contrast pass, smoke:a11y
 - [x] Oct 23: background music removed at Soliman's request (do not add it back)
+- [x] Oct 25: PHP2Shell case (16 cases now), title + Case Files redesign
 - [ ] M7 Playtest with 2-3 people (BLOCKED: Soliman picks testers). Kit: PLAYTEST.md.
 - [ ] Later: a second week, original art, real-device mobile test
 
-###### Tests (Oct 23, music removal: ALL suites re-run on build 6026d93, logs in smoke-out/nomusic-*.log)
-- npm test: 143/143 (3 music tests replaced by 1)
+###### Tests (Oct 25: ALL suites re-run on build c812800, logs in smoke-out/final-*.log)
+- npm test: 166/166 (PHP2Shell 9 new, contrast pairs 10 new)
 - smoke: 71
 - smoke:bad: 15
 - smoke:week: 37 (5th clean run, no Day 4 flake)
 - smoke:difficulty: 17
-- smoke:a11y: 11
-- smoke:case: 253/253, run alone. Once, while 6 suites ran in parallel, it timed out on Equifax (the terminal icon was "not visible"). Equifax alone passed 16/16 and the full rerun was clean, so run smoke:case on its own.
+- smoke:a11y: 15 (4 new title-menu keyboard checks)
+- smoke:case: 269/269 (16 cases), run alone. Once, while 6 suites ran in parallel, it timed out on Equifax (the terminal icon was "not visible"). Equifax alone passed 16/16 and the full rerun was clean, so run smoke:case on its own.
 - To test one case: ONLY=<id>.
 - Local build: npx vite build --outDir smoke-out/dist-mine, then npx vite preview --outDir smoke-out/dist-mine --port 4180 --strictPort.
 
@@ -93,6 +99,7 @@ Oct 23: on branch overnight-2026-10-23, commits 3b5b310 onward (see git log main
 - Merge overnight-2026-10-23 and push? (Don't cherry-pick 7b37a84 without bd3aafc.)
 - Allow pinch-zoom on phones?
 - Should the report card show Trainee if it was used at any point in the day?
+- Do you like the new title screen (office + whiteboard) and the folder-drawer Case Files?
 
 ## Recent runs (newest first)
 ### Oct 23, 2026: done
