@@ -79,6 +79,7 @@ export const SOURCETYPES = {
   Security: { index: 'wineventlog', sourcetype: 'WinEventLog:Security', path: 'WinEventLog:Security', style: 'win' },
   nginx: { index: 'web', sourcetype: 'access_combined', path: '/var/log/nginx/access.log', style: 'access' },
   httpd: { index: 'web', sourcetype: 'access_combined', path: '/var/log/httpd/access_log', style: 'syslog' },
+  'httpd-error': { index: 'web', sourcetype: 'apache:error', path: '/var/log/apache2/error.log', style: 'syslog' },
   iis: { index: 'web', sourcetype: 'ms:iis:auto', path: 'C:\\inetpub\\logs\\LogFiles\\W3SVC1\\u_ex.log', style: 'syslog' },
   modsec: { index: 'web', sourcetype: 'modsec:audit', path: '/var/log/modsec_audit.log', style: 'syslog' },
   'waf-modsec': { index: 'web', sourcetype: 'modsec:audit', path: '/var/log/modsec_audit.log', style: 'syslog' },

@@ -23,10 +23,12 @@ import notpetya2017 from './notpetya2017/index.js';
 import linuxlab2026 from './linuxlab2026/index.js';
 import beclab2026 from './beclab2026/index.js';
 import solarwinds2020 from './solarwinds2020/index.js';
+import php2shell2026 from './php2shell2026/index.js';
 
-export const CASES = [uber2022, mgm2023, colonial2021, target2013, equifax2017, capitalone2019, moveit2023, change2024, adlab2026, awslab2026, midnightblizzard2024, notpetya2017, linuxlab2026, beclab2026, solarwinds2020];
+// Newest first: php2shell-2026 is the "just happened" case.
+export const CASES = [php2shell2026, uber2022, mgm2023, colonial2021, target2013, equifax2017, capitalone2019, moveit2023, change2024, adlab2026, awslab2026, midnightblizzard2024, notpetya2017, linuxlab2026, beclab2026, solarwinds2020];
 
-export const getCase = (id) => CASES.find((c) => c.caseFile.id === id) || CASES[0];
+export const getCase = (id) => CASES.find((c) => c.caseFile.id === id) || uber2022; // unknown ids fall back to the first case ever written, not the newest
 
 // On the roadmap: shown as locked cards in the Case Files menu.
 const soon = (id, company, when, title, pitch, tags) => ({ comingSoon: true, caseFile: { id, company, when, title, pitch, tags, difficulty: 'Coming soon' } });
