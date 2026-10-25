@@ -1,6 +1,7 @@
 // Case file: PHP2Shell (CVE-2026-109618 and CVE-2026-109619), October 2026. A recreation of a NEW, real event, built from the
 // public reporting listed in index.js. The victim (Halcyon Mutual) and everything that happens on its servers is fictional:
-// as of Oct 25, 2026 (when this case was written) there were no publicly confirmed breaches.
+// as of Oct 25, 2026 (when this case was written) one breach had been reported (Unit 42, a European government agency) and
+// then walked back the same day: Unit 42 could not confirm initial access came through PHP2Shell.
 //
 // What is REAL (and why the logs look the way they do):
 //   - Both bugs live in the PHP runtime and are reached with ordinary multipart (RFC 1867) POST requests before application

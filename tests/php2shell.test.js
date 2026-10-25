@@ -65,12 +65,22 @@ test('php2shell: source files have no single-backslash mistakes and no stray non
   }
 });
 
-test('php2shell: only real, sourced facts in the real-world parts, and the no-confirmed-breach caveat is present', () => {
+test('php2shell: only real, sourced facts in the real-world parts, and the Unit 42 report and retraction are stated', () => {
   const cf = c.caseFile;
-  assert.match(cf.disclaimer, /no publicly confirmed breaches/i);
+  assert.match(cf.disclaimer, /Unit 42/);
+  assert.match(cf.disclaimer, /could not confirm/);
   assert.match(cf.disclaimer, /October 25, 2026/);
-  assert.ok(cf.realOutcome.some((l) => /no publicly confirmed breaches/i.test(l)));
-  assert.ok(cf.sources.length >= 9);
+  assert.ok(cf.realOutcome.some((l) => /Unit 42/.test(l) && /could not confirm/.test(l)));
+  assert.ok(cf.timeline.some((t) => t.when === 'Oct 25' && /Unit 42/.test(t.what) && /retracts/.test(t.what)));
+  // the old line was wrong once Unit 42 reported a compromise on Oct 25; 4chan had no reliable source; Wiz credits OpenAI, not Codex
+  const all = JSON.stringify(cf);
+  assert.ok(!/no publicly confirmed breaches/i.test(all));
+  assert.ok(!/4chan/i.test(all));
+  assert.ok(!/Codex/.test(all));
+  // every outlet named in the real-world parts has a source entry
+  const srcs = cf.sources.map((x) => x.title + ' ' + x.url).join(' ');
+  for (const name of ['Cloudflare', 'Chainguard', 'VulnCheck', 'watchTowr', 'CrowdStrike', 'JFrog', 'FBI', 'Unit 42', 'BambooHR', 'Wikipedia']) assert.ok(srcs.includes(name), 'source for ' + name);
+  assert.ok(cf.sources.length >= 19);
   assert.ok(cf.tags.includes('Zero-day') && cf.tags.includes('PHP') && cf.tags.includes('Web shell') && cf.tags.includes('Patch management'));
   for (const id of ['T1190', 'T1505.003', 'T1059.004', 'T1105']) assert.ok(cf.attack.some((a) => a.id === id), id);
 });

@@ -16,6 +16,8 @@ Five days at Halcyon Mutual Insurance, one attacker group, and choices that carr
 
 ### Case Files: replay real breaches
 Each case rebuilds a documented incident from public reports: the same way in, the same mistakes, the same clues in the logs. You're the analyst on shift. At the end you see what really happened: the real timeline, the company's actual failures, the MITRE ATT&CK techniques with fixes, the sources, and a resume line you've honestly earned ("investigated a simulated recreation of...").
+Sixteen cases in all: 12 real breaches and 4 labs.
+- **PHP2Shell, Oct 2026 (new):** two critical bugs in the PHP runtime itself (CVE-2026-109618/109619), exploitation attempts from Oct 17, four days before the fix. Written four days after disclosure, so it says plainly what is and is not confirmed (one government breach was reported on Oct 25, then Unit 42 said it could not tie it to PHP2Shell). The victim company is fictional.
 - **Uber, Sept 2022:** a bought contractor password, 50+ MFA pushes, a WhatsApp message from "IT", and an admin password hardcoded in a PowerShell script on a network share.
 - **MGM Resorts, Sept 2023:** a help-desk phone call, an Okta super admin, a rogue identity provider, and encrypted hypervisors.
 - **Colonial Pipeline, May 2021:** a forgotten VPN account with no MFA, DarkSide ransomware, and the decision to shut down the pipeline.
@@ -26,6 +28,8 @@ Each case rebuilds a documented incident from public reports: the same way in, t
 Cards marked LAB are fictional incidents at Halcyon Mutual built from documented techniques:
 - **The service account that knew too much (Active Directory):** a macro phish, Kerberoasting (event 4769, RC4), a PsExec hop, an LSASS dump, DCSync (event 4662) and a hidden Domain Admin. Investigate in Windows Security and Sysmon logs, PowerShell with the AD cmdlets, and AD Users and Computers.
 - **The key on GitHub (AWS):** an exposed IAM access key, miners in eight regions, a backdoor admin user created before AWS's quarantine policy landed, S3 exfiltration and CloudTrail switched off. Investigate in CloudTrail, GuardDuty and GitHub audit JSON, with the `aws` CLI and `jq`.
+- **The upload that uploaded itself (Linux):** a file upload turns into root on a web server, stolen AWS keys and 180 MB out, read in nginx, auth.log, sudo and auditd logs.
+- **The invoice that changed banks (business email compromise):** a real MFA prompt approved on a fake page, a kept session cookie, a hidden inbox rule and a lookalike "new bank details" email.
 
 ### Logs look like the real products
 The SOC console is modeled on Splunk Enterprise Security: SPL search (`index=aws eventName=CreateUser | stats count by userIdentity.userName`), a timeline, the fields sidebar with Selected fields, JSON trees, and Windows events in Splunk's WinEventLog layout with the exact Microsoft message text. Windows Security, System, PowerShell and Sysmon events, AWS CloudTrail and GuardDuty, Okta, Microsoft Entra ID and Microsoft 365 audit logs are all written in the vendors' real formats.
