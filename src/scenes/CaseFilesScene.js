@@ -18,37 +18,56 @@ export class CaseFilesScene extends Phaser.Scene {
     const bests = caseBests();
     const sound = this.game.registry.get('sound');
 
-    const card = (c) => {
+    // Each case is a hanging folder in a drawer. Tabs step left, middle, right like a real drawer so
+    // neighbouring folders stay readable; labs are blue folders (made-up company), a grade is a red stamp.
+    const card = (c, i) => {
       const cf = c.caseFile;
       const best = bests[cf.id];
+      const lab = cf.kind === 'lab';
       return h(
-        'div',
-        { class: `case-card${c.comingSoon ? ' soon' : ''}`, 'data-case': cf.id },
-        h('div', { class: 'when' }, cf.when, cf.kind === 'lab' ? h('span', { class: 'labtag' }, 'LAB · fictional') : null),
-        h('div', { class: 'co' }, `${cf.company}: ${cf.title}`),
-        h('p', { class: 'sub' }, cf.pitch),
-        h('div', { class: 'tags' }, cf.tags.map((t) => h('button', { type: 'button', class: 'tag', title: `Show every case about ${t}`, onclick: () => setQuery(t) }, t))),
+        'article',
+        { class: `case-card${lab ? ' lab' : ''}${cf.fresh ? ' fresh' : ''}${c.comingSoon ? ' soon' : ''}`, 'data-case': cf.id, style: `--tab:${i % 3}` },
         h(
           'div',
-          { class: 'row' },
-          h('span', { class: 'best' }, best ? `Best: ${best.grade} (${best.pct}%)` : `Difficulty: ${cf.difficulty}`),
-          c.comingSoon
-            ? h('button', { type: 'button', disabled: true }, 'Coming soon')
-            : h('button', { type: 'button', 'data-action': 'open-case', onclick: () => this.open(cf.id) }, best ? '↻ Replay' : '▶ Open case'),
+          { class: 'tab' },
+          h('span', { class: 'when' }, lab ? String(cf.when).replace(/\s*·\s*Lab$/i, '') : cf.when),
+          lab ? h('span', { class: 'labtag' }, 'Practice lab') : null,
+          cf.fresh ? h('span', { class: 'newtag' }, 'New') : null,
+        ),
+        h(
+          'div',
+          { class: 'folder-body' },
+          h(
+            'div',
+            { class: 'main' },
+            h('h2', { class: 'co' }, cf.company),
+            h('p', { class: 'ttl' }, cf.title),
+            h('p', { class: 'sub' }, cf.pitch),
+            h('div', { class: 'tags' }, cf.tags.map((t) => h('button', { type: 'button', class: 'tag', title: `Show every case about ${t}`, onclick: () => setQuery(t) }, t))),
+          ),
+          h(
+            'div',
+            { class: 'side' },
+            best ? h('div', { class: 'stamp', 'aria-hidden': 'true' }, best.grade) : null,
+            h('span', { class: 'best' }, best ? `Best: ${best.grade} (${best.pct}%)` : `Level: ${cf.difficulty}`),
+            c.comingSoon
+              ? h('button', { type: 'button', disabled: true }, 'Coming soon')
+              : h('button', { type: 'button', 'data-action': 'open-case', 'aria-label': `${best ? 'Replay' : 'Open'} ${cf.company}`, onclick: () => this.open(cf.id) }, best ? 'Replay' : 'Open case'),
+          ),
         ),
       );
     };
 
     // Search: filter cards by topic, technique, company... (src/cases/search.js).
     const all = [...CASES, ...COMING_SOON];
-    const cards = all.map((c) => ({ c, el: card(c), hay: caseHaystack(c) }));
+    const cards = all.map((c, i) => ({ c, el: card(c, i), hay: caseHaystack(c) }));
     const grid = h('div', { class: 'grid' }, cards.map((x) => x.el));
     const count = h('div', { class: 'search-count', 'aria-live': 'polite' });
     const empty = h('div', { class: 'search-empty', hidden: true });
     const search = h('input', {
       type: 'search',
       id: 'case-search',
-      placeholder: 'Search cases and labs: Active Directory, AWS, ransomware, phishing, T1558...',
+      placeholder: 'Search: ransomware, AWS, phishing, PHP, T1558...',
       'aria-label': 'Search Case Files',
       autocomplete: 'off',
       spellcheck: 'false',
@@ -63,7 +82,7 @@ export class CaseFilesScene extends Phaser.Scene {
         if (hit) n++;
       }
       for (const b of root.querySelectorAll('.topic')) b.classList.toggle('on', b.dataset.topic.toLowerCase() === q.trim().toLowerCase());
-      count.textContent = q.trim() ? `${n} of ${all.length} match "${q.trim()}"` : `${all.length} cases and labs`;
+      count.textContent = q.trim() ? `${n} of ${all.length} folders match "${q.trim()}"` : `${all.length} folders in the drawer`;
       empty.hidden = n > 0;
       empty.textContent = n ? '' : `Nothing on "${q.trim()}" yet. Try a broader word, or one of the topics above.`;
     };
@@ -80,12 +99,17 @@ export class CaseFilesScene extends Phaser.Scene {
       h(
         'div',
         { class: 'cases' },
-        h('h1', {}, '📁 Case Files'),
         h(
-          'p',
-          { class: 'intro' },
-          'Real breaches, replayed. Each case rebuilds a documented incident from public reports: the same way in, the same mistakes, the same clues in the logs. ',
-          "You're the analyst on shift. Afterwards you see what really happened, what it cost, the MITRE ATT&CK techniques, and how to stop it. Cards marked LAB are invented scenarios built from real techniques and real log formats (Active Directory, AWS).",
+          'header',
+          { class: 'drawer-front' },
+          h('div', { class: 'label-holder' }, h('h1', {}, 'Case Files')),
+          h(
+            'p',
+            { class: 'intro' },
+            'Real breaches, rebuilt from public reports: the same way in, the same mistakes, the same clues in the logs. ',
+            'You work the shift, then see what really happened, what it cost and how it could have been stopped. ',
+            'Blue folders are practice labs: a made-up company, real techniques and real log formats.',
+          ),
         ),
         h(
           'div',
@@ -99,7 +123,7 @@ export class CaseFilesScene extends Phaser.Scene {
         h(
           'footer',
           {},
-          h('button', { type: 'button', 'data-action': 'back', onclick: () => this.back() }, '← Title screen'),
+          h('button', { type: 'button', 'data-action': 'back', onclick: () => this.back() }, 'Back to the title screen'),
         ),
       ),
     );

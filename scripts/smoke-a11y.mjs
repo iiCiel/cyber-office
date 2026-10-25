@@ -73,6 +73,23 @@ const ok = await page.waitForFunction(() => window.__game.scene.isActive('Office
 check('after Quit to title, pressing 3 starts Day 3', ok, String(await ev(() => window.__game.scene.getScene('Office').state?.day)));
 await page.screenshot({ path: `${out}/2-day3.png` });
 
+// Title menu by keyboard: arrows move the cursor (and wrap), Enter picks the selected item.
+await page.keyboard.press('p'); await page.waitForTimeout(400);
+await ev(() => window.__game.scene.getScene('Menu').quit());
+await page.waitForFunction(() => window.__game.scene.isActive('Title'), null, { timeout: 10000 });
+await page.waitForTimeout(500);
+const selLabel = () => ev(() => { const t = window.__game.scene.getScene('Title'); return t.items[t.sel].text.text; });
+const first = await selLabel();
+await page.keyboard.press('ArrowUp'); await page.waitForTimeout(80);
+const wrapped = await selLabel();
+check('title menu: ArrowUp from the top wraps to the last item (difficulty)', /^Difficulty:/.test(wrapped) && first !== wrapped, `${first} -> ${wrapped}`);
+await page.keyboard.press('ArrowUp'); await page.waitForTimeout(80);
+check('title menu: ArrowUp again selects Case Files', await selLabel() === 'Case Files', await selLabel());
+check('title menu: moving the cursor does not leave the title', await ev(() => window.__game.scene.isActive('Title')));
+await page.keyboard.press('Enter');
+const cf = await page.waitForFunction(() => window.__game.scene.isActive('CaseFiles'), null, { timeout: 5000 }).then(() => true, () => false);
+check('title menu: Enter on Case Files opens Case Files', cf);
+
 check('no page errors', errors.length === 0, errors.join(' | '));
 await browser.close();
 console.log(fails ? `A11Y FAIL (${fails} of ${n})` : `A11Y PASS (${n} checks)`);

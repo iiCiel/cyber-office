@@ -54,3 +54,26 @@ for (const [rule, bg] of CHECKS) {
     assert.ok(r >= 4.5, `${rule} ${fg} on ${bg} is ${r.toFixed(2)}:1, needs 4.5:1`);
   });
 }
+
+// The Case Files drawer and the title screen use named colours (CSS variables / Phaser hex), so check the pairs directly.
+// Title: the worst case is the lightest floor tile (#c8c8c8) under the 0.8 dusk overlay (#0e1822), before the left gradient.
+const blend = (fg, bg, a) => '#' + [0, 2, 4].map((i) => Math.round(parseInt(fg.slice(1 + i, 3 + i), 16) * a + parseInt(bg.slice(1 + i, 3 + i), 16) * (1 - a)).toString(16).padStart(2, '0')).join('');
+const TITLE_BG = blend('#0e1822', '#c8c8c8', 0.8);
+const PAIRS = [
+  ['Case Files: folder pitch (ink-soft) on manila', '#54462c', '#ead7a6'],
+  ['Case Files: folder pitch (ink-soft) on a blue lab folder', '#54462c', '#cfdcea'],
+  ['Case Files: tab date (ink) on the manila tab', '#2a241a', '#dcc283'],
+  ['Case Files: tab date (ink) on the blue lab tab', '#2a241a', '#b7cadf'],
+  ['Case Files: Open button text on ink', '#f4ead0', '#2a241a'],
+  ['Case Files: count line on the drawer', '#b7c0c8', '#1e2328'],
+  ['Case Files: search placeholder on the label strip', '#6e6450', '#f4f1e8'],
+  ['Title: hint text on the dimmed office', '#aab6bd', TITLE_BG],
+  ['Title: whiteboard ink on the board', '#33424c', '#e9eef0'],
+  ['Title: whiteboard blue marker on the board', '#1f4fa0', '#e9eef0'],
+];
+for (const [name, fg, bg] of PAIRS) {
+  test(`AA contrast: ${name}`, () => {
+    const r = ratio(fg, bg);
+    assert.ok(r >= 4.5, `${fg} on ${bg} is ${r.toFixed(2)}:1, needs 4.5:1`);
+  });
+}

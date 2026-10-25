@@ -461,25 +461,67 @@
 .resume-line { font-size: 15px; color: #e6e6ea; background: #0c1a12; padding: 10px 12px; border-left: 3px solid #3fe07a; margin: 0 0 8px; user-select: text; }
 .cf-note { color: #9fd8b4; font-size: 12px; margin: 8px 0 0; }
 .cf-disclaimer { color: #8f98b0; font-size: 12px; margin-top: 18px; }
-.cases-screen { background: #0a0e0c; overflow: auto; color: #e6e6ea; }
-.cases { max-width: 860px; margin: 0 auto; padding: 26px 30px 40px; font-size: 14px; }
-.cases h1 { margin: 0 0 4px; font-size: 30px; color: #3fe07a; }
-.cases .intro { color: #9aa3b8; margin: 0 0 18px; }
-.cases .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.case-card { background: #121a16; border: 1px solid #24402f; border-radius: 8px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; }
-.case-card.soon { opacity: 0.5; }
-.case-card .co { font-size: 18px; font-weight: 700; }
-.case-card .when { color: #e8c547; font: 12px Consolas, monospace; }
-.case-card .sub { color: #c8cbd6; margin: 0; flex: 1; }
+/* Case Files: a steel filing drawer of hanging folders. Manila = a real breach, blue = a practice lab,
+   red = a rubber stamp (your best grade) or a "New" sticker. VT323 for anything typed on a label,
+   the UI sans for reading. */
+.cases-screen {
+  --steel: #2c333a; --steel-hi: #3a434c; --steel-lo: #1e2328; --rail: #4b555f;
+  --manila: #ead7a6; --manila-tab: #dcc283; --manila-edge: #b39556;
+  --lab: #cfdcea; --lab-tab: #b7cadf; --lab-edge: #7d98b4;
+  --ink: #2a241a; --ink-soft: #54462c; --stamp: #a3241c;
+  background: var(--steel-lo); overflow: auto; color: #e9ecef;
+  font: 15px/1.5 'Segoe UI', system-ui, -apple-system, Roboto, Arial, sans-serif;
+}
+.cases { max-width: 880px; margin: 0 auto; padding: 22px 34px 40px; }
+.cases .drawer-front { display: grid; grid-template-columns: 250px 1fr; gap: 22px; align-items: center; padding: 18px 22px; background: linear-gradient(var(--steel-hi), var(--steel)); border: 1px solid var(--rail); border-bottom-color: #15191d; }
+.cases .label-holder { border: 3px solid #9aa4ad; border-radius: 3px; background: #f4f1e8; padding: 4px 14px 2px; box-shadow: inset 0 0 0 2px #c9ced3; }
+.cases h1 { margin: 0; font: 46px/1 'VT323', 'Courier New', monospace; color: var(--ink); text-align: center; }
+.cases .intro { color: #d3d9de; margin: 0; font-size: 14px; max-width: 62ch; }
+
+.case-search { margin: 18px 0 8px; display: grid; grid-template-columns: 1fr; gap: 8px; }
+.case-search input { width: 100%; box-sizing: border-box; background: #f4f1e8; color: var(--ink); border: 2px solid #9aa4ad; border-radius: 2px; padding: 8px 12px; font: 22px/1 'VT323', 'Courier New', monospace; outline: none; }
+.case-search input:focus-visible { border-color: #f2c14e; box-shadow: 0 0 0 3px rgba(242, 193, 78, 0.35); }
+.case-search input::placeholder { color: #6e6450; }
+.case-search .topics { display: flex; flex-wrap: wrap; gap: 4px; }
+.case-search .topic { background: var(--steel); color: #e2e6ea; border: 1px solid var(--rail); border-bottom: 3px solid var(--rail); border-radius: 3px 3px 0 0; padding: 2px 12px 0; font: 19px/1.2 'VT323', 'Courier New', monospace; cursor: pointer; }
+.case-search .topic:hover { background: var(--steel-hi); }
+.case-search .topic.on { background: var(--manila-tab); color: var(--ink); border-color: var(--manila-edge); }
+.case-search .search-count { color: #b7c0c8; font-size: 13px; }
+
+/* The drawer: folders hang in a column, tabs stepping across. */
+.cases .grid { display: flex; flex-direction: column; gap: 6px; padding: 14px 14px 18px; background: #171b1f; border: 1px solid var(--rail); border-top: 0; box-shadow: inset 0 10px 18px rgba(0, 0, 0, 0.45); }
+.case-card { --paper: var(--manila); --tabc: var(--manila-tab); --edge: var(--manila-edge); position: relative; padding-top: 26px; }
+.case-card.lab { --paper: var(--lab); --tabc: var(--lab-tab); --edge: var(--lab-edge); }
+.case-card .tab { position: absolute; top: 0; left: calc(var(--tab) * 31% + 10px); height: 27px; min-width: 190px; box-sizing: border-box; display: flex; gap: 10px; align-items: center; padding: 0 12px; background: var(--tabc); border: 1px solid var(--edge); border-bottom: 0; border-radius: 6px 6px 0 0; color: var(--ink); }
+.case-card .when { font: 20px/1 'VT323', 'Courier New', monospace; color: var(--ink); }
+.case-card .labtag, .case-card .newtag { font: 17px/1 'VT323', 'Courier New', monospace; padding: 1px 6px 0; border-radius: 2px; }
+.case-card .labtag { background: #2f5579; color: #fff; }
+.case-card .newtag { background: var(--stamp); color: #fff; }
+.case-card .folder-body { position: relative; display: grid; grid-template-columns: 1fr 150px; gap: 20px; background: var(--paper); border: 1px solid var(--edge); border-radius: 0 2px 2px 2px; padding: 12px 18px 12px 20px; color: var(--ink); box-shadow: 0 3px 0 rgba(0, 0, 0, 0.35); }
+/* A sheet of paper peeking out of the folder. */
+.case-card .folder-body::before { content: ''; position: absolute; top: -5px; right: 34px; width: 38%; height: 5px; background: #f7f4ec; border: 1px solid #c9c2b0; border-bottom: 0; }
+.case-card[style*='--tab:2'] .folder-body::before { right: auto; left: 30px; }
+.case-card.fresh .folder-body { box-shadow: 0 3px 0 rgba(0, 0, 0, 0.35), inset 6px 0 0 var(--stamp); }
+.case-card .co { margin: 0; font: 30px/1 'VT323', 'Courier New', monospace; color: var(--ink); }
+.case-card .ttl { margin: 2px 0 6px; font-weight: 600; font-size: 15px; color: var(--ink); }
+.case-card .sub { margin: 0 0 10px; color: var(--ink-soft); font-size: 14px; max-width: 68ch; }
 .case-card .tags { display: flex; flex-wrap: wrap; gap: 6px; }
-.case-card .tag { font: 11px Consolas, monospace; color: #9fd8b4; border: 1px solid #2a6a45; border-radius: 4px; padding: 1px 6px; }
-.case-card .row { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
-.case-card .best { color: #3fe07a; font-weight: 700; }
-.case-card button { background: #3fe07a; color: #0a0e0c; border: none; border-radius: 4px; padding: 7px 16px; font-weight: 700; }
-.case-card button:hover { background: #6af09a; }
-.case-card button[disabled] { background: #2a3a32; color: #6c7590; cursor: default; }
-.cases footer { margin-top: 20px; display: flex; gap: 14px; align-items: center; }
-.cases footer button { background: none; color: #c8cbd6; border: 1px solid #3f4a6a; padding: 8px 16px; border-radius: 4px; }
+.case-card button.tag { background: transparent; color: var(--ink-soft); border: 1px solid var(--edge); border-radius: 2px; padding: 1px 7px; font: 12px/1.5 'Segoe UI', system-ui, sans-serif; cursor: pointer; }
+.case-card button.tag:hover { background: rgba(42, 36, 26, 0.08); color: var(--ink); }
+.case-card .side { display: flex; flex-direction: column; align-items: flex-end; justify-content: flex-end; gap: 8px; text-align: right; }
+.case-card .stamp { font: 52px/0.9 'VT323', 'Courier New', monospace; color: var(--stamp); border: 3px double var(--stamp); padding: 4px 12px 0; transform: rotate(-9deg); opacity: 0.9; margin: 0 6px auto 0; }
+.case-card .best { color: var(--ink-soft); font-size: 13px; font-weight: 600; }
+.case-card button[data-action=open-case] { background: var(--ink); color: #f4ead0; border: 0; border-radius: 2px; padding: 8px 16px; font: 22px/1 'VT323', 'Courier New', monospace; cursor: pointer; min-width: 120px; }
+.case-card button[data-action=open-case]:hover { background: var(--stamp); }
+.case-card button:focus-visible { outline: 3px solid #f2c14e; outline-offset: 2px; }
+.case-card button[disabled] { background: #8a8170; color: #2a241a; cursor: default; }
+.case-card.soon { opacity: 0.6; }
+.cases footer { margin-top: 18px; display: flex; gap: 14px; align-items: center; }
+.cases footer button { background: var(--steel); color: #e2e6ea; border: 1px solid var(--rail); padding: 6px 16px 4px; border-radius: 2px; font: 21px/1 'VT323', 'Courier New', monospace; cursor: pointer; }
+.cases footer button:hover, .cases footer button:focus-visible { background: var(--steel-hi); outline: 2px solid #f2c14e; }
+@media (max-width: 700px) {
+  .cases .drawer-front { grid-template-columns: 1fr; }
+}
 
 /* Splunk: Format menu, selected-field toggle */
 .pager .fmt { position: relative; }
@@ -563,21 +605,9 @@
 .dlg-table tr.clk:hover { background: #e5f3fb; cursor: default; }
 .dlg-page.attr .attr-scroll { max-height: 300px; overflow: auto; border: 1px solid #d9d9d9; }
 .dlg-page .find-res { margin-top: 8px; max-height: 200px; overflow: auto; }
-.case-card .labtag { margin-left: 8px; padding: 0 6px; border: 1px solid #e8c547; color: #e8c547; border-radius: 3px; font-size: 11px; }
 
-/* Case Files search */
-.case-search { margin: 0 0 14px; display: flex; flex-direction: column; gap: 8px; }
-.case-search input { width: 100%; box-sizing: border-box; background: #0f1512; color: #e6e6ea; border: 1px solid #2a6a45; border-radius: 6px; padding: 9px 12px; font: 14px Consolas, monospace; outline: none; }
-.case-search input:focus { border-color: #3fe07a; box-shadow: 0 0 0 2px rgba(63, 224, 122, 0.25); }
-.case-search input::placeholder { color: #8a968f; }
-.case-search .topics { display: flex; flex-wrap: wrap; gap: 6px; }
-.case-search .topic { background: none; color: #9fd8b4; border: 1px solid #2a6a45; border-radius: 12px; padding: 2px 10px; font: 12px Consolas, monospace; cursor: pointer; }
-.case-search .topic:hover, .case-search .topic.on { background: #1d4a31; color: #e6e6ea; border-color: #3fe07a; }
-.case-search .search-count { color: #6c7590; font-size: 12px; }
-.cases .search-empty { color: #c8cbd6; background: #121a16; border: 1px dashed #24402f; border-radius: 8px; padding: 18px; text-align: center; }
+.cases .search-empty { color: var(--ink); background: var(--manila); border: 1px dashed var(--manila-edge); padding: 18px; text-align: center; font: 22px/1.2 'VT323', 'Courier New', monospace; }
 .case-card[hidden], .cases .search-empty[hidden] { display: none; }
-.case-card button.tag { background: none; color: #9fd8b4; font-weight: normal; padding: 1px 6px; cursor: pointer; }
-.case-card button.tag:hover { background: #1d4a31; color: #e6e6ea; }
 
 /* ---------- small screens ---------- */
 /* Compact mode (see placeOnCanvas in dom.js): the screen fills the viewport; this bar closes it. */
