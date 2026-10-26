@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW_W, VIEW_H, FONT } from '../config.js';
+import { VIEW_W, VIEW_H, BASE_W, BASE_H, FONT } from '../config.js';
 import { h, clear, placeOnCanvas } from '../ui/dom.js';
 import { GLOSSARY } from '../data/glossary.js';
 import { getDifficulty, cycleDifficulty } from '../game/difficulty.js';
@@ -20,13 +20,22 @@ export class MenuScene extends Phaser.Scene {
     // MenuScene is a persistent singleton; a glossary node from a previous launch (removed on
     // shutdown via Restart/Quit) must not be reused, so start fresh each time.
     this.glossaryEl = null;
-    this.add.rectangle(0, 0, VIEW_W, VIEW_H, 0x05050a, 0.78).setOrigin(0).setInteractive();
-    this.panel = this.add.container(VIEW_W / 2, VIEW_H / 2);
+    // The camera centres the 960x720 layout; the dim layer covers the whole window around it.
+    this.dim = this.add.rectangle(-(VIEW_W - BASE_W) / 2, -(VIEW_H - BASE_H) / 2, VIEW_W, VIEW_H, 0x05050a, 0.78).setOrigin(0).setInteractive();
+    this.panel = this.add.container(BASE_W / 2, BASE_H / 2);
     this.render();
 
     this.input.keyboard.on('keydown-ESC', () => this.resume());
     this.input.keyboard.on('keydown-P', () => this.resume());
     this.input.keyboard.on('keydown-M', () => this.toggleMute());
+  }
+
+  // Window resized: lay the menu out again; the glossary, if open, follows the canvas.
+  onViewResize() {
+    this.dim.setPosition(-(VIEW_W - BASE_W) / 2, -(VIEW_H - BASE_H) / 2).setSize(VIEW_W, VIEW_H);
+    this.dim.input?.hitArea.setSize(VIEW_W, VIEW_H);
+    if (this.glossaryEl?.classList.contains('open')) return this.layoutGlossary();
+    this.render();
   }
 
   render() {

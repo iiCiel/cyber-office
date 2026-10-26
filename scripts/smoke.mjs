@@ -35,13 +35,12 @@ const state = () =>
   });
 
 async function clickWorld(wx, wy) {
-  const box = await page.locator('canvas').boundingBox();
-  const v = await page.evaluate(() => {
-    const c = window.__game.scene.getScene('Office').cameras.main.worldView;
-    return { x: c.x, y: c.y };
-  });
-  const k = box.width / 960;
-  await page.mouse.click(box.x + (wx - v.x) * 3 * k, box.y + (wy - v.y) * 3 * k);
+  // World point -> HUD point -> page pixel (the game fills the window at full resolution).
+  const p = await page.evaluate(([x, y]) => {
+    const s = window.__game.scene.getScene('Office').toScreen(x, y);
+    return window.__uiToPage(s.x, s.y);
+  }, [wx, wy]);
+  await page.mouse.click(p.x, p.y);
 }
 
 async function waitArrive(ms = 9000) {
@@ -301,10 +300,8 @@ d = await talkUntilChoice();
 check('the caller pushes back with authority and urgency', /Mark Holloway/.test(d.text), d.text);
 // Click the first choice with the mouse ("Directory number, or it doesn't happen").
 {
-  const pos = await page.evaluate(() => { const t = window.__game.scene.getScene('Office').dialog.choiceItems[0]; return { x: t.x + 30, y: t.y + t.height / 2 }; });
-  const box = await page.locator('canvas').boundingBox();
-  const k = box.width / 960;
-  await page.mouse.click(box.x + pos.x * k, box.y + pos.y * k);
+  const pos = await page.evaluate(() => { const t = window.__game.scene.getScene('Office').dialog.choiceItems[0]; return window.__uiToPage(t.x + 30, t.y + t.height / 2); });
+  await page.mouse.click(pos.x, pos.y);
 }
 await page.waitForTimeout(300);
 for (let i = 0; i < 40 && (await dlg()).open && !/Dana/.test((await dlg()).name); i++) { await page.keyboard.press('e'); await page.waitForTimeout(110); }

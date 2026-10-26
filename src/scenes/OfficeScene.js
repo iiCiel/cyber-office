@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { ZOOM, VIEW_W, VIEW_H, FONT } from '../config.js';
+import { ZOOM, VIEW_W, VIEW_H, UI_SCALE, FONT, fitCamera } from '../config.js';
 import { FOOTPRINTS, NPC_NAMES, CAST, PROPS, DOORS } from '../data/office.js';
 import { DialogBox } from '../ui/DialogBox.js';
 import { ComputerScreen } from '../ui/ComputerScreen.js';
@@ -225,7 +225,6 @@ export class OfficeScene extends Phaser.Scene {
   // ---------- cameras ----------
   buildCameras() {
     const cam = this.cameras.main;
-    cam.setZoom(ZOOM);
     cam.setBounds(0, 0, this.map.widthInPixels, this.map.heightInPixels);
     cam.startFollow(this.player, true, 0.12, 0.12);
     cam.roundPixels = true;
@@ -233,6 +232,28 @@ export class OfficeScene extends Phaser.Scene {
     this.uiCam = this.cameras.add(0, 0, VIEW_W, VIEW_H);
     this.uiCam.ignore(this.worldLayer);
     for (const obj of this.uiLayer) cam.ignore(obj);
+    this.fitView();
+  }
+
+  // Full resolution: the world camera zooms the 16px tiles by a whole number (crisp pixels) close to
+  // ZOOM x UI_SCALE, so the office looks the same size as before, and wider windows see more of it.
+  // The HUD camera maps logical UI space onto the whole canvas.
+  fitView() {
+    const cam = this.cameras.main;
+    const w = this.scale.width;
+    const h = this.scale.height;
+    cam.setViewport(0, 0, w, h);
+    cam.setZoom(Math.max(1, Math.round(ZOOM * UI_SCALE)));
+    if (this.uiCam) fitCamera(this.uiCam);
+  }
+
+  // Window resized: move the HUD, dialog box and computer screens to the new edges.
+  onViewResize() {
+    this.layoutHud?.();
+    this.dialog?.place();
+    this.computer?.place();
+    this.soc?.place();
+    for (const o of [this.crisisFx]) if (o?.active) o.setSize(VIEW_W, VIEW_H);
   }
 
   // ---------- HUD ----------
@@ -312,6 +333,15 @@ export class OfficeScene extends Phaser.Scene {
         .setInteractive({ useHandCursor: true })
         .on('pointerdown', () => this.openMenu()),
     );
+
+    // Anything pinned to the right or bottom edge moves when the window changes size.
+    this.layoutHud = () => {
+      this.notice.setPosition(VIEW_W - 16, 16);
+      this.crisisText.setPosition(VIEW_W / 2, 92);
+      hint.setPosition(VIEW_W - 16, VIEW_H - 14);
+      this.muteBtn.setPosition(VIEW_W - 16, VIEW_H - 40);
+      this.pauseBtn.setPosition(16, VIEW_H - 40);
+    };
 
     this.updateObjective();
   }
@@ -969,8 +999,11 @@ export class OfficeScene extends Phaser.Scene {
   }
 
   toScreen(wx, wy) {
-    const v = this.cameras.main.worldView;
-    return { x: (wx - v.x) * ZOOM, y: (wy - v.y) * ZOOM };
+    // World point -> logical HUD point (the world camera zooms by its own whole-number factor).
+    const cam = this.cameras.main;
+    const v = cam.worldView;
+    const k = cam.zoom / UI_SCALE;
+    return { x: (wx - v.x) * k, y: (wy - v.y) * k };
   }
 
   topOf(t) {

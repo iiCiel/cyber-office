@@ -20,7 +20,7 @@ await page.keyboard.press('d');
 await page.waitForTimeout(150);
 check('D cycles to Senior and does not start the game', (await titleText('title-difficulty'))?.includes('Senior') && await ev(() => window.__game.scene.isActive('Title')));
 check('Senior is saved', await ev(() => localStorage.getItem('cyber-office:difficulty')) === 'senior');
-const box = await ev(() => { const t = window.__game.scene.getScene('Title').children.getByName('title-difficulty'); const c = window.__game.canvas.getBoundingClientRect(); const s = c.width / 960; return { x: c.left + t.getCenter().x * s, y: c.top + t.getCenter().y * s }; });
+const box = await ev(() => { const t = window.__game.scene.getScene('Title').children.getByName('title-difficulty'); const c = t.getCenter(); return window.__uiToPage(c.x, c.y, { center: true }); });
 await page.mouse.click(box.x, box.y); await page.waitForTimeout(150);
 check('clicking the difficulty line cycles it (Senior -> Trainee)', (await titleText('title-difficulty'))?.includes('Trainee'), await titleText('title-difficulty'));
 await page.mouse.click(box.x, box.y); await page.mouse.click(box.x, box.y); await page.waitForTimeout(150);

@@ -7,28 +7,21 @@ export class DialogBox {
     this.scene = scene;
     this.isOpen = false;
 
-    const w = VIEW_W - 80;
-    const h = 130;
-    const x = 40;
-    const y = VIEW_H - h - 24;
-
     this.container = scene.add.container(0, 0).setDepth(100).setVisible(false);
-    const bg = scene.add.rectangle(x, y, w, h, 0x12121c, 0.94).setOrigin(0).setStrokeStyle(3, 0xe6e6ea);
-    this.nameText = scene.add.text(x + 20, y + 14, '', {
+    this.bg = scene.add.rectangle(0, 0, 1, 1, 0x12121c, 0.94).setOrigin(0).setStrokeStyle(3, 0xe6e6ea);
+    this.nameText = scene.add.text(0, 0, '', {
       fontFamily: FONT, fontSize: '22px', fontStyle: 'bold', color: '#e8c547',
     });
-    this.bodyText = scene.add.text(x + 20, y + 46, '', {
-      fontFamily: FONT, fontSize: '28px', color: '#f4f1e8', wordWrap: { width: w - 40 }, lineSpacing: 6,
+    this.bodyText = scene.add.text(0, 0, '', {
+      fontFamily: FONT, fontSize: '28px', color: '#f4f1e8', wordWrap: { width: 100 }, lineSpacing: 6,
     });
-    this.hint = scene.add.text(x + w - 16, y + h - 12, 'E ▸', {
+    this.hint = scene.add.text(0, 0, 'E ▸', {
       fontFamily: FONT, fontSize: '20px', color: '#9aa3b8',
     }).setOrigin(1, 1);
     scene.tweens.add({ targets: this.hint, alpha: 0.2, duration: 500, yoyo: true, repeat: -1 });
 
-    this.container.add([bg, this.nameText, this.bodyText, this.hint]);
-    this.boxX = x;
-    this.boxY = y;
-    this.boxW = w;
+    this.container.add([this.bg, this.nameText, this.bodyText, this.hint]);
+    this.place();
 
     // Choices sit just above the box (or below it, when the box is at the top of the screen).
     this.choiceBox = scene.add.container(0, 0).setDepth(101).setVisible(false);
@@ -38,6 +31,23 @@ export class DialogBox {
       const n = Number(e.key);
       if (n >= 1 && n <= this.choices.length) this.pick(n - 1);
     });
+  }
+
+  // Bottom of the window, centred, at most 1000 wide so lines stay readable on wide screens.
+  // Runs again when the window is resized.
+  place() {
+    const w = Math.min(VIEW_W - 80, 1000);
+    const h = 130;
+    const x = Math.round((VIEW_W - w) / 2);
+    const y = VIEW_H - h - 24;
+    this.bg.setPosition(x, y).setSize(w, h);
+    this.nameText.setPosition(x + 20, y + 14);
+    this.bodyText.setPosition(x + 20, y + 46).setWordWrapWidth(w - 40);
+    this.hint.setPosition(x + w - 16, y + h - 12);
+    this.boxX = x;
+    this.boxY = y;
+    this.boxW = w;
+    if (this.isOpen) this.container.setY(this.atTop ? 96 - (VIEW_H - 154) : 0);
   }
 
   ask(name, lines, choices, onPick) {

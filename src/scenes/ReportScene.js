@@ -117,11 +117,10 @@ export class ReportScene extends Phaser.Scene {
         ),
       ),
     );
-    root.style.width = `${VIEW_W}px`;
-    root.style.height = `${VIEW_H}px`;
     document.body.append(root);
     this.root = root;
 
+    // VIEW_W/VIEW_H are live: the page always covers the whole window, whatever its shape.
     const layout = () => placeOnCanvas(root, this.game.canvas, { x: 0, y: 0, w: VIEW_W, h: VIEW_H }, { viewW: VIEW_W });
     layout();
     window.addEventListener('resize', layout);

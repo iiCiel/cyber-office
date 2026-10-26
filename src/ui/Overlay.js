@@ -13,29 +13,25 @@ export class Overlay {
     this.c = scene.add.container(0, 0).setDepth(200).setVisible(false);
     scene.ui(this.c);
 
-    this.sx = 76;
-    this.sy = 52;
-    this.sw = VIEW_W - 152;
-    this.sh = VIEW_H - 150;
-    const dim = scene.add.rectangle(0, 0, VIEW_W, VIEW_H, 0x05050a, 0.7).setOrigin(0).setInteractive();
-    const frame = scene.add.rectangle(this.sx - 16, this.sy - 16, this.sw + 32, this.sh + 32, bezel).setOrigin(0);
-    const stand = scene.add.rectangle(VIEW_W / 2 - 60, this.sy + this.sh + 16, 120, 30, bezel).setOrigin(0);
-    const foot = scene.add.rectangle(VIEW_W / 2 - 120, this.sy + this.sh + 44, 240, 12, bezel).setOrigin(0);
-    const led = scene.add.rectangle(this.sx + this.sw - 4, this.sy + this.sh + 6, 6, 4, 0x3fe07a);
+    // Geometry comes from place(), which also runs again when the window is resized.
+    const dim = scene.add.rectangle(0, 0, 1, 1, 0x05050a, 0.7).setOrigin(0).setInteractive();
+    const frame = scene.add.rectangle(0, 0, 1, 1, bezel).setOrigin(0);
+    const stand = scene.add.rectangle(0, 0, 120, 30, bezel).setOrigin(0);
+    const foot = scene.add.rectangle(0, 0, 240, 12, bezel).setOrigin(0);
+    const led = scene.add.rectangle(0, 0, 6, 4, 0x3fe07a);
     const close = scene.add
-      .text(this.sx + this.sw + 10, 14, 'Stand up  [Esc] ✕', { fontFamily: FONT, fontSize: '20px', color: '#9aa3b8' })
+      .text(0, 14, 'Stand up  [Esc] ✕', { fontFamily: FONT, fontSize: '20px', color: '#9aa3b8' })
       .setOrigin(1, 0)
       .setInteractive({ useHandCursor: true })
       .on('pointerdown', (_p, _x, _y, e) => {
         e?.stopPropagation();
         this.close();
       });
+    this.parts = { dim, frame, stand, foot, led, close };
     this.c.add([dim, frame, stand, foot, led, close]);
 
     // The HTML screen.
     this.root = h('div', { class: 'screen', id: `screen-${name}`, role: 'dialog', 'aria-modal': 'true', tabindex: '-1', 'aria-label': name.charAt(0).toUpperCase() + name.slice(1) });
-    this.root.style.width = `${this.sw}px`;
-    this.root.style.height = `${this.sh}px`;
     document.body.append(this.root);
     // In compact mode (small screens) the HTML covers the whole viewport, including the Phaser
     // "Stand up" button, so an HTML bar with its own close button sits under it.
@@ -54,6 +50,7 @@ export class Overlay {
       const compact = placeOnCanvas(this.root, scene.game.canvas, { x: this.sx, y: this.sy, w: this.sw, h: this.sh }, { viewW: VIEW_W, reserveBottom: 36 });
       this.bar.classList.toggle('show', compact && this.isOpen);
     };
+    this.place();
     window.addEventListener('resize', this.layout);
     scene.scale.on('resize', this.layout);
 
@@ -71,6 +68,23 @@ export class Overlay {
     document.addEventListener('keydown', this.onKey);
 
     scene.events.once('shutdown', () => this.destroy());
+  }
+
+  // The monitor fills the window minus a margin; a wide window gets a wide monitor.
+  place() {
+    this.sx = 76;
+    this.sy = 52;
+    this.sw = VIEW_W - 152;
+    this.sh = VIEW_H - 150;
+    const { dim, frame, stand, foot, led, close } = this.parts;
+    dim.setSize(VIEW_W, VIEW_H);
+    dim.input?.hitArea.setSize(VIEW_W, VIEW_H);
+    frame.setPosition(this.sx - 16, this.sy - 16).setSize(this.sw + 32, this.sh + 32);
+    stand.setPosition(VIEW_W / 2 - 60, this.sy + this.sh + 16);
+    foot.setPosition(VIEW_W / 2 - 120, this.sy + this.sh + 44);
+    led.setPosition(this.sx + this.sw - 4, this.sy + this.sh + 6);
+    close.setX(this.sx + this.sw + 10);
+    this.layout();
   }
 
   open(onClose) {

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW_W, VIEW_H, FONT } from '../config.js';
+import { VIEW_W, VIEW_H, BASE_W, BASE_H, FONT } from '../config.js';
 import { GameState } from '../game/GameState.js';
 import { getDay, LAST_DAY } from '../days/index.js';
 import { getDifficulty, cycleDifficulty } from '../game/difficulty.js';
@@ -67,10 +67,10 @@ export class TitleScene extends Phaser.Scene {
     this.buildBoard(590, 92, save || { day: 1, dayOver: false, history: [] });
 
     // Footer: controls on the left, the repo on the right.
-    this.add.text(x, VIEW_H - 50, 'Move: WASD, arrows or click.  Use: E or Space.  Pause: P.', { fontFamily: FONT, fontSize: '19px', color: C.dim });
-    this.add.text(x, VIEW_H - 28, 'A playable Security+ scenario, built in public.', { fontFamily: FONT, fontSize: '17px', color: C.dim });
+    this.add.text(x, BASE_H - 50, 'Move: WASD, arrows or click.  Use: E or Space.  Pause: P.', { fontFamily: FONT, fontSize: '19px', color: C.dim });
+    this.add.text(x, BASE_H - 28, 'A playable Security+ scenario, built in public.', { fontFamily: FONT, fontSize: '17px', color: C.dim });
     const gh = this.add
-      .text(VIEW_W - 40, VIEW_H - 28, 'github.com/iiCiel/cyber-office', { fontFamily: FONT, fontSize: '17px', color: C.dim })
+      .text(BASE_W - 40, BASE_H - 28, 'github.com/iiCiel/cyber-office', { fontFamily: FONT, fontSize: '17px', color: C.dim })
       .setOrigin(1, 0)
       .setInteractive({ useHandCursor: true })
       .on('pointerover', () => gh.setColor(C.paper))
@@ -104,23 +104,33 @@ export class TitleScene extends Phaser.Scene {
     }
   }
 
+  // Window resized: lay the screen out again (nothing here is lost by a restart).
+  onViewResize() {
+    if (!this.leaving) this.scene.restart();
+  }
+
   // The real office map (same tiles and props as the game), drawn at 2x and dimmed.
   buildOffice() {
     const map = this.make.tilemap({ key: 'office' });
     const ts = map.addTilesetImage('office', 'tiles');
-    const ox = Math.round((VIEW_W - map.widthInPixels * MAP_ZOOM) / 2);
-    const oy = Math.round((VIEW_H - map.heightInPixels * MAP_ZOOM) / 2);
-    for (const name of ['floor', 'walls']) map.createLayer(name, ts, ox, oy)?.setScale(MAP_ZOOM);
+    // At least 2x, and big enough to cover a wide window edge to edge.
+    const z = Math.max(MAP_ZOOM, Math.ceil(Math.max(VIEW_W / map.widthInPixels, VIEW_H / map.heightInPixels)));
+    const ox = Math.round((BASE_W - map.widthInPixels * z) / 2);
+    const oy = Math.round((BASE_H - map.heightInPixels * z) / 2);
+    for (const name of ['floor', 'walls']) map.createLayer(name, ts, ox, oy)?.setScale(z);
     const props = (o) => Object.fromEntries((o.properties || []).map((p) => [p.name, p.value]));
     for (const o of map.getObjectLayer('objects')?.objects || []) {
       const p = props(o);
-      const at = (img) => img.setOrigin(0.5, 1).setScale(MAP_ZOOM).setPosition(ox + o.x * MAP_ZOOM, oy + o.y * MAP_ZOOM);
+      const at = (img) => img.setOrigin(0.5, 1).setScale(z).setPosition(ox + o.x * z, oy + o.y * z);
       if (o.type === 'prop' && p.tex && this.textures.exists(p.tex)) at(this.add.image(0, 0, p.tex));
       else if (o.type === 'npc' && p.sprite && this.textures.exists(p.sprite)) at(this.add.sprite(0, 0, p.sprite, `${p.face === 'up' ? 'up' : 'down'}-idle`));
     }
-    this.shade = this.add.rectangle(0, 0, VIEW_W, VIEW_H, C.dusk, 0.8).setOrigin(0);
+    // The camera centres the 960x720 layout; the shade covers the whole window around it.
+    const ex = (VIEW_W - BASE_W) / 2;
+    const ey = (VIEW_H - BASE_H) / 2;
+    this.shade = this.add.rectangle(-ex, -ey, VIEW_W, VIEW_H, C.dusk, 0.8).setOrigin(0);
     // Darker towards the left so the menu reads cleanly over the floor plan (a soft step gradient, no seam).
-    for (let i = 0; i < 12; i++) this.add.rectangle(0, 0, 600 - i * 40, VIEW_H, C.dusk, 0.07).setOrigin(0);
+    for (let i = 0; i < 12; i++) this.add.rectangle(-ex, -ey, ex + 600 - i * 40, VIEW_H, C.dusk, 0.07).setOrigin(0);
   }
 
   buildMenu(x, y, items) {
