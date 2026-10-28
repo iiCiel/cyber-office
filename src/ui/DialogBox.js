@@ -21,6 +21,7 @@ export class DialogBox {
     scene.tweens.add({ targets: this.hint, alpha: 0.2, duration: 500, yoyo: true, repeat: -1 });
 
     this.container.add([this.bg, this.nameText, this.bodyText, this.hint]);
+    this.boxH = 130;
     this.place();
 
     // Choices sit just above the box (or below it, when the box is at the top of the screen).
@@ -34,10 +35,10 @@ export class DialogBox {
   }
 
   // Bottom of the window, centred, at most 1000 wide so lines stay readable on wide screens.
-  // Runs again when the window is resized.
+  // The box grows taller to fit the current line (see fitHeight). Runs again when the window is resized.
   place() {
     const w = Math.min(VIEW_W - 80, 1000);
-    const h = 130;
+    const h = this.boxH;
     const x = Math.round((VIEW_W - w) / 2);
     const y = VIEW_H - h - 24;
     this.bg.setPosition(x, y).setSize(w, h);
@@ -47,7 +48,26 @@ export class DialogBox {
     this.boxX = x;
     this.boxY = y;
     this.boxW = w;
-    if (this.isOpen) this.container.setY(this.atTop ? 96 - (VIEW_H - 154) : 0);
+    if (this.full != null) this.fitHeight(this.full);
+    if (this.isOpen) this.container.setY(this.offsetY());
+  }
+
+  // Grow the box so the whole line fits inside it (wrapped text can run to 3+ lines).
+  fitHeight(full) {
+    const shown = this.bodyText.text;
+    this.bodyText.setText(full);
+    const h = Math.max(130, Math.ceil(46 + this.bodyText.height + 30));
+    this.bodyText.setText(shown);
+    if (h === this.boxH) return;
+    this.boxH = h;
+    this.place();
+  }
+
+  // Vertical shift of the whole box: 0 at the bottom, or up to just under the HUD when shown at the top.
+  offsetY() {
+    if (!this.atTop) return 0;
+    const top = Math.max(96, (this.scene.hudBottom ?? 76) + 16);
+    return top - this.boxY;
   }
 
   ask(name, lines, choices, onPick) {
@@ -69,7 +89,6 @@ export class DialogBox {
     const pl = this.scene.player;
     const low = pl && this.scene.toScreen && this.scene.toScreen(pl.x, pl.y).y > VIEW_H - 200;
     this.atTop = low;
-    this.container.setY(low ? 96 - (VIEW_H - 154) : 0);
     this.container.setVisible(true);
     this.showLine();
   }
@@ -79,6 +98,8 @@ export class DialogBox {
     this.full = full;
     this.typing = true;
     this.bodyText.setText('');
+    this.fitHeight(full);
+    this.container.setY(this.offsetY());
     this.typer?.remove();
     let i = 0;
     this.typer = this.scene.time.addEvent({
@@ -129,7 +150,7 @@ export class DialogBox {
     const gap = 8;
     const total = this.choiceItems.reduce((sum, t) => sum + t.height + gap, 0);
     const boxTop = this.boxY + this.container.y;
-    const boxBottom = boxTop + 130;
+    const boxBottom = boxTop + this.boxH;
     let y = this.atTop ? boxBottom + 10 : boxTop - total - 2;
     for (const t of this.choiceItems) {
       t.setPosition(this.boxX + 20, y);

@@ -258,7 +258,7 @@ export class OfficeScene extends Phaser.Scene {
 
   // ---------- HUD ----------
   buildHud() {
-    this.ui(this.add.rectangle(12, 12, 400, 64, 0x12121c, 0.82).setOrigin(0).setStrokeStyle(2, 0x3fe07a).setDepth(10));
+    this.hudBg = this.ui(this.add.rectangle(12, 12, 400, 64, 0x12121c, 0.82).setOrigin(0).setStrokeStyle(2, 0x3fe07a).setDepth(10));
     this.clockText = this.ui(this.add.text(24, 20, '', { fontFamily: FONT, fontSize: '25px', color: '#3fe07a' }).setDepth(11));
     this.stepText = this.ui(this.add.text(400, 22, '', { fontFamily: FONT, fontSize: '18px', color: '#8b94b0' }).setOrigin(1, 0).setDepth(11));
     this.objectiveText = this.ui(this.add.text(24, 48, '', { fontFamily: FONT, fontSize: '19px', color: '#e6e6ea' }).setDepth(11));
@@ -337,7 +337,8 @@ export class OfficeScene extends Phaser.Scene {
     // Anything pinned to the right or bottom edge moves when the window changes size.
     this.layoutHud = () => {
       this.notice.setPosition(VIEW_W - 16, 16);
-      this.crisisText.setPosition(VIEW_W / 2, 92);
+      this.fitHud();
+      this.crisisText.setPosition(VIEW_W / 2, Math.max(92, this.hudBottom + 12));
       hint.setPosition(VIEW_W - 16, VIEW_H - 14);
       this.muteBtn.setPosition(VIEW_W - 16, VIEW_H - 40);
       this.pauseBtn.setPosition(16, VIEW_H - 40);
@@ -757,6 +758,17 @@ export class OfficeScene extends Phaser.Scene {
     return this.day.objectives.find((o) => !this.isDone(o.id)) || null;
   }
 
+  // Size the top-left HUD box to its text: wider for long goals, wrapping onto more lines past ~660px.
+  fitHud() {
+    const maxW = Math.min(VIEW_W - 24, 660);
+    this.objectiveText.setWordWrapWidth(maxW - 24);
+    const w = Math.min(maxW, Math.max(400, Math.ceil(this.objectiveText.width) + 24));
+    const bottom = Math.ceil(this.objectiveText.y + this.objectiveText.height) + 8;
+    this.hudBg.setSize(w, bottom - 12);
+    this.stepText.setX(12 + w - 12);
+    this.hudBottom = bottom;
+  }
+
   updateObjective() {
     let cur = this.currentObjective();
     // Waiting for something that hasn't happened yet (a call, a visit)? Say so instead of pointing nowhere.
@@ -777,6 +789,7 @@ export class OfficeScene extends Phaser.Scene {
     }
     this.objectiveText.setText(`> ${text}`);
     this.stepText.setText(cur ? `${done + 1}/${this.day.objectives.length}` : 'done');
+    this.layoutHud?.();
     const targetId = cur && !cur.waiting ? cur.target || cur.id : null;
     this.markerTarget = targetId ? this.interactables.find((t) => t.id === targetId) : null;
   }
