@@ -14,11 +14,17 @@ D:\Projects\cyber-office
 ## Notes (what is done, in progress, next, issues)
 ###### Status
 LIVE at https://iiciel.github.io/cyber-office/ (main). The overnight-2026-10-23 branch was merged into main and deleted on Oct 26. Also live: full-resolution rendering (712cb15).
-main is 1 commit ahead of origin: 2972d44 "Fit HUD and dialog boxes to their text" (Oct 28). It is not pushed because pushing main deploys the live site, so it waits on Soliman's OK.
+main is now 2 commits ahead of origin (NOT pushed; pushing main deploys live, so it waits on Soliman's OK):
+- 2972d44 "Fit HUD and dialog boxes to their text" (Oct 28)
+- 0043cfd "Add Attacker's Playbook" (Oct 28, this run)
 16 cases (12 real, 4 labs) in src/cases/. The registry is src/cases/index.js. MUSIC REMOVED (do NOT add it back).
 
-###### Oct 28 run (this one)
-Soliman asked for an "attacker's side / how
+###### Oct 28 run (this one): Attacker's Playbook
+Soliman asked to add the offence side ("to understand how an attack happened, you need to understand how he did it") and make the app useful for pentest study. Built an "Attacker's Playbook" on every real-breach case: the same incident from the attacker's seat as a kill chain. Each step = the move + the trace it leaves in the logs + the one control that breaks it, tied to the same ATT&CK technique IDs the case already maps on defence. Narrative/ATT&CK altitude only, NO exploit code/payloads (enforced by a test regex).
+- Data: src/cases/playbooks.js (12 kill chains, keyed by caseFile.id). Merged onto each caseFile.attackerView in src/cases/index.js. A case may also set caseFile.attackerView inline (wins).
+- Render: src/scenes/ReportScene.js playbookSection(), shown between "what went wrong" and "how to stop it". CSS in src/ui/screen.css (.playbook, red-team accent; move=red / trace=amber / break=green).
+- Labs have no playbook yet (they already teach "why this works"); next run could add them.
+- Tests: tests/playbooks.test.js (26 checks). Browser render check: scripts/verify-playbook.mjs (needs a DEV server, not preview: node scripts/verify-playbook.mjs http://localhost:PORT/cyber-office/ — module imports resolve only in dev). Screenshots in smoke-out/playbook/.
 
 ### Earlier notes (kept automatically: this run wrote much shorter notes)
 ###### Status
@@ -35,10 +41,13 @@ README now lists all 16 cases (12 real, 4 labs), matching the registry.
 - [x] Oct 23 rounds: DST, facts, difficulty, clock fix, accessibility, music removed
 - [x] Oct 25: PHP2Shell case (16 cases), title + Case Files redesign
 - [x] Oct 25 fix-up: PHP2Shell facts sourced and corrected, README case list
+- [x] Oct 28: Attacker's Playbook (offence side / kill chain) on all 12 real cases
 - [ ] M7 Playtest with 2-3 people (BLOCKED: Soliman picks testers). Kit: PLAYTEST.md.
+- [ ] Later: Attacker's Playbook for the 4 labs; a second week, original art, real-device mobile test, report card restyle
 - [ ] Later: a second week, original art, real-device mobile test, report card restyle to match folders
 
 ###### Tests
+Oct 28 (Attacker's Playbook): npm test 192/192 (166 + 26 new). Browser: scripts/verify-playbook.mjs 25/25 (6 cases, no page errors); ONLY=php2shell-2026 smoke:case 17/17, no console errors. Build: npx vite build --outDir smoke-out/dist-mine; preview on :4188; dev server on :5190 for the playbook check.
 Oct 25 fix-up (re-run): npm test 166/166 | smoke 71 | smoke:a11y 15 | ONLY=php2shell-2026 smoke:case 17/17. Earlier Oct 25 (full build before the fix): smoke:bad 15 | smoke:week 37 | smoke:difficulty 17 | smoke:case 269/269 (run ALONE). Logs smoke-out/fix-*.log and final-*.log. Local build: npx vite build --outDir smoke-out/dist-mine; npx vite preview --outDir smoke-out/dist-mine --port 4180 --strictPort.
 
 ###### Issues
