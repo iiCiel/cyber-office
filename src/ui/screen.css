@@ -653,3 +653,66 @@
 .case-hint summary { cursor: pointer; color: #6b4e00; font-weight: bold; }
 .case-hint p { margin: 8px 0 2px; }
 .report .difficulty { font-size: 0.85em; opacity: 0.8; }
+
+/* ---------- Red Team Drill: play the attacker, name the chokepoint ---------- */
+/* Built as a teaching tool (University of Akron): the attacker's seat of a case's kill chain. Red/amber/
+   green mirror the Attacker's Playbook (move / trace / break). Content comes from caseFile.attackerView. */
+.redteam-btn { background: #3a1f24; color: #ffb199; border: 1px solid #7a3b3b; border-bottom: 3px solid #7a3b3b; border-radius: 4px; cursor: pointer; }
+.redteam-btn:hover { background: #4a2730; color: #ffd0c0; }
+.redteam-screen { background: #140d10; overflow: auto; color: #ece6e8; }
+.rt-wrap { max-width: 760px; margin: 0 auto; padding: 22px 28px 40px; }
+.rt-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.rt-kicker { text-transform: uppercase; letter-spacing: 1px; font-size: 12px; color: #ff8a73; }
+.rt-progress { display: flex; align-items: center; gap: 12px; font-size: 13px; color: #c8cbd6; }
+.rt-strikes { display: inline-flex; gap: 3px; }
+.rt-strikes [class^='rt-x'] { color: #4a3a3e; font-weight: 700; }
+.rt-strikes .rt-x0.on, .rt-strikes .rt-x1.on, .rt-strikes .rt-x2.on { color: #ff5a5a; }
+.rt-goal { color: #e6e6ea; font-size: 14px; margin: 0 0 12px; padding: 8px 12px; background: #241519; border-left: 3px solid #e5705d; border-radius: 0 4px 4px 0; }
+.rt-goal b { color: #ff8a73; }
+.rt-panel { background: linear-gradient(#1d1517, #171218); border: 1px solid #5a2a2a; border-radius: 8px; padding: 16px 20px; margin-bottom: 14px; }
+.rt-step-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.rt-phase { text-transform: uppercase; letter-spacing: 1px; font-size: 11px; color: #ffb199; background: #3a2024; border: 1px solid #5a2a2a; border-radius: 3px; padding: 2px 7px; }
+.rt-tid { font: 700 12px Consolas, monospace; color: #ffc08a; text-decoration: none; }
+.rt-tid:hover { text-decoration: underline; }
+.rt-step-title { margin: 4px 0 8px; color: #f0e6e6; font-size: 19px; }
+.rt-how { color: #e6dadc; font-size: 14px; margin: 0 0 12px; }
+.rt-how b { color: #ff8a73; }
+.rt-q { color: #cfe8d8; font-size: 14px; margin: 0 0 10px; font-weight: 600; }
+.rt-options { display: grid; gap: 8px; }
+.rt-opt { text-align: left; background: #1a1620; border: 1px solid #3a2f3a; border-left: 3px solid #6af09a; border-radius: 6px; padding: 10px 14px; cursor: pointer; color: #cfe8d8; display: grid; gap: 2px; }
+.rt-opt:hover:not(:disabled) { background: #20222c; border-left-color: #8af7b2; }
+.rt-opt:disabled { cursor: default; opacity: 0.75; }
+.rt-opt.correct { background: #10231a; border-color: #2a6a45; border-left-color: #6af09a; opacity: 1; }
+.rt-opt.wrong { background: #2a1517; border-color: #7a3b3b; border-left-color: #ff5a5a; color: #ffb3b3; }
+.rt-stop-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #6af09a; }
+.rt-opt.wrong .rt-stop-label { color: #ff8a8a; }
+.rt-opt-text { color: #e6eef0; font-size: 14px; }
+.rt-feedback { margin: 10px 0 0; font-size: 13px; min-height: 1em; }
+.rt-feedback.good { color: #8af7b2; }
+.rt-feedback.bad { color: #ff9a9a; }
+.rt-foot { display: flex; gap: 10px; flex-wrap: wrap; }
+.rt-foot button { cursor: pointer; border-radius: 4px; padding: 8px 14px; border: 1px solid #5a2a2a; background: #241519; color: #ffb199; }
+.rt-again { border-color: #2a6a45 !important; background: #10231a !important; color: #8af7b2 !important; }
+.rt-grade { font: 700 34px/1 'VT323', 'Courier New', monospace; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; border-radius: 6px; border: 2px solid; }
+.rt-grade.gA { color: #6af09a; border-color: #2a6a45; background: #10231a; }
+.rt-grade.gB { color: #8fb6ff; border-color: #2b3f5c; background: #10192a; }
+.rt-grade.gC { color: #e8c547; border-color: #5a4a1a; background: #231d10; }
+.rt-grade.gF { color: #ff6a6a; border-color: #7a3b3b; background: #231013; }
+.rt-result h1 { margin: 0 0 6px; color: #f0e6e6; font-size: 22px; }
+.rt-result-sum { color: #c8cbd6; font-size: 14px; margin: 0 0 12px; }
+.rt-choke { padding: 10px 14px; background: #10231a; border: 1px solid #2a6a45; border-radius: 6px; color: #d4f0e0; font-size: 13px; }
+.rt-choke b { color: #6af09a; }
+.rt-chain { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.rt-row { background: #1a1620; border: 1px solid #3a2f3a; border-left: 3px solid #e5705d; border-radius: 6px; padding: 10px 14px; }
+.rt-row.ok { border-left-color: #6af09a; }
+.rt-row-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.rt-num { width: 22px; height: 22px; flex: none; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: #e5705d; color: #171218; font-weight: 700; font-size: 13px; }
+.rt-row.ok .rt-num { background: #6af09a; }
+.rt-row-title { font-weight: 600; color: #f0e6e6; }
+.rt-row-line { margin: 0 0 5px; font-size: 13px; color: #c8cbd6; }
+.rt-row-line.move b { color: #ff8a73; }
+.rt-row-line.trace b { color: #e8c547; }
+.rt-row-line.stop b { color: #6af09a; }
+.pb-drill { margin-top: 12px; padding-top: 12px; border-top: 1px solid #3a2f3a; }
+.pb-drill p { color: #c8cbd6; font-size: 13px; margin: 0 0 8px; }
+.pb-drill .redteam-btn { font-size: 14px; padding: 8px 14px; }

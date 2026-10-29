@@ -53,6 +53,9 @@ export class CaseFilesScene extends Phaser.Scene {
             c.comingSoon
               ? h('button', { type: 'button', disabled: true }, 'Coming soon')
               : h('button', { type: 'button', 'data-action': 'open-case', 'aria-label': `${best ? 'Replay' : 'Open'} ${cf.company}`, onclick: () => this.open(cf.id) }, best ? 'Replay' : 'Open case'),
+            !c.comingSoon && cf.attackerView
+              ? h('button', { type: 'button', class: 'redteam-btn', 'data-action': 'red-team', 'aria-label': `Red team drill: ${cf.company}`, title: 'Walk the attack from the attacker’s seat and name the control that breaks each step', onclick: () => this.redTeam(cf.id) }, '⚔ Red team it')
+              : null,
           ),
         ),
       );
@@ -169,6 +172,11 @@ export class CaseFilesScene extends Phaser.Scene {
     this.game.registry.get('sound')?.play('select');
     GameState.clearSave(true);
     this.scene.start('Office', { caseMode: true, caseId: id });
+  }
+
+  redTeam(id) {
+    this.game.registry.get('sound')?.play('select');
+    this.scene.start('RedTeam', { caseId: id, returnTo: 'CaseFiles' });
   }
 
   back() {
