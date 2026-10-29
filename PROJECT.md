@@ -1,6 +1,6 @@
 # Project: Cyber Office
 
-> Project file from the Command Center, Oct 25, 2026, 7:19 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
+> Project file from the Command Center, Oct 28, 2026, 9:40 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
 
 ## Goal
 A pixel-art browser game where you live a real day as a junior security analyst: walk the office, read real-looking email, dig through logs, deal with coworkers, and watch your choices play out. Not a quiz and not a wall of text. Built in public as a portfolio piece for internship applications.
@@ -12,6 +12,15 @@ Read PROJECT.md in the project folder. Pick the next unchecked milestone, build 
 D:\Projects\cyber-office
 
 ## Notes (what is done, in progress, next, issues)
+###### Status
+LIVE at https://iiciel.github.io/cyber-office/ (main). The overnight-2026-10-23 branch was merged into main and deleted on Oct 26. Also live: full-resolution rendering (712cb15).
+main is 1 commit ahead of origin: 2972d44 "Fit HUD and dialog boxes to their text" (Oct 28). It is not pushed because pushing main deploys the live site, so it waits on Soliman's OK.
+16 cases (12 real, 4 labs) in src/cases/. The registry is src/cases/index.js. MUSIC REMOVED (do NOT add it back).
+
+###### Oct 28 run (this one)
+Soliman asked for an "attacker's side / how
+
+### Earlier notes (kept automatically: this run wrote much shorter notes)
 ###### Status
 LIVE at https://iiciel.github.io/cyber-office/ (main): the 5-day week, 15 cases, day-picker, phone screens, reduced motion.
 On branch overnight-2026-10-23 (pushed to origin; GitHub Pages deploys ONLY from main, so NOT live). Latest: 4b05bd5 (PHP2Shell fact fix), 0eb4197, 53dfb6c, c812800, a637d0e. To ship: git checkout main && git merge overnight-2026-10-23 && git push origin main, then node scripts/smoke.mjs https://iiciel.github.io/cyber-office/ smoke-out/live
@@ -48,10 +57,16 @@ Oct 25 fix-up (re-run): npm test 166/166 | smoke 71 | smoke:a11y 15 | ONLY=php2s
 - Trainee/Senior pacing; should the hint lower the score? Allow pinch-zoom?
 
 ## Recent runs (newest first)
-### Oct 25, 2026: done
+### Oct 28, 2026: done
+- He asked: go do more stuff. be creative, make it fun, make it entertaining, and helpful. also add the other side of the aspect, to understand how an attack happened, you need to understand how he did it. like the php one, how did they actaully do it. so we can have this app be good for pen testing aswell. tak
+- Did: Nothing built this run: the "how the attacker did it" mode got stopped partway through planning. 1. Not done: the attacker's-side mode (pen-testing angle). I stopped it during planning and wrote no code. 2. Not changed: no files edited, nothing committed or pushed. main is still 1 commit ahead of origin (2972d44, the text-fit fix), which is waiting on your OK to go live. 3. Needs you: decide whether a narrower version is worth trying (see todo). Next: open D:\Projects\cyber-office and say whether to push 2972d44 (the dialog and goal box text fix) live.
+- Where it stood: Live site and main are unchanged since Oct 28. Unpushed on main: 2972d44 (HUD and dialog text fit). M7 playtest still needs testers.
+### Oct 25, 2026: done, supervisor grade B
 - He asked: Fix-up run started by the supervisor. It checked the last run's work itself and found 4 problems: 1. The case says many times there were 'no publicly confirmed breaches as of Oct 25, 2026', but The Hacker News reported a confirmed compromise that same day: Unit 42 says an attacker used PHP2Shell aga
 - Did: The PHP2Shell case facts are fixed and pushed to the branch. It's still not live: that waits on your merge. 1. Done: the case no longer says "no confirmed breaches". On Oct 25, Unit 42 reported a breach at a European government agency (via The Hacker News). The same afternoon it said it couldn't confirm the attackers got in through PHP2Shell. The case now says exactly that. 2. Done: removed 4chan from the list of sites that went offline. No reliable source backed it. 3. Done: added 11 sources, so every company or agency the case names now has one (Cloudflare, CrowdStrike, JFrog, VulnCheck, Chainguard, watchTowr, the FBI, BambooHR, Unit 42). Also fixed the credit: Wiz thanks OpenAI, not "the Codex Security team". 4. Done: I couldn't check 3 small claims, so I removed them: CISA "not observed", and the exact watchTowr and Calif times. The README now lists all 16 cases. 5. Needs you: look at the branch and merge it to make it live. Next: in D:\Projects\cyber-office run npm run dev, press F, open PHP2Shell, and read the "what really happened" page. Details: commit 4b05bd5 on overnight-2026-10-23 (pushed). Re-run today: unit tests 166/166, PHP2Shell case in the browser 17/17, Day 1 71,…
 - Where it stood: 16 cases, the redesign and the corrected PHP2Shell facts are all tested on the branch overnight-2026-10-23, waiting on Soliman's merge. M7 (playtest) still needs testers.
+- Problems: At 7:15 PM the run swapped the old file back in and then restored its new copy through /tmp to test the new test. That is risky for uncommitted work. It worked, but a git stash or a copy kept in the repo would be safer.; Fix #3 also asked for removing the 'Codex Security team' credit and for sources on several outlets. The run's summary shows these done, but the full list of edits isn't visible in the transcript.; Fix #1 text was truncated in the brief. The run relied on the full wording from its own research rather than the supervisor's complete suggestion.
+- Advice for the next run: Re-check any 'as of today' claim against current reporting before editing. Don't swap files in and out to test; use git stash or a separate copy. When you say every named outlet has a source, run a check that proves it. Merge to main waits on Soliman. Don't merge or deploy.
 ### Oct 25, 2026: done, supervisor grade B
 - He asked: add the php breach that just happened. its a very big thing, and make the main menu and case files page look nicer, it just looks like ai slop. use skills
 - Did: The PHP2Shell case and the new title and Case Files designs are ready on the branch. They go live once you merge. 1. Done: new case "PHP2Shell", the PHP bug disclosed Oct 21 (CVE-2026-109618/109619). It's first in Case Files with a "New" tag. The company is fictional and the facts come from php.net, Wiz, Amazon, NSA and NCSC. It says plainly that no breaches had been confirmed as of Oct 25. 2. Done: the title screen no longer has the green "matrix" look. It shows the real office behind a simple game menu, and the week is written on a whiteboard (click a day or press 1-5). 3. Done: Case Files is now a filing drawer of folders. Real breaches are manila, practice labs are blue, and your best grade shows as a red stamp. 4. Done: every test passes. The branch is pushed to GitHub, but main isn't, so the live site hasn't changed. 5. Needs you: have a look, then merge to make it live. Next: run npm run dev in D:\Projects\cyber-office, open the title, press F and click "Open case" on PHP2Shell. Details: commits a637d0e (redesign), c812800 (case), 53dfb6c (notes) on overnight-2026-10-23. Tests: unit 166/166, Day 1 71, worst day 15, week 37, difficulty 17, keyboard 15, all 16 cases 269/269. …
@@ -70,14 +85,9 @@ Oct 25 fix-up (re-run): npm test 166/166 | smoke 71 | smoke:a11y 15 | ONLY=php2s
 - Where it stood: The live site hasn't changed. The branch overnight-2026-10-23 is tested and ready to merge and push when you say so. Only M7, the playtest, is left, and it needs your testers.
 - Problems: smoke-out/ is gitignored, so unit.log is not committed and cannot be checked from git history, only from disk.; The run took a few minutes of idle gap between 7:58 and 8:07 with no visible reason, a small time cost.
 - Advice for the next run: Stay on branch overnight-2026-10-23 and do not push. When a doc claims a feature, add a test that exercises that exact claim. Print changed doc lines back after editing. Prove edge cases (first and last item), not just the middle path.
-### Oct 23, 2026: done, supervisor grade A
-- He asked: ROUND 2 (Soliman asleep until he checks later today; can't approve anything). Keep moving the plan forward on the local branch overnight-2026-10-23 in several rounds until usage runs low: open items, bugs, realism, polish, tests. Re-run the full 15-case suite (251 checks) at some point so it's verif
-- Did: I found and fixed a serious bug in last night's difficulty setting. After your first day in a browser tab, the game clock stopped, so you couldn't finish Day 2 or a second case. The live site never had it: the bug is only on the branch, and it's fixed there now with a test that catches it. I also confirmed the Midnight Blizzard "access removed about Jan 13" date in Microsoft's SEC filing, and made the computer screens work better with a keyboard and screen readers, with clearer text. Every test was re-run today on the branch: 130/130 unit tests, Day 1 (67 checks), worst day (15), full week (37), difficulty (15), and all 15 cases (251, passed 3 times). Nothing is pushed.
-- Where it stood: The live site is unchanged. The branch overnight-2026-10-23 is fully tested and ready to merge and push when you OK it. The only milestone left is M7, the playtest, and it still needs your testers.
-- Problems: The clock bug came from last night's difficulty work on the same branch, so part of this run repaired earlier work.; The final test suites took about 30 minutes of a 46-minute run, mostly waiting. The 15-case suite was run three times and the other suites twice.; The run ended about 46 minutes in, with no sign of the 'several rounds until usage runs low' Soliman asked for. It did one round.; Sub-agent edits were broad (6 fixes, 5 files) and were reviewed only by diff and spot checks.
-- Advice for the next run: Start from the branch overnight-2026-10-23. Do not push. Run the full suites once at the end, not repeatedly. Write down the source for any date or fact you verify. Use the spare time for more open items and polish instead of stopping after one round.
 
 ## Waiting on Soliman
+- The supervisor opened the last Cyber Office run's work and found 1 problem even after the fix-up run.
 - The supervisor opened the last Cyber Office run's work and found 4 problems; a fix-up run is fixing them now.
 - Look at the new title screen, Case Files and the PHP2Shell case, then merge the branch to make them live
 - Pick 2-3 people to playtest Cyber Office and send them the ready-made message (milestone M7)
