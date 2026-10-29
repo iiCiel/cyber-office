@@ -23,6 +23,10 @@ DONE (Oct 28 run 3) — PENTEST REPORT BUILDER. Scene "Pentest" (src/scenes/Pent
 - Tests: tests/pentest.test.js (10). Browser: scripts/verify-pentest.mjs vs DEV :5191. Screenshots smoke-out/pentest/.
 - NUMBERS: npm test 210/210 | verify-pentest 19/19 | F-grade + miss/close rendering confirmed.
 
+DONE (Oct 28 fix-up, commit 3f16524, live): Pentest grading made learnable — triage tags the chokepoint row KEY FINDING + KEY_RULE (5th rubric line: one level higher, capped at Critical); test proves rubric-only picks = 100% on all 12. 17 playbook phase labels fixed to match ATT&CK tactics (incl. Midnight Blizzard T1110.003 the supervisor missed); tests/pentest.test.js has a tid->tactics map. 'Recon' no longer used by any step. PHP2Shell caseFile.target = 'Halcyon Mutual' (pentest header/summary use cf.target || cf.company). verify-pentest 37/37 (desktop + phone 844x390; 390 portrait shows the rotate gate by design). npm test 214/214. Full-length shots: smoke-out/pentest/{php2shell,target}-{triage,report}-{desktop,phone-844x390}.png.
+
+NEXT RUN (supervisor-approved, do NOT skip): build ONE simulated engagement end to end on one fictional company (Halcyon Mutual): scripted terminal, commands return pre-written fake output from fictional hosts (documentation IP ranges), each step ATT&CK-tagged, SIEM entries the player can then look up. No real exploit code/payloads/targets.
+
 NEXT on red-team side: 4 labs (adlab/awslab/linuxlab/beclab) have NO playbook → no drill/report there. Not built: "pick the right tool for the step" mini-game, CTF flags, simulated attacker terminal (terminal deliberately skipped to stay safe/unblocked — keep everything derived from vetted playbook).
 
 ISSUES: PHP2Shell very recent, recheck sources before edits. SolarWinds ADFS log is a reconstruction. Phone mode not human-tested. A11y leftovers: no focus trap on report/CaseFiles/glossary/P menu/RedTeam/Pentest; AD tree drops focus; index.html blocks pinch-zoom. CRLF/LF mix. Run browser suites in small batches.
