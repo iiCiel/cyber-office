@@ -56,6 +56,9 @@ export class CaseFilesScene extends Phaser.Scene {
             !c.comingSoon && cf.attackerView
               ? h('button', { type: 'button', class: 'redteam-btn', 'data-action': 'red-team', 'aria-label': `Red team drill: ${cf.company}`, title: 'Walk the attack from the attacker’s seat and name the control that breaks each step', onclick: () => this.redTeam(cf.id) }, '⚔ Red team it')
               : null,
+            !c.comingSoon && cf.attackerView
+              ? h('button', { type: 'button', class: 'pentest-btn', 'data-action': 'pentest', 'aria-label': `Write the pentest report: ${cf.company}`, title: 'Run the engagement as the assessor: triage every finding by severity and generate the report', onclick: () => this.pentest(cf.id) }, '📝 Write the report')
+              : null,
           ),
         ),
       );
@@ -177,6 +180,11 @@ export class CaseFilesScene extends Phaser.Scene {
   redTeam(id) {
     this.game.registry.get('sound')?.play('select');
     this.scene.start('RedTeam', { caseId: id, returnTo: 'CaseFiles' });
+  }
+
+  pentest(id) {
+    this.game.registry.get('sound')?.play('select');
+    this.scene.start('Pentest', { caseId: id, returnTo: 'CaseFiles' });
   }
 
   back() {

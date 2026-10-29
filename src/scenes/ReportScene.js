@@ -222,7 +222,8 @@ export class ReportScene extends Phaser.Scene {
       av.chokepoint ? h('div', { class: 'pb-choke' }, h('b', {}, 'The one place to cut it: '), av.chokepoint) : null,
       h('div', { class: 'pb-drill' },
         h('p', {}, 'Now test it: walk this chain from the attacker’s seat and name the control that breaks each step.'),
-        h('button', { type: 'button', class: 'redteam-btn', 'data-action': 'red-team', onclick: () => this.leave(() => this.scene.start('RedTeam', { caseId: cf.id, returnTo: 'CaseFiles' })) }, '⚔ Red team this case')),
+        h('button', { type: 'button', class: 'redteam-btn', 'data-action': 'red-team', onclick: () => this.leave(() => this.scene.start('RedTeam', { caseId: cf.id, returnTo: 'CaseFiles' })) }, '⚔ Red team this case'),
+        h('button', { type: 'button', class: 'pentest-btn', 'data-action': 'pentest', onclick: () => this.leave(() => this.scene.start('Pentest', { caseId: cf.id, returnTo: 'CaseFiles' })) }, '📝 Write the pentest report')),
     );
   }
 
