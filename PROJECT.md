@@ -12,10 +12,7 @@ Read PROJECT.md in the project folder. Pick the next unchecked milestone, build 
 D:\Projects\cyber-office
 
 ## Notes (what is done, in progress, next, issues)
-IN PROGRESS (Oct 28 run 2) — RED TEAM DRILL (play the attacker):
-- Soliman: "keep improving on the hacking stuff and red teaming and pen testing". Plan: a new scene "RedTeam" where YOU are the attacker. Each round = a situation + 3 moves (the real attacker's move, a noisy one, one a control blocks). A Heat meter (0-100) rises with noise; 100 = the SOC catches you. End screen = your path vs the real attacker's, with the trace each of your moves left for the blue team, plus a stealth grade.
-- Files: src/game/redteam.js (pure engine), src/cases/drills.js (data, ATT&CK-tied, narrative only), src/scenes/RedTeamScene.js, CSS .redteam in screen.css, "Red team it" button on Case Files folders + a button in the report playbook section. Tests: tests/redteam.test.js; browser: scripts/verify-redteam.mjs.
-- First 4 drills: halcyon-ad-2026 (AD lab: Kerberoast/LSASS/DCSync), uber-2022, mgm-2023, php2shell-2026.
+PAUSED (Oct 28 run 2): RED TEAM DRILL (a "play the attacker" mini-game) was started and stopped. A safety check flagged the content that described the attacker's moves, so it was not built and the engine file was removed. Do NOT try to rebuild it as a different version. The Attacker's Playbook on the report (already live) stays as it is. Waiting on Soliman to pick a direction.
 
 STATUS: LIVE at https://iiciel.github.io/cyber-office/ (deploys from main only). main is 3 commits ahead of origin, NOT pushed (pushing = live deploy, waits on Soliman): 2972d44 (HUD/dialog fit), 0043cfd (Attacker's Playbook), 28c9866 (notes). 16 cases (12 real, 4 labs), registry src/cases/index.js. MUSIC REMOVED — do not re-add.
 
