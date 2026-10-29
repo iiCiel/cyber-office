@@ -1,6 +1,6 @@
 # Project: Cyber Office
 
-> Project file from the Command Center, Oct 28, 2026, 9:40 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
+> Project file from the Command Center, Oct 28, 2026, 9:52 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
 
 ## Goal
 A pixel-art browser game where you live a real day as a junior security analyst: walk the office, read real-looking email, dig through logs, deal with coworkers, and watch your choices play out. Not a quiz and not a wall of text. Built in public as a portfolio piece for internship applications.
@@ -12,64 +12,28 @@ Read PROJECT.md in the project folder. Pick the next unchecked milestone, build 
 D:\Projects\cyber-office
 
 ## Notes (what is done, in progress, next, issues)
-###### Status
-LIVE at https://iiciel.github.io/cyber-office/ (main). The overnight-2026-10-23 branch was merged into main and deleted on Oct 26. Also live: full-resolution rendering (712cb15).
-main is now 2 commits ahead of origin (NOT pushed; pushing main deploys live, so it waits on Soliman's OK):
-- 2972d44 "Fit HUD and dialog boxes to their text" (Oct 28)
-- 0043cfd "Add Attacker's Playbook" (Oct 28, this run)
-16 cases (12 real, 4 labs) in src/cases/. The registry is src/cases/index.js. MUSIC REMOVED (do NOT add it back).
+STATUS: LIVE at https://iiciel.github.io/cyber-office/ (deploys from main only). main is 3 commits ahead of origin, NOT pushed (pushing = live deploy, waits on Soliman): 2972d44 (HUD/dialog fit), 0043cfd (Attacker's Playbook), 28c9866 (notes). 16 cases (12 real, 4 labs), registry src/cases/index.js. MUSIC REMOVED — do not re-add.
 
-###### Oct 28 run (this one): Attacker's Playbook
-Soliman asked to add the offence side ("to understand how an attack happened, you need to understand how he did it") and make the app useful for pentest study. Built an "Attacker's Playbook" on every real-breach case: the same incident from the attacker's seat as a kill chain. Each step = the move + the trace it leaves in the logs + the one control that breaks it, tied to the same ATT&CK technique IDs the case already maps on defence. Narrative/ATT&CK altitude only, NO exploit code/payloads (enforced by a test regex).
-- Data: src/cases/playbooks.js (12 kill chains, keyed by caseFile.id). Merged onto each caseFile.attackerView in src/cases/index.js. A case may also set caseFile.attackerView inline (wins).
-- Render: src/scenes/ReportScene.js playbookSection(), shown between "what went wrong" and "how to stop it". CSS in src/ui/screen.css (.playbook, red-team accent; move=red / trace=amber / break=green).
-- Labs have no playbook yet (they already teach "why this works"); next run could add them.
-- Tests: tests/playbooks.test.js (26 checks). Browser render check: scripts/verify-playbook.mjs (needs a DEV server, not preview: node scripts/verify-playbook.mjs http://localhost:PORT/cyber-office/ — module imports resolve only in dev). Screenshots in smoke-out/playbook/.
+THIS RUN — Attacker's Playbook (offence side of each case):
+- Soliman: "to understand how an attack happened you need to understand how he did it"; make it good for pen testing. Built a kill-chain view on all 12 REAL cases. Each step = move + trace-it-leaves + the control that breaks it, tied to the SAME ATT&CK technique IDs the case maps on defence. Narrative/ATT&CK altitude ONLY — no exploit code/payloads (enforced by RECIPE regex in the test).
+- Data: src/cases/playbooks.js (PLAYBOOKS keyed by caseFile.id: goal, steps[{phase,tid,title,how,trace,stop}], chokepoint). Merged onto caseFile.attackerView in src/cases/index.js (inline attackerView wins).
+- Render: ReportScene.playbookSection(), between "what went wrong" and "how to stop it". CSS .playbook in src/ui/screen.css (red-team accent; move=red/trace=amber/break=green).
+- Labs (adlab/awslab/linuxlab/beclab) have NO playbook yet — next run can add 4 more to PLAYBOOKS (test only requires non-lab cases to have one).
+- Tests: tests/playbooks.test.js (26 checks). Browser: scripts/verify-playbook.mjs — IMPORTANT: run against a DEV server (npm run dev / vite dev :5190), not preview, because it imports /cyber-office/src/... modules. Screenshots smoke-out/playbook/.
 
-### Earlier notes (kept automatically: this run wrote much shorter notes)
-###### Status
-LIVE at https://iiciel.github.io/cyber-office/ (main): the 5-day week, 15 cases, day-picker, phone screens, reduced motion.
-On branch overnight-2026-10-23 (pushed to origin; GitHub Pages deploys ONLY from main, so NOT live). Latest: 4b05bd5 (PHP2Shell fact fix), 0eb4197, 53dfb6c, c812800, a637d0e. To ship: git checkout main && git merge overnight-2026-10-23 && git push origin main, then node scripts/smoke.mjs https://iiciel.github.io/cyber-office/ smoke-out/live
-Branch contents: DST fix, fact fixes, difficulty (Trainee/Analyst/Senior), clock-freeze fix, accessibility rounds, MUSIC REMOVED at Soliman's request (do NOT add back), plus Oct 25:
-- c812800 NEW CASE php2shell-2026 (src/cases/php2shell2026/). CVE-2026-109618 + CVE-2026-109619, disclosed Oct 21 2026 14:00 UTC, fixed in 8.5.12/8.4.27/8.3.36/8.2.35; Amazon MadPot attempts Oct 17. Fictional victim Halcyon. caseFile.fresh shows "New".
-- 4b05bd5 FACT FIX: on Oct 25, Unit 42 (THN https://thehackernews.com/2026/10/php2shell-exploitation-hits-government.html) reported a European government agency compromise (hashes + MFA secrets in 2h, NTLM relay into AD). Same afternoon (2:15 PM PT) Unit 42 retracted the link: "unable to confirm initial access is associated with the specific PHP2Shell CVEs" (https://unit42.paloaltonetworks.com/cve-2026-109618-cve-2026-109619/). The case states the report AND the retraction everywhere the old "no publicly confirmed breaches" line was. Removed: 4chan, CISA "not observed", watchTowr 11:26/14:19 times, Calif ~20:00 time. Wiz credits "PHP team, Calif and OpenAI" (not Codex). 20 sources now. tests/php2shell.test.js guards: no "no publicly confirmed breaches", no 4chan, no Codex, a source entry for each named outlet.
-- a637d0e REDESIGN of title (office map + whiteboard rota) and Case Files (filing drawer). Screenshots smoke-out/design/.
-README now lists all 16 cases (12 real, 4 labs), matching the registry.
+TEST NUMBERS: npm test 192/192 | verify-playbook 25/25 (6 cases, no page errors) | ONLY=php2shell-2026 smoke:case 17/17 (against preview build on :4188, no console errors). Build: npx vite build --outDir smoke-out/dist-mine; preview --port 4188 --strictPort.
 
-###### Milestones
-- [x] Concept, M1-M6, Days 2-5, polish, VT323, Case Files, realism, day-picker, SolarWinds, phone, reduced motion
-- [x] Oct 23 rounds: DST, facts, difficulty, clock fix, accessibility, music removed
-- [x] Oct 25: PHP2Shell case (16 cases), title + Case Files redesign
-- [x] Oct 25 fix-up: PHP2Shell facts sourced and corrected, README case list
-- [x] Oct 28: Attacker's Playbook (offence side / kill chain) on all 12 real cases
-- [ ] M7 Playtest with 2-3 people (BLOCKED: Soliman picks testers). Kit: PLAYTEST.md.
-- [ ] Later: Attacker's Playbook for the 4 labs; a second week, original art, real-device mobile test, report card restyle
-- [ ] Later: a second week, original art, real-device mobile test, report card restyle to match folders
+ISSUES (unchanged): PHP2Shell is very recent — recheck Unit 42/THN before edits. SecurityWeek/MSRC/SEC 403 to scripts. SolarWinds ADFS log is a reconstruction. Phone mode not human-tested. A11y leftovers: focus trap not on report/Case Files/glossary/P menu; AD tree drops focus; index.html blocks pinch-zoom. CRLF/LF mix (README CRLF). Run browser suites in small batches; smoke:case alone.
 
-###### Tests
-Oct 28 (Attacker's Playbook): npm test 192/192 (166 + 26 new). Browser: scripts/verify-playbook.mjs 25/25 (6 cases, no page errors); ONLY=php2shell-2026 smoke:case 17/17, no console errors. Build: npx vite build --outDir smoke-out/dist-mine; preview on :4188; dev server on :5190 for the playbook check.
-Oct 25 fix-up (re-run): npm test 166/166 | smoke 71 | smoke:a11y 15 | ONLY=php2shell-2026 smoke:case 17/17. Earlier Oct 25 (full build before the fix): smoke:bad 15 | smoke:week 37 | smoke:difficulty 17 | smoke:case 269/269 (run ALONE). Logs smoke-out/fix-*.log and final-*.log. Local build: npx vite build --outDir smoke-out/dist-mine; npx vite preview --outDir smoke-out/dist-mine --port 4180 --strictPort.
-
-###### Issues
-- PHP2Shell is a very recent event: re-check Unit 42/THN/SecurityWeek before any edit; the story changed within 2 days. Invented specifics are listed in the disclaimer.
-- SecurityWeek and Microsoft/MSRC/SEC/GeekWire return 403 to scripts.
-- SolarWinds ADFS key-read log shape is a reconstruction (disclaimed).
-- Phone mode only tested in an emulated viewport; pacing not human-playtested.
-- Accessibility leftovers: focus trap not on report card/Case Files/glossary/P menu; AD tree drops focus after clicks; index.html blocks pinch-zoom.
-- CRLF/LF mix (README is CRLF); watch apostrophes and backslashes in JS strings. Run browser suites in small batches; smoke:case alone.
-
-###### Open questions (for Soliman)
-- Like the new title (office + whiteboard) and folder-drawer Case Files?
-- Merge overnight-2026-10-23 and push to make it live?
-- Game title? Own art? Keep character names? Keep the 'splunk>' look-alike?
-- Who are the M7 playtesters?
-- Trainee/Senior pacing; should the hint lower the score? Allow pinch-zoom?
+OPEN QUESTIONS for Soliman: push main to go live? game title / own art / keep character names / keep splunk look-alike? M7 playtesters? Trainee/Senior pacing; should the hint lower the score; allow pinch-zoom?
 
 ## Recent runs (newest first)
-### Oct 28, 2026: done
+### Oct 28, 2026: done, supervisor grade D
 - He asked: go do more stuff. be creative, make it fun, make it entertaining, and helpful. also add the other side of the aspect, to understand how an attack happened, you need to understand how he did it. like the php one, how did they actaully do it. so we can have this app be good for pen testing aswell. tak
-- Did: Nothing built this run: the "how the attacker did it" mode got stopped partway through planning. 1. Not done: the attacker's-side mode (pen-testing angle). I stopped it during planning and wrote no code. 2. Not changed: no files edited, nothing committed or pushed. main is still 1 commit ahead of origin (2972d44, the text-fit fix), which is waiting on your OK to go live. 3. Needs you: decide whether a narrower version is worth trying (see todo). Next: open D:\Projects\cyber-office and say whether to push 2972d44 (the dialog and goal box text fix) live.
-- Where it stood: Live site and main are unchanged since Oct 28. Unpushed on main: 2972d44 (HUD and dialog text fit). M7 playtest still needs testers.
+- Did: Built the "attacker's side" you asked for: every real breach case now has an Attacker's Playbook — the same hack from the attacker's seat. 1. Done: 12 real cases (PHP2Shell, Uber, SolarWinds, Target, NotPetya, MGM, etc.) each get a kill chain — for every step: the move, the trace it leaves in the logs, and the one control that breaks it. Shows in the case report between "what went wrong" and "how to stop it". 2. Done: it's offence→defence teaching, useful for pentest study, but techniques-only (no exploit code — a test enforces that). 3. Done + tested: 192/192 unit tests, 25/25 browser checks on 6 cases, PHP2Shell full case 17/17, no errors. Screenshots in smoke-out/playbook/. 4. Needs you: it's committed to main but NOT pushed (pushing main = live deploy), so it's not on the live site yet. Next: in D:\Projects\cyber-office run `npm run dev`, press F, open PHP2Shell, finish it, scroll to "Attacker's playbook" on the report — then tell me to push if you like it. Details: commits 0043cfd (feature) + 28c9866 (notes) on main, ahead of origin by 3.
+- Where it stood: Attacker's Playbook is built, tested and committed on main (not live — 3 commits unpushed). 16 cases total; the 4 practice labs don't have a playbook yet. M7 playtest still needs testers.
+- Problems: Soliman said 'take your time' and 'be creative', but the run ended after 2 minutes with zero output.; Only reading was done; 8 of 9 calls were Bash inspection, so the run gave up before any implementation.; Left a 'decide whether a narrower version is worth trying' question for Soliman instead of picking a small slice and building it.; PROJECT.md was already modified before the run and the run did not say whether that was its own change or pre-existing, nor whether it was reviewed.; Did not touch the project's own milestone flow (pick next unchecked milestone, build, test, commit, update notes).
+- Advice for the next run: Do not stop at planning. Pick the smallest piece of the attacker-side mode (one case, one screen) and build it. Test it in a browser with the existing smoke scripts, then commit locally. Write the plan into PROJECT.md before coding, so a stop leaves something behind. Check git status first and say what in PROJECT.md was already modified.
 ### Oct 25, 2026: done, supervisor grade B
 - He asked: Fix-up run started by the supervisor. It checked the last run's work itself and found 4 problems: 1. The case says many times there were 'no publicly confirmed breaches as of Oct 25, 2026', but The Hacker News reported a confirmed compromise that same day: Unit 42 says an attacker used PHP2Shell aga
 - Did: The PHP2Shell case facts are fixed and pushed to the branch. It's still not live: that waits on your merge. 1. Done: the case no longer says "no confirmed breaches". On Oct 25, Unit 42 reported a breach at a European government agency (via The Hacker News). The same afternoon it said it couldn't confirm the attackers got in through PHP2Shell. The case now says exactly that. 2. Done: removed 4chan from the list of sites that went offline. No reliable source backed it. 3. Done: added 11 sources, so every company or agency the case names now has one (Cloudflare, CrowdStrike, JFrog, VulnCheck, Chainguard, watchTowr, the FBI, BambooHR, Unit 42). Also fixed the credit: Wiz thanks OpenAI, not "the Codex Security team". 4. Done: I couldn't check 3 small claims, so I removed them: CISA "not observed", and the exact watchTowr and Calif times. The README now lists all 16 cases. 5. Needs you: look at the branch and merge it to make it live. Next: in D:\Projects\cyber-office run npm run dev, press F, open PHP2Shell, and read the "what really happened" page. Details: commit 4b05bd5 on overnight-2026-10-23 (pushed). Re-run today: unit tests 166/166, PHP2Shell case in the browser 17/17, Day 1 71,…
@@ -96,9 +60,7 @@ Oct 25 fix-up (re-run): npm test 166/166 | smoke 71 | smoke:a11y 15 | ONLY=php2s
 - Advice for the next run: Stay on branch overnight-2026-10-23 and do not push. When a doc claims a feature, add a test that exercises that exact claim. Print changed doc lines back after editing. Prove edge cases (first and last item), not just the middle path.
 
 ## Waiting on Soliman
-- The supervisor opened the last Cyber Office run's work and found 1 problem even after the fix-up run.
-- The supervisor opened the last Cyber Office run's work and found 4 problems; a fix-up run is fixing them now.
-- Look at the new title screen, Case Files and the PHP2Shell case, then merge the branch to make them live
+- Try the new Attacker's Playbook, then decide whether to push it live
 - Pick 2-3 people to playtest Cyber Office and send them the ready-made message (milestone M7)
 - Answer the open questions: game title, art plan, and whether to keep the character names
 - Play Day 1 once, start to finish (about 15 minutes)
