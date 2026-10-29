@@ -795,3 +795,8 @@
 .pt-foot button { cursor: pointer; border-radius: 4px; padding: 9px 16px; border: 1px solid #2b3f5c; background: #16222e; color: #9fd0ff; font-size: 14px; }
 .pt-go { border-color: #3b5a7a !important; background: #1b2a3a !important; color: #c6e4ff !important; font-weight: 600; }
 .pt-again { border-color: #2a6a45 !important; background: #10231a !important; color: #8af7b2 !important; }
+/* Pentest triage: compact rubric reminder + visible KEY FINDING rule (fix-up, Oct 28) */
+.pt-rubric-mini { margin: 6px 0 10px; padding: 8px 12px; }
+.pt-rubric-mini li { font-size: 12px; }
+.pt-keyrule { margin-top: 2px; }
+.pt-f-head .pt-keytag { flex: none; }

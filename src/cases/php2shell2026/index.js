@@ -207,6 +207,7 @@ export default {
     id: 'php2shell-2026',
     fresh: true,
     company: 'PHP2Shell',
+    target: 'Halcyon Mutual', // the fictional insurer in this replay (company is the bug's name, shown on the folder)
     when: 'October 2026',
     title: 'Exploited four days before the fix',
     pitch: 'Two critical bugs in PHP itself, the language behind about 70% of websites, let one request run code on the server. Attackers were trying it on Oct 17. The fix landed on Oct 21. You are the analyst at an insurer whose agent portal runs the riskiest setup, and the question is not whether to patch but what already happened. A brand-new event: this case was written four days after it hit the news.',
