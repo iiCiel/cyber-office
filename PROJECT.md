@@ -12,7 +12,7 @@ Read PROJECT.md in the project folder. Pick the next unchecked milestone, build 
 D:\Projects\cyber-office
 
 ## Notes (what is done, in progress, next, issues)
-STATUS: LIVE at https://iiciel.github.io/cyber-office/ (deploys from main). main == origin/main (2847255). 16 cases (12 real, 4 labs), registry src/cases/index.js. MUSIC REMOVED, do not re-add.
+STATUS: LIVE at https://iiciel.github.io/cyber-office/ (deploys from main). main == origin/main (231a962 + this notes commit). 16 cases (12 real, 4 labs), registry src/cases/index.js. MUSIC REMOVED, do not re-add. Three offence/report modes on all 12 real cases: Attacker's Playbook (read), Red Team Drill (play the attacker), Pentest Report Builder (triage + report).
 
 DONE: Attacker's Playbook (src/cases/playbooks.js, ReportScene.playbookSection, tests/playbooks.test.js, scripts/verify-playbook.mjs on a DEV server).
 
