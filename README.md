@@ -16,6 +16,8 @@ Five days at Halcyon Mutual Insurance, one attacker group, and choices that carr
 
 ### Case Files: replay real breaches
 Each case rebuilds a documented incident from public reports: the same way in, the same mistakes, the same clues in the logs. You're the analyst on shift. At the end you see what really happened: the real timeline, the company's actual failures, the MITRE ATT&CK techniques with fixes, the sources, and a resume line you've honestly earned ("investigated a simulated recreation of...").
+
+Every real-breach case also includes an **Attacker's Playbook** — the same incident from the attacker's seat, as a kill chain of choices. For each move you see what it did, the trace it left in the logs, and the one control that breaks the chain. It's techniques and traces only (no exploit code), so you learn to read an intrusion the way both a pentester and a defender do. The offence (src/cases/playbooks.js) and the defence (each case's ATT&CK fixes) are tied to the same technique IDs.
 Sixteen cases in all: 12 real breaches and 4 labs.
 - **PHP2Shell, Oct 2026 (new):** two critical bugs in the PHP runtime itself (CVE-2026-109618/109619), exploitation attempts from Oct 17, four days before the fix. Written four days after disclosure, so it says plainly what is and is not confirmed (one government breach was reported on Oct 25, then Unit 42 said it could not tie it to PHP2Shell). The victim company is fictional.
 - **Uber, Sept 2022:** a bought contractor password, 50+ MFA pushes, a WhatsApp message from "IT", and an admin password hardcoded in a PowerShell script on a network share.

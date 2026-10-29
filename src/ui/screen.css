@@ -461,6 +461,30 @@
 .resume-line { font-size: 15px; color: #e6e6ea; background: #0c1a12; padding: 10px 12px; border-left: 3px solid #3fe07a; margin: 0 0 8px; user-select: text; }
 .cf-note { color: #9fd8b4; font-size: 12px; margin: 8px 0 0; }
 .cf-disclaimer { color: #8f98b0; font-size: 12px; margin-top: 18px; }
+
+/* Attacker's playbook: the offence side of a case. Warm/red accent so it reads as "red team", against
+   the green defensive sections. Each step pairs the move with its trace and the control that breaks it. */
+.playbook { border: 1px solid #5a2a2a; border-radius: 8px; background: linear-gradient(#1d1517, #171218); padding: 14px 18px 16px; }
+.playbook h2 { color: #ff8a73; }
+.playbook .pb-lede { color: #c8cbd6; font-size: 13px; margin: 0 0 10px; }
+.playbook .pb-goal { color: #e6e6ea; font-size: 14px; margin: 0 0 12px; padding: 8px 12px; background: #241519; border-left: 3px solid #e5705d; border-radius: 0 4px 4px 0; }
+.pb-steps { list-style: none; counter-reset: pb; margin: 0; padding: 0; display: grid; gap: 8px; }
+.pb-step { background: #1a1620; border: 1px solid #3a2f3a; border-left: 3px solid #e5705d; border-radius: 6px; padding: 10px 14px; }
+.pb-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 6px; }
+.pb-num { width: 22px; height: 22px; flex: none; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; background: #e5705d; color: #171218; font-weight: 700; font-size: 13px; }
+.pb-phase { text-transform: uppercase; letter-spacing: 1px; font-size: 11px; color: #ffb199; background: #3a2024; border: 1px solid #5a2a2a; border-radius: 3px; padding: 2px 7px; }
+.pb-tid { font: 700 12px Consolas, monospace; color: #ffc08a; text-decoration: none; }
+.pb-tid:hover { text-decoration: underline; }
+.pb-title { font-weight: 600; color: #f0e6e6; }
+.pb-row { margin: 0 0 5px; font-size: 13px; color: #c8cbd6; }
+.pb-row.move { color: #e6dadc; }
+.pb-row.move b { color: #ff8a73; }
+.pb-row.trace b { color: #e8c547; }
+.pb-row.stop { color: #cfe8d8; }
+.pb-row.stop b { color: #6af09a; }
+.pb-choke { margin-top: 12px; padding: 10px 14px; background: #10231a; border: 1px solid #2a6a45; border-radius: 6px; color: #d4f0e0; font-size: 13px; }
+.pb-choke b { color: #6af09a; }
+
 /* Case Files: a steel filing drawer of hanging folders. Manila = a real breach, blue = a practice lab,
    red = a rubber stamp (your best grade) or a "New" sticker. VT323 for anything typed on a label,
    the UI sans for reading. */

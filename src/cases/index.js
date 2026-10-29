@@ -24,9 +24,18 @@ import linuxlab2026 from './linuxlab2026/index.js';
 import beclab2026 from './beclab2026/index.js';
 import solarwinds2020 from './solarwinds2020/index.js';
 import php2shell2026 from './php2shell2026/index.js';
+import { PLAYBOOKS } from './playbooks.js';
 
 // Newest first: php2shell-2026 is the "just happened" case.
 export const CASES = [php2shell2026, uber2022, mgm2023, colonial2021, target2013, equifax2017, capitalone2019, moveit2023, change2024, adlab2026, awslab2026, midnightblizzard2024, notpetya2017, linuxlab2026, beclab2026, solarwinds2020];
+
+// The Attacker's Playbook (src/cases/playbooks.js) is the offence side of each case: how the intrusion
+// actually progressed, step by step. Attached here so a case file can carry it without editing every case.
+// A case may also define caseFile.attackerView inline; that wins.
+for (const c of CASES) {
+  const pb = PLAYBOOKS[c.caseFile.id];
+  if (pb && !c.caseFile.attackerView) c.caseFile.attackerView = pb;
+}
 
 export const getCase = (id) => CASES.find((c) => c.caseFile.id === id) || uber2022; // unknown ids fall back to the first case ever written, not the newest
 

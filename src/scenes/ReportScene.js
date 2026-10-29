@@ -177,6 +177,7 @@ export class ReportScene extends Phaser.Scene {
         h('ol', { class: 'timeline' }, cf.timeline.map((t) => h('li', {}, h('span', { class: 'when' }, t.when), h('span', {}, t.what))))),
       h('section', {}, h('h2', {}, lab ? 'Why this works in real networks' : `How it ended for ${cf.company}`), cf.realOutcome.map((l) => h('p', { class: 'cf-p' }, l))),
       h('section', {}, h('h2', {}, lab ? 'What went wrong in this lab' : 'What went wrong (the real failures)'), h('ul', { class: 'cf-list bad' }, cf.failures.map((f) => h('li', {}, f)))),
+      cf.attackerView ? this.playbookSection(cf) : null,
       h('section', {}, h('h2', {}, 'How to stop it: techniques and fixes'),
         h('div', { class: 'attck' }, cf.attack.map((a) =>
           h('div', { class: 'tech' },
@@ -190,6 +191,35 @@ export class ReportScene extends Phaser.Scene {
       h('section', {}, h('h2', {}, 'Sources (read these before an interview)'),
         h('ul', { class: 'cf-list sources' }, cf.sources.map((x) => h('li', {}, h('a', { href: x.url, target: '_blank', rel: 'noopener' }, x.title))))),
       h('p', { class: 'cf-disclaimer' }, cf.disclaimer || 'A dramatized recreation based on public reporting. People in the office are fictional stand-ins; the attack chain, techniques and outcomes follow the sources above. Some details are simplified.'),
+    );
+  }
+
+  // The offence side: how the intrusion actually progressed, step by step. Each step pairs the attacker's
+  // move with the trace it left and where a defender breaks the chain, so reading it teaches both seats.
+  playbookSection(cf) {
+    const av = cf.attackerView;
+    const step = (s, i) =>
+      h(
+        'li',
+        { class: 'pb-step', 'data-tid': s.tid },
+        h('div', { class: 'pb-head' },
+          h('span', { class: 'pb-num' }, String(i + 1)),
+          h('span', { class: 'pb-phase' }, s.phase),
+          h('a', { class: 'pb-tid', href: `https://attack.mitre.org/techniques/${s.tid.replace('.', '/')}/`, target: '_blank', rel: 'noopener' }, s.tid),
+          h('span', { class: 'pb-title' }, s.title),
+        ),
+        h('p', { class: 'pb-row move' }, h('b', {}, 'The move: '), s.how),
+        h('p', { class: 'pb-row trace' }, h('b', {}, 'What it left behind: '), s.trace),
+        h('p', { class: 'pb-row stop' }, h('b', {}, 'Where it breaks: '), s.stop),
+      );
+    return h(
+      'section',
+      { class: 'playbook', 'data-playbook': cf.id },
+      h('h2', {}, "Attacker's playbook: how they actually did it"),
+      h('p', { class: 'pb-lede' }, 'To defend an attack you have to understand how it was carried out. This is the same incident from the attacker’s seat — the kill chain as a chain of choices. For each move: the trace it leaves, and the one control that breaks it. (Techniques and traces only, no exploit code.)'),
+      av.goal ? h('p', { class: 'pb-goal' }, h('b', {}, 'The objective: '), av.goal) : null,
+      h('ol', { class: 'pb-steps' }, av.steps.map(step)),
+      av.chokepoint ? h('div', { class: 'pb-choke' }, h('b', {}, 'The one place to cut it: '), av.chokepoint) : null,
     );
   }
 
