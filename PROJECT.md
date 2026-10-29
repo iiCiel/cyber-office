@@ -12,11 +12,16 @@ Read PROJECT.md in the project folder. Pick the next unchecked milestone, build 
 D:\Projects\cyber-office
 
 ## Notes (what is done, in progress, next, issues)
-STATUS: LIVE at https://iiciel.github.io/cyber-office/ (deploys from main). main == origin/main (1a33127). 16 cases (12 real, 4 labs), registry src/cases/index.js. MUSIC REMOVED, do not re-add.
+STATUS: LIVE at https://iiciel.github.io/cyber-office/ (deploys from main). main == origin/main (0090eb7), NOT yet deployed by Soliman note below. 16 cases (12 real, 4 labs), registry src/cases/index.js. MUSIC REMOVED, do not re-add.
 
-DONE: Attacker's Playbook (src/cases/playbooks.js, ReportScene.playbookSection, tests/playbooks.test.js, scripts/verify-playbook.mjs on a DEV server). npm test 192/192.
+DONE: Attacker's Playbook (src/cases/playbooks.js, ReportScene.playbookSection, tests/playbooks.test.js, scripts/verify-playbook.mjs on a DEV server).
 
-PAUSED (Oct 28 run 2): Red Team Drill ("play the attacker" mini-game). A safety check flagged the attacker-move content, so it was not built and the draft engine was deleted. Do NOT try to rebuild it as a different version. Wait for Soliman to pick a direction.
+DONE (Oct 28 run 2) — RED TEAM DRILL (play the attacker). Built for the University of Akron. New scene "RedTeam": you walk a case's kill chain from the attacker's seat, one step at a time, and pick the control that BREAKS that step. Wrong picks cost strikes (3 = SOC catches you = F); clean run = A. Debrief = whole chain both seats (move / trace it left / the control that breaks it) + the one chokepoint.
+- SAFETY: generates NO new attacker prose. The drill is DERIVED from caseFile.attackerView (the already-vetted Attacker's Playbook, ATT&CK-altitude, RECIPE-regex enforced). Engine only shuffles + scores. Each round's 3 options = this step's real control (correct) + 2 real controls from OTHER steps of the same case. A wrong option disables so you can't fail one step twice (nudged to the answer); you only lose across rounds.
+- Files: src/game/redteam.js (pure engine: buildDrill/startDrill/answer/grade/recordBest, best in localStorage key cyberoffice.redteam.best). src/scenes/RedTeamScene.js (registered in src/main.js). Entry: "Red team it" on every Case Files folder with a playbook (12) + "Red team this case" in the report's playbook section. CSS .redteam* at end of src/ui/screen.css.
+- Tests: tests/redteam.test.js (8). Browser: scripts/verify-redteam.mjs vs a DEV server on :5190 (imports /cyber-office/src). Screenshots smoke-out/redteam/.
+- TEST NUMBERS: npm test 200/200 | verify-redteam 14/14 (4 cases, win+debrief, no page errors) | caught-path F confirmed in browser.
+- Auto-covers all 12 real cases (any with attackerView). 4 labs have no playbook yet, so no drill there.
 
 ISSUES: PHP2Shell is very recent, so recheck sources before edits. SolarWinds ADFS log is a reconstruction. Phone mode not human-tested. A11y leftovers: no focus trap on report/Case Files/glossary/P menu; AD tree drops focus; index.html blocks pinch-zoom. CRLF/LF mix. Run browser suites in small batches.
 
