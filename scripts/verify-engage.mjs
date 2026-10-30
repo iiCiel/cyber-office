@@ -17,6 +17,9 @@ let fails = 0, n = 0;
 const check = (name, ok, info = '') => { n++; if (!ok) fails++; console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${info ? `  (${info})` : ''}`); };
 async function fullShot(path) {
   const vp = page.viewportSize();
+  // Remember the layout height/overflow placeOnCanvas set, and put them back after the shot (clearing them
+  // leaves the screen taller than the viewport, so later clicks land "outside of the viewport").
+  const saved = await page.evaluate(() => { const el = document.querySelector('#engage'); return { h: el.style.height, o: el.style.overflow }; });
   for (let i = 0; i < 4; i++) {
     const need = await page.evaluate(() => {
       const el = document.querySelector('#engage');
@@ -31,7 +34,7 @@ async function fullShot(path) {
     await page.waitForTimeout(350);
   }
   await page.locator('#engage').screenshot({ path });
-  await page.evaluate(() => { const el = document.querySelector('#engage'); el.style.height = ''; el.style.overflow = ''; });
+  await page.evaluate((sv) => { const el = document.querySelector('#engage'); el.style.height = sv.h; el.style.overflow = sv.o; }, saved);
   await page.setViewportSize(vp);
   await page.waitForTimeout(300);
 }
@@ -57,7 +60,7 @@ async function play(engId, label, { quiet }) {
   await page.waitForFunction(() => window.__game.scene.isActive('Engage'), null, { timeout: 8000 });
   await page.waitForTimeout(250);
   const picks = await page.evaluate(() => document.querySelectorAll('.eg-pick').length);
-  check(`${label}: engagement chooser lists all engagements`, picks === 4, `${picks}`);
+  check(`${label}: engagement chooser lists all engagements`, picks === 5, `${picks}`);
   if (label.endsWith('desktop')) await fullShot(`${out}/picker.png`);
   await page.click(`[data-eng="${engId}"]`);
   await page.waitForTimeout(200);
@@ -145,7 +148,7 @@ async function play(engId, label, { quiet }) {
   return { g, loud };
 }
 
-const ENGS = [{ id: 'halcyon-ext-2026', tag: 'ext' }, { id: 'halcyon-web-2026', tag: 'web' }, { id: 'halcyon-phish-2026', tag: 'phish' }, { id: 'halcyon-ad-2026', tag: 'ad' }];
+const ENGS = [{ id: 'halcyon-ext-2026', tag: 'ext' }, { id: 'halcyon-web-2026', tag: 'web' }, { id: 'halcyon-phish-2026', tag: 'phish' }, { id: 'halcyon-cloud-2026', tag: 'cloud' }, { id: 'halcyon-ad-2026', tag: 'ad' }];
 for (const e of ENGS) {
   await page.setViewportSize({ width: 1200, height: 900 });
   const d = await play(e.id, `${e.tag}-desktop`, { quiet: true });

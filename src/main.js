@@ -48,6 +48,10 @@ function applyResize() {
   if (w === game.scale.width && h === game.scale.height && Math.abs(game.scale.zoom - 1 / dpr) < 1e-6) return;
   game.scale.setZoom(1 / dpr);
   game.scale.resize(w, h);
+  // setZoom() re-applies the OLD display size to the canvas style, and resize() skips the style when zoom is 1
+  // (a DPR-1 screen), so after the window shrinks the canvas stayed at its old, taller size. Set it explicitly.
+  game.canvas.style.width = `${w / dpr}px`;
+  game.canvas.style.height = `${h / dpr}px`;
   for (const scene of game.scene.scenes) {
     const sys = scene.sys;
     if (!sys.isActive() && !sys.isPaused()) continue;

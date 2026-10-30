@@ -1,6 +1,6 @@
 # Project: Cyber Office
 
-> Project file from the Command Center, Oct 30, 2026, 12:23 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
+> Project file from the Command Center, Oct 30, 2026, 5:06 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
 
 ## Goal
 A pixel-art browser game where you live a real day as a junior security analyst: walk the office, read real-looking email, dig through logs, deal with coworkers, and watch your choices play out. Not a quiz and not a wall of text. Built in public as a portfolio piece for internship applications.
@@ -12,7 +12,7 @@ Read PROJECT.md in the project folder. Pick the next unchecked milestone, build 
 D:\Projects\cyber-office
 
 ## Notes (what is done, in progress, next, issues)
-STATUS: LIVE at https://iiciel.github.io/cyber-office/ (deploys from main via GitHub Actions; `gh run list --branch main`). main pushed (HEAD 3cf06eb, deploy verified). 16 cases (12 real, 4 labs). Title "Red team engagement" (key R) opens an ENGAGEMENT PICKER with 4 engagements; EngageScene takes the engagement as a param; registry src/cases/engagements.js = [ENGAGEMENT (ext), WEB_ENGAGEMENT (web), PHISH_ENGAGEMENT (phish), AD_ENGAGEMENT (ad)]. MUSIC REMOVED, do not re-add.
+STATUS: LIVE at https://iiciel.github.io/cyber-office/ (deploys from main via GitHub Actions; `gh run list --branch main`). main pushed (HEAD 3cf06eb, deploy verified). 16 cases (12 real, 4 labs). Title "Red team engagement" (key R) opens an ENGAGEMENT PICKER with 5 engagements; EngageScene takes the engagement as a param; registry src/cases/engagements.js = [ENGAGEMENT (ext), WEB_ENGAGEMENT (web), PHISH_ENGAGEMENT (phish), CLOUD_ENGAGEMENT (cloud), AD_ENGAGEMENT (ad)]. MUSIC REMOVED, do not re-add.
 
 ENGINE (shared): src/game/engage.js. Whitelist terminal (runCommand/newRun/nextStep), built-ins help/moves/hint/roe/clear. buildSiem = logkit builder + eng.noise + each step's logs(b,t,{loud}), keyed to step id with attack=tid. scoreRun = 70% hunt (half credit after a wrong pick) + 30% stealth (-15/loud) - 15/ROE strike. Scene src/scenes/EngageScene.js renders ANY engagement; CSS .eg-* in src/ui/screen.css. logkit helpers: b.add/win/sysmon/aws/guardduty/okta/signin/audit/ual — cloud `make` records render via finishLogs/enrich.
 
@@ -22,10 +22,12 @@ ENGINE (shared): src/game/engage.js. Whitelist terminal (runCommand/newRun/nextS
 #4 phish (3cf06eb): src/cases/halcyon-phish-engagement.js. 5 steps T1589.002 o365enum→T1566.002 gophish lure→T1621 MFA fatigue→T1078.004 M365 sign-in from new country (always alerts)→T1114.002 read mailbox proof. FLAG{push-approved-the-phish}. SIEM = Entra SigninLogs (b.signin) + Purview UAL (b.ual) + mail gateway. Trap: New-InboxRule external auto-forward. victim d.reyes; attacker AiTM 198.51.100.88 / sign-in 203.0.113.88 (geo NG). tests/engage-phish.test.js (9).
 All engagements: fiction/canned, RFC5737 doc IPs, *.example, fixed whitelist, nothing executed.
 
-VERIFY: scripts/verify-engage.mjs drives ALL 4 engagements through the picker, desktop quiet + phone 844x390 loud, incl. full debrief. Runs >120s — launch in background. DEV `npx vite --port 5192 --strictPort`; stop on Windows via Get-NetTCPConnection -LocalPort 5192 | Stop-Process.
-NUMBERS: npm test 250/250 | verify-engage 141/141 (0 page errors) | verify-pentest 37/37 (untouched). Live bundle confirmed to contain halcyon-web-2026 + halcyon-phish-2026.
+VERIFY: scripts/verify-engage.mjs drives ALL 5 engagements through the picker, desktop quiet + phone 844x390 loud, incl. full debrief. Runs >120s — launch in background; wait for vite 'ready' (~15s) before starting it. DEV `npx vite --port 5192 --strictPort`; stop on Windows via Get-NetTCPConnection -LocalPort 5192 | Stop-Process.
+NUMBERS: npm test 259/259 | verify-engage 176/176 (0 page errors) | verify-pentest 37/37 (untouched). Live bundle confirmed to contain halcyon-web-2026 + halcyon-phish-2026.
 
-NEXT: 1) Cloud/AWS engagement (b.aws/b.guardduty, CloudTrail/GuardDuty) reusing engine. 2) Lab playbooks (adlab/awslab/linuxlab/beclab). 3) Tool-picker mini-game. 4) Link engagements from Case Files (PHP2Shell) + Pentest Report Builder.
+#5 cloud (Oct 30): src/cases/halcyon-cloud-engagement.js. Capital One 2019 path, 5 steps T1190 SSRF in docs.halcyon.example /api/import?url= → T1552.005 IMDSv1 role keys (claims-docs-role) → T1078.004 sts get-caller-identity from outside AWS (GuardDuty InstanceCredentialExfiltration.OutsideAWS, always alerts) → T1619 list s3://halcyon-claims-docs (loud = enumerate-iam, AccessDenied burst + GuardDuty Discovery) → T1530 GetObject engagement-proof.txt. FLAG{imdsv1-handed-over-the-keys}. SIEM = nginx + docs-import fetch log + WAF CRS 934110 + CloudTrail (b.aws, S3 data events) + GuardDuty (b.guardduty). Trap: aws s3 sync whole bucket. Attacker 198.51.100.61. tests/engage-cloud.test.js (9). Picker order: ext, web, phish, cloud, ad.
+NEXT: 1) Get Soliman's feedback on the 5 engagements before adding more. 2) Lab playbooks (adlab/awslab/linuxlab/beclab). 3) Tool-picker mini-game. 4) Link engagements from Case Files (PHP2Shell) + Pentest Report Builder.
+FIXED Oct 30: canvas stayed oversized after a window shrank on DPR-1 screens (Phaser setZoom re-applied old style; src/main.js applyResize now sets canvas style); EngageScene re-places its DOM when the canvas moves (update()). verify-engage fullShot now restores the layout style.
 ISSUES: debrief re-renders whole list per keystroke (fine ~200 events); no focus trap; phone not human-tested (390 portrait = rotate gate by design); A11y gaps (no focus traps; AD tree drops focus; index.html blocks pinch-zoom); CRLF/LF mix; PHP2Shell facts recent (recheck sources).
 OPEN QUESTIONS: game title / own art / character names / splunk look-alike? M7 playtesters? allow pinch-zoom?
 
@@ -62,4 +64,3 @@ OPEN QUESTIONS: game title / own art / character names / splunk look-alike? M7 p
 ## Waiting on Soliman
 - Play the 3 red-team engagements once (External pentest, Web app SQL injection, Internal AD) and say if the security side is good enough to show University of Akron
 - Pick 2-3 people to playtest Cyber Office and send them the ready-made message (milestone M7)
-- Answer the open questions: game title, art plan, and whether to keep the character names

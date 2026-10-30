@@ -5,5 +5,6 @@ import { ENGAGEMENT } from './halcyon-engagement.js';
 import { WEB_ENGAGEMENT } from './halcyon-web-engagement.js';
 import { PHISH_ENGAGEMENT } from './halcyon-phish-engagement.js';
 import { AD_ENGAGEMENT } from './halcyon-ad-engagement.js';
+import { CLOUD_ENGAGEMENT } from './halcyon-cloud-engagement.js';
 
-export const ENGAGEMENTS = [ENGAGEMENT, WEB_ENGAGEMENT, PHISH_ENGAGEMENT, AD_ENGAGEMENT];
+export const ENGAGEMENTS = [ENGAGEMENT, WEB_ENGAGEMENT, PHISH_ENGAGEMENT, CLOUD_ENGAGEMENT, AD_ENGAGEMENT];

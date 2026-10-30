@@ -35,6 +35,8 @@ export class EngageScene extends Phaser.Scene {
 
     const layout = () => placeOnCanvas(this.root, this.game.canvas, { x: 0, y: 0, w: VIEW_W, h: VIEW_H }, { viewW: VIEW_W });
     layout();
+    this.layout = layout;
+    this.canvasRect = '';
     window.addEventListener('resize', layout);
     this.scale.on('resize', layout);
     // Let W/A/S/D/Space reach the terminal input (the office captures them globally).
@@ -46,6 +48,15 @@ export class EngageScene extends Phaser.Scene {
       this.root.remove();
     });
     this.input.keyboard.on('keydown-ESC', () => this.exit());
+  }
+
+  // Phaser re-centres the canvas a moment after a window resize, sometimes after our resize handler ran,
+  // which left the screen placed at the old canvas spot (half off-screen). Re-place it whenever the canvas moves.
+  update() {
+    if (!this.layout) return;
+    const r = this.game.canvas.getBoundingClientRect();
+    const key = `${r.left},${r.top},${r.width},${r.height}`;
+    if (key !== this.canvasRect) { this.canvasRect = key; this.layout(); }
   }
 
   reset() {
@@ -73,6 +84,9 @@ export class EngageScene extends Phaser.Scene {
 
   render() {
     clear(this.root);
+    // A new phase starts at the top; re-renders inside the same phase keep the player's scroll position.
+    if (this.phase !== this.renderedPhase) { this.root.scrollTop = 0; window.scrollTo(0, 0); }
+    this.renderedPhase = this.phase;
     if (this.phase === 'pick') this.renderPick();
     else if (this.phase === 'brief') this.renderBrief();
     else if (this.phase === 'terminal') this.renderTerminal();
