@@ -3,6 +3,7 @@
 // EngageScene + src/game/engage.js drive any of them. Add a new engagement here and it appears in the picker.
 import { ENGAGEMENT } from './halcyon-engagement.js';
 import { WEB_ENGAGEMENT } from './halcyon-web-engagement.js';
+import { PHISH_ENGAGEMENT } from './halcyon-phish-engagement.js';
 import { AD_ENGAGEMENT } from './halcyon-ad-engagement.js';
 
-export const ENGAGEMENTS = [ENGAGEMENT, WEB_ENGAGEMENT, AD_ENGAGEMENT];
+export const ENGAGEMENTS = [ENGAGEMENT, WEB_ENGAGEMENT, PHISH_ENGAGEMENT, AD_ENGAGEMENT];
