@@ -57,7 +57,7 @@ async function play(engId, label, { quiet }) {
   await page.waitForFunction(() => window.__game.scene.isActive('Engage'), null, { timeout: 8000 });
   await page.waitForTimeout(250);
   const picks = await page.evaluate(() => document.querySelectorAll('.eg-pick').length);
-  check(`${label}: engagement chooser lists both engagements`, picks === 2, `${picks}`);
+  check(`${label}: engagement chooser lists all engagements`, picks === 3, `${picks}`);
   if (label.endsWith('desktop')) await fullShot(`${out}/picker.png`);
   await page.click(`[data-eng="${engId}"]`);
   await page.waitForTimeout(200);
@@ -145,7 +145,7 @@ async function play(engId, label, { quiet }) {
   return { g, loud };
 }
 
-const ENGS = [{ id: 'halcyon-ext-2026', tag: 'ext' }, { id: 'halcyon-ad-2026', tag: 'ad' }];
+const ENGS = [{ id: 'halcyon-ext-2026', tag: 'ext' }, { id: 'halcyon-web-2026', tag: 'web' }, { id: 'halcyon-ad-2026', tag: 'ad' }];
 for (const e of ENGS) {
   await page.setViewportSize({ width: 1200, height: 900 });
   const d = await play(e.id, `${e.tag}-desktop`, { quiet: true });
