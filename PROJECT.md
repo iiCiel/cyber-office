@@ -1,6 +1,6 @@
 # Project: Cyber Office
 
-> Project file from the Command Center, Oct 29, 2026, 1:14 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
+> Project file from the Command Center, Oct 29, 2026, 8:38 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
 
 ## Goal
 A pixel-art browser game where you live a real day as a junior security analyst: walk the office, read real-looking email, dig through logs, deal with coworkers, and watch your choices play out. Not a quiz and not a wall of text. Built in public as a portfolio piece for internship applications.
@@ -12,25 +12,50 @@ Read PROJECT.md in the project folder. Pick the next unchecked milestone, build 
 D:\Projects\cyber-office
 
 ## Notes (what is done, in progress, next, issues)
-STATUS: LIVE at https://iiciel.github.io/cyber-office/ (deploys from main via GitHub Actions; check with `gh run list --branch main`). 16 cases (12 real, 4 labs), registry src/cases/index.js. MUSIC REMOVED, do not re-add.
+STATUS: LIVE at https://iiciel.github.io/cyber-office/ (deploys from main via GitHub Actions; check with `gh run list --branch main`). main == origin/main (bd14158). 16 cases (12 real, 4 labs), registry src/cases/index.js. MUSIC REMOVED, do not re-add.
 
 DONE: Attacker's Playbook (src/cases/playbooks.js, ReportScene.playbookSection, tests/playbooks.test.js; every step tid must be in the case's attack[]).
 DONE: Red Team Drill (src/scenes/RedTeamScene.js, src/game/redteam.js, tests/redteam.test.js, scripts/verify-redteam.mjs :5190).
 DONE: Pentest Report Builder (src/scenes/PentestScene.js, src/game/pentest.js, tests/pentest.test.js, scripts/verify-pentest.mjs vs DEV `npx vite --port 5191 --strictPort`). KEY FINDING tag + KEY_RULE, ATT&CK-consistent phases (TACTICS map in tests/pentest.test.js), PHP2Shell target = Halcyon Mutual.
-DONE (Oct 29, 3a5cdc0): RED TEAM ENGAGEMENT, the simulated attacker terminal. Title menu "Red team engagement" (key R) -> scene 'Engage'.
-  - Content: src/cases/halcyon-engagement.js. Fictional Halcyon Mutual, documentation IPs only (attacker 198.51.100.66, portal 203.0.113.10 / DMZ 192.0.2.15, files01 192.0.2.20, claimsdb 192.0.2.30, dc01 192.0.2.5), *.example names. 8 ATT&CK-tagged steps: T1595.001 scan (quiet/loud) -> T1595.003 dirscan -> T1552.001 backup .env leaks svc_portal password -> T1078 ssh -> T1016 ip addr -> T1046 internal scan (quiet/loud) -> T1021.002 smbclient (password reuse) -> T1039 get ROE_PROOF.txt (FLAG{reused-passwords-flat-networks}). Trap: `get Q4_claims_export.csv` = rules-of-engagement strike.
-  - Engine: src/game/engage.js (whitelist terminal: runCommand/newRun/nextStep; builtins help/moves/hint/roe/clear; wrong args -> shows options; later steps locked; buildSiem = logkit builder + noise + each step's logs keyed to step id with attack=tid; detections; scoreRun = 70% hunt (half credit after a wrong pick) + 30% stealth (-15 per loud move) - 15 per ROE strike).
-  - Scene: src/scenes/EngageScene.js: brief (ROE) -> terminal (type or click a move; ATT&CK tag per move; kill-chain sidebar) -> SOC debrief (search the SIEM, click the log line each move left; hint button) -> results (grade, SOC alerts per move, the fix for each step, flag). CSS .eg-* in src/ui/screen.css.
-  - Tests: tests/engage.test.js (9: tactic/tid match, doc-IP-only + no real domains, no exploit tools, whitelist refusals, full run to flag, ROE strike, SIEM has keyed events per step, loud = more alerts, scoring). scripts/verify-engage.mjs (33 browser checks, desktop 1200 quiet path + phone 844x390 loud path) vs DEV `npx vite --port 5192 --strictPort`. Shots in smoke-out/engage/ (looked at all: brief, terminal, debrief, results, phone).
-NUMBERS: npm test 223/223 | verify-engage 33/33 | verify-pentest 37/37 | smoke (Day 1) 71/71 | live site: engagement opens with R, terminal runs nmap, 0 errors.
+DONE (Oct 29, 3a5cdc0): RED TEAM ENGAGEMENT (simulated attacker terminal). Title menu "Red team engagement" (key R) opens scene 'Engage'.
+- Content: src/cases/halcyon-engagement.js. Fictional Halcyon Mutual, documentation IPs only: attacker 198.51.100.66; portal 203.0.113.10, DMZ address 192.0.2.15; files01 192.0.2.20; claimsdb 192.0.2.30; dc01 192.0.2.5. Hostnames are *.example. 8 ATT&CK-tagged steps:
+  1. T1595.001 port scan (quiet or loud)
+  2. T1595.003 dirscan
+  3. T1552.001 a backup .env file leaks the svc_portal password
+  4. T1078 ssh
+  5. T1016 ip addr
+  6. T1046 internal scan (quiet or loud)
+  7. T1021.002 smbclient (password reuse)
+  8. T1039 get ROE_PROOF.txt (FLAG{reused-passwords-flat-networks})
+  Trap: `get Q4_claims_export.csv` is a rules-of-engagement strike.
+- Engine: src/game/engage.js.
+  - Terminal is a whitelist (runCommand/newRun/nextStep). Built-ins: help, moves, hint, roe, clear. Right command with wrong arguments shows the options; later steps are locked.
+  - buildSiem: logkit builder plus noise plus each step's logs, keyed to the step id with attack=tid. detections() lists the alerts.
+  - scoreRun: 70% hunt (half credit after a wrong pick) + 30% stealth (-15 per loud move), minus 15 per ROE strike.
+- Scene: src/scenes/EngageScene.js. Brief (ROE), then terminal (type or click a move; kill-chain sidebar), then SOC debrief (search the SIEM, click each move's log line, hint button), then results (grade, alerts per move, fix per step, flag). CSS .eg-* in src/ui/screen.css.
+- Tests: tests/engage.test.js (9 tests). scripts/verify-engage.mjs (33 checks, desktop quiet path + phone 844x390 loud path) runs against DEV `npx vite --port 5192 --strictPort`. Shots in smoke-out/engage/ (all opened and checked).
+NUMBERS: npm test 223/223 | verify-engage 33/33 | verify-pentest 37/37 | smoke (Day 1) 71/71 | live: R opens the engagement, nmap works, 0 errors.
 
-NEXT (pick one per run): 1) a second engagement (e.g. cloud/AWS on a fictional bucket, or AD/Kerberoast on the same Halcyon network) reusing engage.js; make engine take an engagement param in the scene (ENGAGEMENT is imported directly now). 2) lab playbooks (adlab/awslab/linuxlab/beclab). 3) tool-picker mini-game. 4) Link the engagement from Case Files (PHP2Shell card) and from the Pentest Report Builder.
+NEXT (one per run):
+1) A second engagement (cloud/AWS, or AD/Kerberoast on the same Halcyon network) reusing engage.js. First let the scene take the engagement as a parameter; ENGAGEMENT is imported directly right now.
+2) Lab playbooks (adlab/awslab/linuxlab/beclab).
+3) Tool-picker mini-game.
+4) Link the engagement from Case Files (PHP2Shell card) and from the Pentest Report Builder.
 
-ISSUES: Engagement: phone 390 portrait shows rotate gate (by design); debrief re-renders the whole list on each keystroke (fine at ~130 events); no focus trap. PHP2Shell is very recent, so recheck its sources before editing facts. SolarWinds ADFS log is a reconstruction. Phone mode not human-tested. A11y leftovers: no focus trap on report/CaseFiles/glossary/P menu/RedTeam/Pentest/Engage; AD tree drops focus; index.html blocks pinch-zoom. CRLF/LF mix. Run browser suites in small batches. Some playbook mappings are ATT&CK-correct but read oddly (MGM LinkedIn = T1656; Equifax DB queries = T1078) because tids must stay inside each case's attack[].
+ISSUES:
+- Engagement: the debrief re-renders the whole list on every keystroke (fine at about 130 events). No focus trap.
+- PHP2Shell is very recent, so recheck its sources before editing facts. The SolarWinds ADFS log is a reconstruction.
+- Phone mode not human-tested. Phone 390 portrait shows the rotate gate by design.
+- A11y leftovers: no focus trap on report/CaseFiles/glossary/P menu/RedTeam/Pentest/Engage; AD tree drops focus; index.html blocks pinch-zoom.
+- CRLF/LF mix. Run browser suites in small batches.
+- Some playbook mappings are ATT&CK-correct but read oddly (MGM LinkedIn = T1656; Equifax DB queries = T1078), because tids must stay inside each case's attack[].
 
 OPEN QUESTIONS: game title / own art / character names / splunk look-alike? M7 playtesters? allow pinch-zoom?
 
 ## Recent runs (newest first)
+### Oct 29, 2026: done
+- Did: The attacker terminal is built and live: hack fictional Halcyon Mutual, then find your own tracks in the SIEM. 1. Done + live: the new "Red team engagement" on the title screen (press R). It has 8 moves, from scan to leaked password, SSH, internal scan, file share and the proof flag. Each move is tagged with its ATT&CK technique. 2. Done: it's a fake terminal. Only the engagement's commands work, every output is pre-written, all hosts are fictional (example IPs/names), and nothing runs. Any other command gets refused. 3. Done: it has real choices. Quiet or loud scans: loud ones set off SOC alerts. A trap: copying the customer data file counts as a rules-of-engagement strike. 4. Done: the SOC debrief. You switch seats and search that night's SIEM to find the log line each of your moves left. Then you get a grade, the alerts the SOC got, and the fix for every step. 5. Needs you: play it once and say if it's good enough to show University of Akron. I built all of what you asked this time. Nothing was cut or changed. Next: open https://iiciel.github.io/cyber-office/, press Ctrl+Shift+R, then press R. Details: commits 3a5cdc0 (feature) + bd14158 (notes), pushed, deploy succeeded, live …
+- Where it stood: Live game has 4 security modes: Playbook, Red Team Drill, Pentest Report Builder, and the new Red team engagement (terminal + SOC debrief). The 4 labs still have no playbooks.
 ### Oct 28, 2026: done, supervisor grade B
 - He asked: Fix-up run started by the supervisor. It checked the last run's work itself and found 4 problems: 1. The grading cannot be learned from what the player sees. The reference severity of the chokepoint step is quietly raised one rank, but the triage screen never shows which finding is the chokepoint an
 - Did: All 4 supervisor fixes to the Pentest Report Builder are done and live. The attacker terminal is still not built. 1. Done, grading is learnable: the triage screen now shows a "KEY FINDING" tag on the chokepoint row, and the rubric has a 5th rule saying that finding rates one level higher. A test proves a player who follows only the rubric scores 100% on all 12 cases. 2. Done, ATT&CK labels match: 17 steps were labelled with the wrong attack stage for their technique (one more than the supervisor listed: the Midnight Blizzard password spray). Only the labels changed, no case facts. A new test fails if any label stops matching its technique. 3. Done: the PHP2Shell report now names the fictional company, Halcyon Mutual, not the bug. 4. Done, checked in the browser: 37/37 browser checks. Full-length screenshots of PHP2Shell and Target, triage and report, on desktop and phone. I looked at all of them: no overlap and no cut-off text. Phones are shot sideways because the game shows "Rotate your phone" in portrait. 5. Still not built: the attacker terminal, the SIEM view of your moves, playbooks for the 4 labs, the tool-picker game and CTF flags. Next: open https://iiciel.github.io/cyber-…
@@ -55,19 +80,9 @@ OPEN QUESTIONS: game title / own art / character names / splunk look-alike? M7 p
 - Where it stood: Attacker's Playbook is built, tested and committed on main (not live — 3 commits unpushed). 16 cases total; the 4 practice labs don't have a playbook yet. M7 playtest still needs testers.
 - Problems: Soliman said 'take your time' and 'be creative', but the run ended after 2 minutes with zero output.; Only reading was done; 8 of 9 calls were Bash inspection, so the run gave up before any implementation.; Left a 'decide whether a narrower version is worth trying' question for Soliman instead of picking a small slice and building it.; PROJECT.md was already modified before the run and the run did not say whether that was its own change or pre-existing, nor whether it was reviewed.; Did not touch the project's own milestone flow (pick next unchecked milestone, build, test, commit, update notes).
 - Advice for the next run: Do not stop at planning. Pick the smallest piece of the attacker-side mode (one case, one screen) and build it. Test it in a browser with the existing smoke scripts, then commit locally. Write the plan into PROJECT.md before coding, so a stop leaves something behind. Check git status first and say what in PROJECT.md was already modified.
-### Oct 25, 2026: done, supervisor grade B
-- He asked: Fix-up run started by the supervisor. It checked the last run's work itself and found 4 problems: 1. The case says many times there were 'no publicly confirmed breaches as of Oct 25, 2026', but The Hacker News reported a confirmed compromise that same day: Unit 42 says an attacker used PHP2Shell aga
-- Did: The PHP2Shell case facts are fixed and pushed to the branch. It's still not live: that waits on your merge. 1. Done: the case no longer says "no confirmed breaches". On Oct 25, Unit 42 reported a breach at a European government agency (via The Hacker News). The same afternoon it said it couldn't confirm the attackers got in through PHP2Shell. The case now says exactly that. 2. Done: removed 4chan from the list of sites that went offline. No reliable source backed it. 3. Done: added 11 sources, so every company or agency the case names now has one (Cloudflare, CrowdStrike, JFrog, VulnCheck, Chainguard, watchTowr, the FBI, BambooHR, Unit 42). Also fixed the credit: Wiz thanks OpenAI, not "the Codex Security team". 4. Done: I couldn't check 3 small claims, so I removed them: CISA "not observed", and the exact watchTowr and Calif times. The README now lists all 16 cases. 5. Needs you: look at the branch and merge it to make it live. Next: in D:\Projects\cyber-office run npm run dev, press F, open PHP2Shell, and read the "what really happened" page. Details: commit 4b05bd5 on overnight-2026-10-23 (pushed). Re-run today: unit tests 166/166, PHP2Shell case in the browser 17/17, Day 1 71,…
-- Where it stood: 16 cases, the redesign and the corrected PHP2Shell facts are all tested on the branch overnight-2026-10-23, waiting on Soliman's merge. M7 (playtest) still needs testers.
-- Problems: At 7:15 PM the run swapped the old file back in and then restored its new copy through /tmp to test the new test. That is risky for uncommitted work. It worked, but a git stash or a copy kept in the repo would be safer.; Fix #3 also asked for removing the 'Codex Security team' credit and for sources on several outlets. The run's summary shows these done, but the full list of edits isn't visible in the transcript.; Fix #1 text was truncated in the brief. The run relied on the full wording from its own research rather than the supervisor's complete suggestion.
-- Advice for the next run: Re-check any 'as of today' claim against current reporting before editing. Don't swap files in and out to test; use git stash or a separate copy. When you say every named outlet has a source, run a check that proves it. Merge to main waits on Soliman. Don't merge or deploy.
 
 ## Waiting on Soliman
-- The supervisor opened the last Cyber Office run's work and found 1 problem even after the fix-up run.
-- The supervisor opened the last Cyber Office run's work and found 4 problems; a fix-up run is fixing them now.
-- Try the new Pentest Report Builder and say if it's good enough to show University of Akron
-- Try the new Red Team Drill, confirm it's good for University of Akron
-- Pick what to build next for the security side
+- Play the new Red team engagement once and say if the security side is good enough to show University of Akron
 - Pick 2-3 people to playtest Cyber Office and send them the ready-made message (milestone M7)
 - Answer the open questions: game title, art plan, and whether to keep the character names
 - Play Day 1 once, start to finish (about 15 minutes)
