@@ -61,6 +61,7 @@ export class TitleScene extends Phaser.Scene {
     }
     const fresh = CASES.find((c) => c.caseFile.fresh);
     items.push({ label: 'Case Files', key: 'F', sub: fresh ? `New: ${fresh.caseFile.company}, ${fresh.caseFile.when}` : `${CASES.length} real breaches and labs`, name: 'cases-button', run: () => this.toCases() });
+    items.push({ label: 'Red team engagement', key: 'R', sub: 'Hack Halcyon Mutual (simulated), then find your own tracks', name: 'engage-button', run: () => this.toEngage() });
     items.push({ label: '', key: 'D', name: 'title-difficulty', difficulty: true, run: () => this.cycle() });
     this.buildMenu(x, 290, items);
 
@@ -86,6 +87,7 @@ export class TitleScene extends Phaser.Scene {
       if (k === 'Enter' || k === ' ') return this.items[this.sel].run();
       if (k === 'f' || k === 'F') return this.toCases();
       if (k === 'd' || k === 'D') return this.cycle();
+      if (k === 'r' || k === 'R') return this.toEngage();
       if (save && (k === 'c' || k === 'C')) return this.go(true);
       if (save && (k === 'n' || k === 'N')) return this.go(false);
     });
@@ -184,6 +186,13 @@ export class TitleScene extends Phaser.Scene {
     s?.play('select');
     this.cameras.main.fadeOut(250, 14, 24, 34);
     this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Office', { resume }));
+  }
+
+  toEngage() {
+    if (this.leaving) return;
+    this.leaving = true;
+    this.game.registry.get('sound')?.play('select');
+    this.scene.start('Engage', { returnTo: 'Title' });
   }
 
   toCases() {
