@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { VIEW_W, VIEW_H } from '../config.js';
 import { h, clear, placeOnCanvas } from '../ui/dom.js';
-import { ENGAGEMENT, FLAG } from '../cases/halcyon-engagement.js';
+import { ENGAGEMENTS } from '../cases/engagements.js';
 import { newRun, runCommand, nextStep, history, buildSiem, detections, isEvidence, scoreRun, recordBest } from '../game/engage.js';
 import { searchText } from '../game/siemfmt.js';
 import '../ui/screen.css';
@@ -21,6 +21,8 @@ export class EngageScene extends Phaser.Scene {
 
   init(data) {
     this.returnTo = data?.returnTo || 'Title';
+    // A specific engagement may be passed in; otherwise the scene opens on a picker.
+    this.eng = data?.engagement || (ENGAGEMENTS.length === 1 ? ENGAGEMENTS[0] : null);
   }
 
   create() {
@@ -47,8 +49,13 @@ export class EngageScene extends Phaser.Scene {
   }
 
   reset() {
-    this.run = newRun();
-    this.phase = 'brief';
+    if (!this.eng) {
+      this.run = null;
+      this.phase = 'pick';
+    } else {
+      this.run = newRun(this.eng);
+      this.phase = 'brief';
+    }
     this.out = [];
     this.cmdHist = [];
     this.histPos = 0;
@@ -66,22 +73,49 @@ export class EngageScene extends Phaser.Scene {
 
   render() {
     clear(this.root);
-    if (this.phase === 'brief') this.renderBrief();
+    if (this.phase === 'pick') this.renderPick();
+    else if (this.phase === 'brief') this.renderBrief();
     else if (this.phase === 'terminal') this.renderTerminal();
     else if (this.phase === 'debrief') this.renderDebrief();
     else this.renderResults();
+  }
+
+  renderPick() {
+    this.root.append(h('div', { class: 'eg-wrap' },
+      h('div', { class: 'eg-kicker' }, 'Red team engagements · simulated'),
+      h('div', { class: 'eg-panel' },
+        h('h1', {}, 'Choose an engagement'),
+        h('p', { class: 'eg-lede' }, 'Each one is a full scripted pentest of the fictional Halcyon Mutual: break in from the attacker’s seat, then switch to the SOC and find the trace every move left. Everything is canned — made-up hosts on documentation-only IP ranges, nothing is executed.'),
+        h('ul', { class: 'eg-picklist' }, ENGAGEMENTS.map((e) => h('li', {},
+          h('button', {
+            type: 'button', class: 'eg-pick', 'data-eng': e.id,
+            onclick: () => this.choose(e),
+          },
+          h('div', { class: 'eg-pick-head' }, h('span', { class: 'eg-pick-name' }, e.name), h('span', { class: 'eg-pick-steps' }, `${e.steps.length} moves`)),
+          h('div', { class: 'eg-pick-title' }, e.title),
+          h('p', { class: 'eg-pick-blurb' }, e.blurb))))),
+        h('div', { class: 'eg-foot' },
+          h('button', { type: 'button', class: 'eg-quit', onclick: () => this.exit() }, 'Back')))));
+  }
+
+  choose(eng) {
+    this.sound2?.play('select');
+    this.eng = eng;
+    this.reset();
+    this.render();
   }
 
   renderBrief() {
     this.root.append(h('div', { class: 'eg-wrap' },
       h('div', { class: 'eg-kicker' }, 'Red team engagement · simulated'),
       h('div', { class: 'eg-panel' },
-        h('h1', {}, ENGAGEMENT.title),
-        h('p', { class: 'eg-lede' }, 'You are the outside tester Halcyon hired. Break in the way a real attacker would, prove it, and stop. Then switch seats: open the SOC’s SIEM for the same night and find the trace every one of your moves left.'),
+        h('h1', {}, this.eng.title),
+        h('p', { class: 'eg-lede' }, 'You are the outside tester Halcyon hired. Break in the way a real attacker would, prove it, and stop. Then switch seats: open the SOC’s SIEM for the same window and find the trace every one of your moves left.'),
         h('h2', {}, 'Rules of engagement'),
-        h('ul', { class: 'eg-roe' }, ENGAGEMENT.roe.map((l) => h('li', {}, l))),
+        h('ul', { class: 'eg-roe' }, this.eng.roe.map((l) => h('li', {}, l))),
         h('p', { class: 'eg-note' }, 'Everything here is fiction: made-up hosts on documentation-only IP ranges, canned output, nothing is executed. Each move is tagged with its MITRE ATT&CK technique.'),
         h('div', { class: 'eg-foot' },
+          ENGAGEMENTS.length > 1 ? h('button', { type: 'button', class: 'eg-quit', onclick: () => { this.eng = null; this.reset(); this.render(); } }, '← Engagements') : null,
           h('button', { type: 'button', class: 'eg-go', 'data-action': 'start', onclick: () => this.start() }, 'Open the terminal →'),
           h('button', { type: 'button', class: 'eg-quit', onclick: () => this.exit() }, 'Back')))));
   }
@@ -90,7 +124,7 @@ export class EngageScene extends Phaser.Scene {
     this.sound2?.play('select');
     this.phase = 'terminal';
     this.out = [
-      { cls: 'sys', text: `Engagement ${ENGAGEMENT.id} — authorised window open. Simulated environment.` },
+      { cls: 'sys', text: `Engagement ${this.eng.id} — authorised window open. Simulated environment.` },
       { cls: 'sys', text: 'Type "help", or click a move on the right to put it on the command line.' },
     ];
     this.render();
@@ -114,7 +148,7 @@ export class EngageScene extends Phaser.Scene {
 
     const side = h('aside', { class: 'eg-side' },
       step ? h('div', { class: 'eg-goal' },
-        h('div', { class: 'eg-label' }, `Step ${this.run.done.length + 1} of ${ENGAGEMENT.steps.length}`),
+        h('div', { class: 'eg-label' }, `Step ${this.run.done.length + 1} of ${this.eng.steps.length}`),
         h('p', {}, step.goal),
         h('div', { class: 'eg-tags' }, h('span', { class: 'eg-tactic' }, step.tactic), h('a', { class: 'eg-tid', href: attackUrl(step.tid), target: '_blank', rel: 'noopener' }, step.tid), h('span', { class: 'eg-tname' }, step.tname)),
         h('div', { class: 'eg-label' }, 'Moves'),
@@ -133,7 +167,7 @@ export class EngageScene extends Phaser.Scene {
       h('button', { type: 'button', class: 'eg-quit', onclick: () => this.exit() }, 'Quit'));
 
     this.root.append(h('div', { class: 'eg-wrap wide' },
-      h('div', { class: 'eg-kicker' }, `${ENGAGEMENT.title} · attacker terminal (simulated)`),
+      h('div', { class: 'eg-kicker' }, `${this.eng.title} · attacker terminal (simulated)`),
       h('div', { class: 'eg-grid' }, term, side)));
     screen.scrollTop = screen.scrollHeight;
     if (!this.run.finished) setTimeout(() => input.focus(), 0);
@@ -169,7 +203,7 @@ export class EngageScene extends Phaser.Scene {
     else {
       this.out.push({ cls: 'cmd', text: `${prompt} ${text}` });
       if (r.kind === 'ok') this.out.push({ cls: 'tag', text: `[ATT&CK ${r.step.tid} · ${r.step.tactic} · ${r.step.tname}]${r.choice.loud ? '  !! loud' : ''}` });
-      for (const l of r.lines) this.out.push({ cls: r.kind === 'violation' ? 'bad' : l.startsWith('#') ? 'note' : l.includes(FLAG) ? 'flag' : r.kind === 'refused' ? 'err' : '', text: l });
+      for (const l of r.lines) this.out.push({ cls: r.kind === 'violation' ? 'bad' : l.startsWith('#') ? 'note' : l.includes(this.eng.flag) ? 'flag' : r.kind === 'refused' ? 'err' : '', text: l });
     }
     this.sound2?.play(r.kind === 'ok' ? 'select' : r.kind === 'violation' || r.kind === 'refused' ? 'error' : 'click');
     this.render();
@@ -222,7 +256,7 @@ export class EngageScene extends Phaser.Scene {
     });
 
     this.root.append(h('div', { class: 'eg-wrap wide' },
-      h('div', { class: 'eg-kicker' }, `SOC debrief · SIEM, ${'Fri Oct 30'} · index=* · ${this.events_.length} events`),
+      h('div', { class: 'eg-kicker' }, `SOC debrief · SIEM, ${this.eng.date.name} ${this.eng.date.month} ${this.eng.date.day} · index=* · ${this.events_.length} events`),
       h('p', { class: 'eg-lede small' }, 'Switch seats. You are the analyst on shift. For each move (left), find the log line it left (right) and click it. Search by anything you know about yourself: your IP, the account you used, the file you read.'),
       h('div', { class: 'eg-grid debrief' },
         h('div', { class: 'eg-cards-col' },
@@ -276,7 +310,7 @@ export class EngageScene extends Phaser.Scene {
   finish() {
     this.sound2?.play('select');
     this.grade = scoreRun(this.run, this.events_, this.answers, this.misses);
-    this.best = recordBest(ENGAGEMENT.id, this.grade);
+    this.best = recordBest(this.eng.id, this.grade);
     this.phase = 'results';
     this.render();
   }
@@ -297,7 +331,7 @@ export class EngageScene extends Phaser.Scene {
         h('p', { class: 'eg-fix' }, h('b', {}, 'Fix: '), step.defend));
     });
     this.root.append(h('div', { class: 'eg-wrap' },
-      h('div', { class: 'eg-head' }, h('div', { class: 'eg-kicker' }, `Engagement results · ${ENGAGEMENT.client}`), h('div', { class: `pt-grade g${g.letter}` }, g.letter)),
+      h('div', { class: 'eg-head' }, h('div', { class: 'eg-kicker' }, `Engagement results · ${this.eng.client}`), h('div', { class: `pt-grade g${g.letter}` }, g.letter)),
       h('div', { class: 'eg-panel' },
         h('h1', {}, `${g.pct}%`),
         h('ul', { class: 'eg-score' },
@@ -305,9 +339,9 @@ export class EngageScene extends Phaser.Scene {
           h('li', {}, g.loud ? `Stealth: ${g.loud} loud move${g.loud > 1 ? 's' : ''} (-15 each).` : 'Stealth: no loud moves.'),
           h('li', {}, `The SOC got ${g.alerts} alert${g.alerts === 1 ? '' : 's'} tonight. A real attacker who hid better would have got fewer; a SOC that tuned its rules would have caught more.`),
           g.strikes ? h('li', { class: 'eg-strike' }, `Rules of engagement: ${g.strikes} strike${g.strikes > 1 ? 's' : ''} (-15 each). Prove access; never take the data.`) : null,
-          this.run.finished ? h('li', {}, 'Proof token: ', h('code', { class: 'eg-flag' }, FLAG)) : null),
+          this.run.finished ? h('li', {}, 'Proof token: ', h('code', { class: 'eg-flag' }, this.eng.flag)) : null),
         this.best ? h('p', { class: 'eg-note' }, `Best so far: ${this.best.letter} (${this.best.pct}%)`) : null,
-        h('p', { class: 'eg-lede' }, 'The one-line report: an old backup leaked a service-account password, the same password opened SSH from the internet and the internal file share, and nothing stopped the DMZ from reaching the LAN. Three cheap fixes (no secrets in the web root, no password SSH, segment the DMZ) break the whole chain.')),
+        h('p', { class: 'eg-lede' }, this.eng.summary)),
       h('ol', { class: 'eg-results' }, rows),
       h('div', { class: 'eg-foot' },
         h('button', { type: 'button', class: 'eg-again', onclick: () => { this.sound2?.play('click'); this.reset(); this.start(); } }, '↻ Run it again'),

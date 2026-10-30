@@ -3,15 +3,15 @@
 // ever executed. After the objective, buildSiem() writes the blue-team view of exactly the moves the player made
 // (logkit.js formats + noise) and the debrief asks them to find the log line each move left.
 import { logBuilder, finishLogs } from './logkit.js';
-import { ENGAGEMENT, DATE, ATTACKER, engagementNoise } from '../cases/halcyon-engagement.js';
+import { ENGAGEMENT } from '../cases/halcyon-engagement.js';
 
-export const BASE_PROMPT = `${ATTACKER.host}@kali:~$`;
+export const BASE_PROMPT = 'assessor@kali:~$';
 const STEP_GAP = 7 * 60; // simulated minutes between moves
 
 export const norm = (s) => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
 
 export function newRun(eng = ENGAGEMENT) {
-  return { eng, done: [], picks: {}, times: {}, clock: eng.start, prompt: BASE_PROMPT, strikes: 0, refused: 0, finished: false };
+  return { eng, done: [], picks: {}, times: {}, clock: eng.start, prompt: eng.prompt || BASE_PROMPT, strikes: 0, refused: 0, finished: false };
 }
 
 /** Steps run so far as { step, choice, t }. */
@@ -86,11 +86,12 @@ export function autoplay(prefer = 'quiet', eng = ENGAGEMENT) {
 
 /** The blue-team view of this run: noise + every event the player's moves left, in the SIEM's display format. */
 export function buildSiem(run) {
-  const b = logBuilder(4207);
+  const eng = run.eng;
+  const b = logBuilder(eng.seed || 4207);
   const end = run.clock + 300;
-  engagementNoise(b, run.eng.start, end);
+  if (eng.noise) eng.noise(b, eng.start, end);
   for (const { step, choice, t } of history(run)) step.logs(b, t, { loud: !!choice.loud });
-  return finishLogs(b.ev, { nowMinutes: Math.ceil(end / 60) + 1, date: DATE });
+  return finishLogs(b.ev, { nowMinutes: Math.ceil(end / 60) + 1, date: eng.date });
 }
 
 /** Alerts the SOC actually got from this run (events carrying `detection`). */

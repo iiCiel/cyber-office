@@ -50,8 +50,17 @@ const UA_DIRSCAN = 'dirscan/2.1 (authorised assessment)';
 
 export const ENGAGEMENT = {
   id: 'halcyon-ext-2026',
+  name: 'External pentest',
   client: 'Halcyon Mutual',
   title: 'External pentest: Halcyon Mutual',
+  blurb: 'Break into the policyholder portal from the internet: scan it, find a forgotten backup that leaks a service password, reuse it on SSH and the internal file share, and prove you reached the claims data. 8 moves, recon → collection.',
+  seed: 4207,
+  date: DATE,
+  attacker: ATTACKER,
+  prompt: `${ATTACKER.host}@kali:~$`,
+  flag: FLAG,
+  noise: engagementNoise,
+  summary: 'The one-line report: an old backup leaked a service-account password, the same password opened SSH from the internet and the internal file share, and nothing stopped the DMZ from reaching the LAN. Three cheap fixes (no secrets in the web root, no password SSH, segment the DMZ) break the whole chain.',
   start: 21 * 3600 + 4 * 60, // 21:04, inside the agreed window
   roe: [
     'Authorised by Halcyon Mutual’s CISO for Friday Oct 30, 21:00–23:59. Simulated hosts only.',

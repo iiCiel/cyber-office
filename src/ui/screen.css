@@ -818,6 +818,14 @@
 .eg-foot { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
 .eg-wrap button { cursor: pointer; border-radius: 4px; padding: 8px 14px; border: 1px solid #2a4a3a; background: #0f1d16; color: #bfe8cf; font-size: 14px; }
 .eg-go { border-color: #2a8a55 !important; background: #123222 !important; color: #8af7b2 !important; font-weight: 600; }
+.eg-picklist { list-style: none; margin: 4px 0 14px; padding: 0; display: grid; gap: 12px; }
+.eg-pick { display: block; width: 100%; text-align: left; border: 1px solid #1f4a33 !important; background: #0a140f !important; padding: 14px 16px !important; border-radius: 8px !important; }
+.eg-pick:hover { border-color: #2a8a55 !important; background: #0f1d16 !important; }
+.eg-pick-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.eg-pick-name { font-size: 16px; font-weight: 700; color: #8af7b2; }
+.eg-pick-steps { font-size: 12px; color: #9fb4a8; }
+.eg-pick-title { font-size: 13.5px; color: #eaf6ee; margin: 2px 0 6px; }
+.eg-pick-blurb { font-size: 13px; color: #c8d8ce; margin: 0; line-height: 1.45; }
 .eg-again { border-color: #2a6a45 !important; color: #8af7b2 !important; }
 .eg-grid { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 14px; align-items: start; }
 .eg-term { background: #020403; border: 1px solid #1f4a33; border-radius: 6px; padding: 10px 12px; font: 13px/1.45 Consolas, 'Courier New', monospace; height: 600px; display: flex; flex-direction: column; cursor: text; }
