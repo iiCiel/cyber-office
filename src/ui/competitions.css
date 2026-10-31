@@ -335,3 +335,69 @@
   .cx-matrix th, .cx-matrix td { padding: 6px 4px; }
   .cc-foot, .cx-foot { flex-wrap: wrap; }
 }
+
+/* ---- CCDC hands-on scene (role picker, device tabs, per-device terminal) ---- */
+.cc-roles { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+.cc-role-btn { text-align: left; display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; background: #0c1b14; border: 1px solid #1d3a2a; border-radius: 8px; color: #cfe9d9; cursor: pointer; }
+.cc-role-btn:hover { border-color: #2f6b49; }
+.cc-role-btn.on { border-color: #6af09a; background: #10271b; box-shadow: 0 0 0 1px #6af09a inset; }
+.cc-role-btn b { color: #eafff2; font-size: 15px; }
+.cc-role-btn .cc-role-boxes { font-size: 11px; color: #7fb79a; text-transform: uppercase; letter-spacing: .04em; }
+.cc-role-btn span { font-size: 12.5px; line-height: 1.4; color: #a9cbb9; }
+
+.cc-devtabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 10px; }
+.cc-devtab { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 12px; background: #0c1b14; border: 1px solid #1d3a2a; border-radius: 8px 8px 0 0; color: #cfe9d9; cursor: pointer; min-width: 110px; }
+.cc-devtab:hover { border-color: #2f6b49; }
+.cc-devtab.on { border-color: #6af09a; background: #11291c; border-bottom-color: #11291c; }
+.cc-devtab b { font-size: 13.5px; color: #eafff2; }
+.cc-devtab-host { font-size: 10.5px; color: #7fb79a; font-family: Consolas, monospace; }
+.cc-devtab-open { font-size: 10.5px; color: #ffb257; } .cc-devtab-done { font-size: 11px; color: #6af09a; }
+.cc-devtab.k-pwsh b::before { content: '⊞ '; color: #6fb0ff; }
+.cc-devtab.k-firewall b::before { content: '🛡 '; }
+
+.cc-dev-grid { display: grid; grid-template-columns: 1fr 300px; gap: 14px; align-items: start; }
+.cc-term-wrap .eg-term { height: 440px; }
+.cc-dev-side { display: flex; flex-direction: column; gap: 12px; }
+.cc-dev-brief { background: #0c1b14; border: 1px solid #1d3a2a; border-radius: 8px; padding: 10px 12px; }
+.cc-dev-brief b { color: #eafff2; display: block; margin-bottom: 4px; font-size: 13px; }
+.cc-dev-brief p { font-size: 12.5px; line-height: 1.45; color: #a9cbb9; margin: 0; }
+.cc-checklist-box { background: #0c1b14; border: 1px solid #1d3a2a; border-radius: 8px; padding: 10px 12px; }
+.cc-check { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 5px; }
+.cc-check-cmd { text-align: left; width: 100%; font: 11.5px/1.4 Consolas, monospace; color: #b9f5cf; background: #06100c; border: 1px solid #1d3a2a; border-radius: 5px; padding: 6px 8px; cursor: pointer; }
+.cc-check-cmd:hover { border-color: #6af09a; background: #0f2418; }
+
+.eg-line.fix { color: #0a1016; background: #6af09a; display: inline-block; padding: 0 5px; font-weight: 700; margin-top: 4px; }
+.eg-line.ok { color: #b9f5cf; } .eg-line.warn { color: #ffd08a; } .eg-line.note { color: #7fa892; font-style: italic; }
+
+.cc-inj-ta { width: 100%; box-sizing: border-box; background: #06100c; border: 1px solid #1d3a2a; border-radius: 6px; color: #eafff2; font: 13px/1.4 system-ui, sans-serif; padding: 8px; resize: vertical; }
+.cc-inj-submit { margin-top: 6px; padding: 6px 14px; background: #10271b; border: 1px solid #2f6b49; border-radius: 6px; color: #cfe9d9; cursor: pointer; }
+.cc-inj-submit:hover { border-color: #6af09a; }
+.cc-inj-model { font-size: 12.5px; color: #a9cbb9; margin-top: 6px; }
+
+@media (max-width: 760px) {
+  .cc-dev-grid { grid-template-columns: 1fr; }
+  .cc-term-wrap .eg-term { height: 360px; }
+}
+
+/* ---- CPTC hands-on report step (rating matrix + per-finding remediation) ---- */
+.cx-found { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: #e7c9f5; }
+.cx-found-count { font-size: 12px; color: #d8b6ea; background: #241530; border: 1px solid #4a2d5e; border-radius: 999px; padding: 3px 10px; }
+.cx-report-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.cx-report-card { background: #140a1c; border: 1px solid #3a2449; border-radius: 10px; padding: 12px 14px; }
+.cx-rc-head { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; align-items: baseline; }
+.cx-rc-head b { color: #f3e6fb; font-size: 14.5px; }
+.cx-rc-sys { font-size: 11.5px; color: #b98fd0; font-family: Consolas, monospace; }
+.cx-rc-ev { font-size: 12.5px; color: #cbb0dc; margin: 6px 0 8px; line-height: 1.45; }
+.cx-rate-row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+.cx-rate { display: flex; gap: 6px; align-items: center; }
+.cx-rate-label { font-size: 12px; color: #b98fd0; }
+.cx-rate-btns { display: flex; gap: 4px; }
+.cx-rate-btn { padding: 4px 10px; font-size: 12px; background: #1d1127; border: 1px solid #3a2449; border-radius: 6px; color: #d8b6ea; cursor: pointer; }
+.cx-rate-btn:hover { border-color: #7a4ca0; }
+.cx-rate-btn.on { background: #33204a; border-color: #c08af0; color: #f3e6fb; }
+.cx-sevtag { font-size: 11.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+.cx-sevtag.none { color: #9b7fb0; background: #1d1127; border: 1px dashed #4a2d5e; }
+.cx-sevtag.s-low { background: #1d3a2a; color: #6af09a; } .cx-sevtag.s-medium { background: #3a331a; color: #ffd08a; }
+.cx-sevtag.s-high { background: #3a241a; color: #ffb257; } .cx-sevtag.s-critical { background: #3a1a1f; color: #ff9b9b; }
+.cx-rc-model { font-size: 12px; color: #b98fd0; margin-top: 8px; line-height: 1.45; }
+.cx-rev-head { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
