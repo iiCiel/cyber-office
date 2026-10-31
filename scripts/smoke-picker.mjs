@@ -1,5 +1,5 @@
 import { chromium } from 'playwright-core';
-const url = 'http://localhost:5192/cyber-office/';
+const url = process.argv[2] || 'http://localhost:5192/cyber-office/';
 const b = await chromium.launch({ channel: 'chrome', headless: true });
 const p = await b.newPage({ viewport: { width: 1366, height: 768 } });
 const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => m.type()==='error' && errs.push(m.text()));
@@ -7,7 +7,7 @@ await p.goto(url); await p.waitForFunction(() => window.__game?.scene?.isActive(
 await p.evaluate(() => localStorage.setItem('cyber-office.engage.best', JSON.stringify({ 'halcyon-web-2026': { pct: 100, letter: 'A' }, 'halcyon-ext-2026': { pct: 72, letter: 'C' } })));
 await p.waitForTimeout(400); await p.keyboard.press('r');
 await p.waitForFunction(() => window.__game.scene.isActive('Engage')); await p.waitForTimeout(500);
-await p.screenshot({ path: 'smoke-out/picker-1366.png' });
+await p.screenshot({ path: (process.argv[3] || 'smoke-out') + '/picker-1366.png' });
 const n0 = await p.locator('.eg-pick').count();
 await p.locator('.eg-chip[data-level="Advanced"]').click(); await p.waitForTimeout(200);
 const nAdv = await p.locator('.eg-pick').count();
@@ -20,6 +20,6 @@ await p.locator('.eg-pick[data-eng="halcyon-ad-2026"]').click(); await p.waitFor
 const brief = await p.locator('[data-action="start"]').count();
 await p.setViewportSize({ width: 844, height: 390 }); 
 await p.locator('.eg-quit', { hasText: 'Engagements' }).click(); await p.waitForTimeout(500);
-await p.screenshot({ path: 'smoke-out/picker-phone.png' });
+await p.screenshot({ path: (process.argv[3] || 'smoke-out') + '/picker-phone.png' });
 console.log(JSON.stringify({ n0, nAdv, nCloud, empty, brief, errs }));
 await b.close();
