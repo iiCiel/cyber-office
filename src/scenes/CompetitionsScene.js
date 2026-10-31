@@ -1,9 +1,9 @@
 import Phaser from 'phaser';
 import { VIEW_W, VIEW_H } from '../config.js';
 import { h, clear, placeOnCanvas } from '../ui/dom.js';
-import { CCDC_SCENARIO } from '../data/ccdcScenario.js';
+import { CCDC_LAB } from '../data/ccdcLabScenario.js';
 import { CPTC_SCENARIO } from '../data/cptcScenario.js';
-import { loadBests as loadCcdcBests } from '../game/ccdc.js';
+import { loadBests as loadCcdcBests } from '../game/ccdcLab.js';
 import { loadBests as loadCptcBests } from '../game/cptc.js';
 import '../ui/screen.css';
 import '../ui/competitions.css';
@@ -63,7 +63,7 @@ export class CompetitionsScene extends Phaser.Scene {
 
   render() {
     clear(this.root);
-    const ccdcBest = loadCcdcBests()[CCDC_SCENARIO.id];
+    const ccdcBest = loadCcdcBests()[CCDC_LAB.id];
     const cptcBest = loadCptcBests()[CPTC_SCENARIO.id];
     const stamp = (best) => best ? h('span', { class: `comp-stamp g${best.letter}`, title: `Best: ${best.pct}%` }, best.letter) : h('span', { class: 'comp-stamp none' }, 'NEW');
 
@@ -84,10 +84,10 @@ export class CompetitionsScene extends Phaser.Scene {
         h('p', { class: 'comp-lede' }, 'Two student cyber competitions, built to teach the real playbook. Everything is a self-contained simulation on documentation-only networks — nothing is scanned, attacked or executed.')),
       h('div', { class: 'comp-cards' },
         card({
-          mode: 'ccdc', scene: 'Ccdc', cls: 'blue', badge: 'CCDC', side: 'Blue team · defence', best: ccdcBest,
+          mode: 'ccdc', scene: 'CcdcLab', cls: 'blue', badge: 'CCDC', side: 'Blue team · hands-on', best: ccdcBest,
           name: 'Collegiate Cyber Defense',
-          tag: 'Inherit a small business full of misconfigurations and harden it while keeping the scored services online and the red team out. Guided with coaching, or a 15-minute competition clock where every call is final.',
-          learn: ['The first-15-minute checklist', 'Harden without dropping a scored service', 'Handle management injects', 'Score = uptime + injects − compromises'],
+          tag: 'Inherit a small business full of misconfigurations. Open each box’s own terminal — bash, PowerShell, a firewall rule editor — and TYPE the commands to harden it while keeping the scored services online and the red team out. Pick a role seat or play the whole team.',
+          learn: ['Real terminals on every device', 'Harden without dropping a scored service', 'Five specialised role seats', 'Guided, or a 15-minute clock + red team'],
         }),
         card({
           mode: 'cptc', scene: 'Cptc', cls: 'red', badge: 'CPTC', side: 'Pentest · the report', best: cptcBest,
