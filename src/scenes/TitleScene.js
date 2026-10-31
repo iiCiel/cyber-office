@@ -61,7 +61,7 @@ export class TitleScene extends Phaser.Scene {
     }
     const fresh = CASES.find((c) => c.caseFile.fresh);
     items.push({ label: 'Case Files', key: 'F', sub: fresh ? `New: ${fresh.caseFile.company}, ${fresh.caseFile.when}` : `${CASES.length} real breaches and labs`, name: 'cases-button', run: () => this.toCases() });
-    items.push({ label: 'Red team engagement', key: 'R', sub: 'Two simulated pentests of Halcyon: external, and AD takeover', name: 'engage-button', run: () => this.toEngage() });
+    items.push({ label: 'Red team engagement', key: 'R', sub: '5 pentests: external, web SQLi, phishing, AWS cloud, AD', name: 'engage-button', run: () => this.toEngage() });
     items.push({ label: '', key: 'D', name: 'title-difficulty', difficulty: true, run: () => this.cycle() });
     this.buildMenu(x, 290, items);
 

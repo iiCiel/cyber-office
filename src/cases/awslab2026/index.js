@@ -228,6 +228,7 @@ export default {
       { id: 'T1580', name: 'Cloud Infrastructure Discovery', fix: 'Scope roles so CI cannot list users or all regions, and alert on enumeration across many regions in seconds.' },
       { id: 'T1496', name: 'Resource Hijacking', fix: 'Deny unused regions by SCP, set EC2 service quotas, and alarm on GPU instance launches and billing anomalies.' },
       { id: 'T1136.003', name: 'Create Account: Cloud Account', fix: 'Alert on CreateUser, CreateAccessKey and AttachUserPolicy of AdministratorAccess, and deny iam:* to CI roles.' },
+      { id: 'T1530', name: 'Data from Cloud Storage', fix: 'Restrict sensitive buckets with bucket policies to named roles, log S3 data events, and alert on bulk reads by any new or unexpected identity.' },
       { id: 'T1562.008', name: 'Impair Defenses: Disable or Modify Cloud Logs', fix: 'Use an organization trail delivering to a separate log account, enable log file validation and deny StopLogging by SCP.' },
     ],
     resume: 'Investigated a simulated AWS credential-leak intrusion in Cyber Office: traced an access key from a public GitHub repo through CloudTrail, GuardDuty and the GitHub audit log to crypto-mining instances, a backdoor IAM admin and S3 exfiltration with the aws CLI and jq (MITRE ATT&CK T1552.001, T1136.003, T1562.008), and wrote a containment plan that revoked both identities. Score: {grade}.',
