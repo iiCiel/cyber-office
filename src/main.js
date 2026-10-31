@@ -13,6 +13,7 @@ import { CompetitionsScene } from './scenes/CompetitionsScene.js';
 import { CcdcScene } from './scenes/CcdcScene.js';
 import { CcdcLabScene } from './scenes/CcdcLabScene.js';
 import { CptcScene } from './scenes/CptcScene.js';
+import { CptcLabScene } from './scenes/CptcLabScene.js';
 import { measureView, fitCamera, UI_SCALE, VIEW_W, VIEW_H, BASE_W, BASE_H } from './config.js';
 import { Sound } from './game/sound.js';
 
@@ -36,7 +37,7 @@ const game = new Phaser.Game({
   roundPixels: true,
   physics: { default: 'arcade', arcade: { debug: false } },
   scale: { mode: Phaser.Scale.NONE, zoom: 1 / first.dpr },
-  scene: [BootScene, TitleScene, OfficeScene, ReportScene, MenuScene, CaseFilesScene, RedTeamScene, PentestScene, EngageScene, CompetitionsScene, CcdcScene, CcdcLabScene, CptcScene],
+  scene: [BootScene, TitleScene, OfficeScene, ReportScene, MenuScene, CaseFilesScene, RedTeamScene, PentestScene, EngageScene, CompetitionsScene, CcdcScene, CcdcLabScene, CptcScene, CptcLabScene],
 });
 
 // Every scene's cameras follow the view. A scene can take over with fitView() (the office has a
