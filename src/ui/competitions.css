@@ -449,3 +449,4 @@
 .cc-tl .cc-tl-t { flex: 0 0 46px; color: #6f9684; }
 .cc-tl li.red, .cc-tl li.bad { color: #ff9b9b; } .cc-tl li.warn { color: #ffcf7a; }
 .cc-tl li.ok { color: #8fe8b4; } .cc-tl li.inject { color: #9ec9ff; }
+.cc-feed-line.team { color: #cbb7e8; } .cc-tl li.team { color: #cbb7e8; }

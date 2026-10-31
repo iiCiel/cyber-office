@@ -19,6 +19,15 @@ export const SLA_FAILS = 3;
 
 const asList = (v) => (v == null ? [] : Array.isArray(v) ? v : [v]);
 
+// Team communication: the captain / white team / Orange (user) chatter a real round is full of. Scenarios can
+// override with their own `teamFeed`; this is the generic fallback. Pure flavour + a nudge to keep status moving.
+const DEFAULT_TEAM_FEED = [
+  { at: 60, who: 'Captain', text: 'Status check — post what you’ve each touched so we don’t double-work.' },
+  { at: 240, who: 'Orange team (users)', text: 'A user reports the website felt slow a minute ago. Confirm it’s still serving.' },
+  { at: 500, who: 'Captain', text: 'Halfway. Whoever owns the firewall, confirm default-deny is on and the scored ports are allowed.' },
+  { at: 700, who: 'White team', text: 'Reminder: rotate scored-account passwords only with a submitted change request.' },
+];
+
 /** Attach the live engine to a ccdcLab game. Safe to call once; returns the game for chaining. */
 export function attachEngine(state) {
   if (state.engine) return state;
@@ -34,6 +43,7 @@ export function attachEngine(state) {
     probes: {}, // findingId -> 'probed' | 'compromised'
     injectTimers: {}, // injectId -> { releaseAt, dueAt, released, overdue }
     pcr: sc.pcr ? { ...sc.pcr, rotated: false, filed: false, breaking: false } : null,
+    teamFeed: (sc.teamFeed || DEFAULT_TEAM_FEED).map((m) => ({ ...m, fired: false })),
   };
   for (const s of state.serviceList) eng.checks[s.id] = { ok: 0, fail: 0, consec: 0, violations: 0 };
   for (const i of state.injectList) {
@@ -92,6 +102,13 @@ export function tickTo(state, sec) {
     const t = eng.injectTimers[i.id];
     if (!t.released && sec >= t.releaseAt) { t.released = true; log(eng, 'inject', `New inject from ${i.from}: "${i.title}" (due in ${Math.round((t.dueAt - t.releaseAt) / 60)} min).`); }
     if (!t.overdue && !state.injects[i.id].done && sec > t.dueAt) { t.overdue = true; log(eng, 'bad', `Inject overdue: "${i.title}" — the white team scores a late deliverable at zero.`); }
+  }
+
+  // Team / white / user chatter.
+  for (const m of eng.teamFeed) {
+    if (m.fired || sec < m.at) continue;
+    m.fired = true;
+    log(eng, 'team', `[${m.who}] ${m.text}`);
   }
 
   // Red-team waves.
