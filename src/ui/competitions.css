@@ -418,3 +418,34 @@
 .cx-rem-feedback { margin-top: 6px; font-size: 12.5px; }
 .cx-lock { margin-top: 8px; font: inherit; font-size: 12.5px; padding: 6px 12px; border-radius: 5px; border: 1px solid #6aa8f0; background: #0f1a2a; color: #cfe3ff; cursor: pointer; }
 .cx-lock:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ---- live scoring board + event feed (competition mode) ------------------- */
+.cc-live { background: #091512; border-color: #163528; }
+.cc-live-grid { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(220px, 1.4fr); gap: 14px; }
+@media (max-width: 640px) { .cc-live-grid { grid-template-columns: 1fr; } }
+.cc-live-stats { display: flex; flex-wrap: wrap; gap: 8px; align-content: flex-start; }
+.cc-live-stat { flex: 1 1 70px; min-width: 70px; background: #0d1f18; border: 1px solid #1d3a2a; border-radius: 6px; padding: 7px 9px; text-align: center; }
+.cc-live-stat b { display: block; font: 700 18px/1 Consolas, monospace; color: #8fe8b4; }
+.cc-live-stat span { font-size: 10.5px; color: #86a99a; letter-spacing: .2px; }
+.cc-live-stat.warn b { color: #ffcf7a; } .cc-live-stat.bad b { color: #ff9b9b; }
+.cc-live-uptime { display: flex; flex-direction: column; gap: 5px; }
+.cc-up-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #cfe9da; }
+.cc-up-name { flex: 0 0 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-up-bar { flex: 1 1 auto; height: 8px; background: #16281f; border-radius: 4px; overflow: hidden; }
+.cc-up-bar i { display: block; height: 100%; background: #3fbf77; }
+.cc-up-row.down .cc-up-bar i { background: #e06a6a; }
+.cc-up-pct { flex: 0 0 38px; text-align: right; font: 12px Consolas, monospace; }
+.cc-up-sla { flex: 0 0 auto; color: #ff9b9b; font-size: 10.5px; }
+.cc-feed { margin-top: 12px; border-top: 1px solid #163528; padding-top: 8px; display: flex; flex-direction: column; gap: 3px; max-height: 128px; overflow-y: auto; font: 12px/1.45 Consolas, monospace; }
+.cc-feed-line { color: #bfe0cf; } .cc-feed-t { color: #6f9684; margin-right: 8px; }
+.cc-feed-line.red, .cc-feed-line.bad { color: #ff9b9b; } .cc-feed-line.warn { color: #ffcf7a; }
+.cc-feed-line.ok { color: #8fe8b4; } .cc-feed-line.inject { color: #9ec9ff; }
+.cc-inj-due { font: 11px Consolas, monospace; color: #9ec9ff; margin-left: auto; }
+.cc-inj-due.bad { color: #ff9b9b; font-weight: 700; }
+.cc-inj-pending { font-style: italic; opacity: .85; }
+/* ---- round timeline (debrief) --------------------------------------------- */
+.cc-timeline .cc-tl { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font: 12.5px/1.45 Consolas, monospace; }
+.cc-tl li { display: flex; gap: 10px; color: #bfe0cf; }
+.cc-tl .cc-tl-t { flex: 0 0 46px; color: #6f9684; }
+.cc-tl li.red, .cc-tl li.bad { color: #ff9b9b; } .cc-tl li.warn { color: #ffcf7a; }
+.cc-tl li.ok { color: #8fe8b4; } .cc-tl li.inject { color: #9ec9ff; }

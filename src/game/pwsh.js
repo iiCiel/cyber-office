@@ -573,6 +573,12 @@ function runStage(stage, input, ctx) {
   const cmd = ALIASES[lc(name0)] || canonical(name0);
   const rest = toks.slice(1);
   const handler = CMDLETS[cmd];
+  // Simplified Where-Object syntax (`Where-Object Enabled -eq $true`, `? Name -like 'svc*'`): rewrite to a script block.
+  if (cmd === 'Where-Object' && rest.length && rest[0].t !== 'block') {
+    const [prop, ...tail] = rest;
+    const v = tail.length ? ` ${tail.map((t) => (t.t === 'param' ? `-${t.v}` : t.t === 'str' ? `'${t.v}'` : rawArg(t))).join(' ')}` : '';
+    return handler(bindArgs(cmd, [{ t: 'block', v: `$_.${rawArg(prop)}${v}` }]), input, ctx, rest);
+  }
   if (handler) return handler(bindArgs(cmd, rest), input, ctx, rest);
   const nat = NATIVE[lc(name0)];
   if (nat) return nativeLines(nat(rest.map(rawArg), ctx));
@@ -849,7 +855,7 @@ const CMDLETS = {
   'Clear-Host': (named, input, ctx) => { ctx.state.clear = true; return []; },
   'Get-Help': (named) => [`\nNAME\n    ${word(named.Name?.[0]) || 'Get-Help'}\n\nSYNOPSIS\n    \n\nREMARKS\n    To get help for a cmdlet, run: Get-Help <name> -Online\n    This machine has no internet access, so updatable help is not installed.\n`],
   'Get-Command': (named, input, ctx, rest) => CMD_NAMES.filter((c) => !rest.length || lc(c).includes(lc(rest[0].v?.replace(/\*/g, '') || ''))).map((c) => mk('Cmd', { CommandType: 'Cmdlet', Name: c, Version: c.includes('AD') ? '1.0.1.0' : '3.1.0.0', Source: c.includes('AD') ? 'ActiveDirectory' : 'Microsoft.PowerShell.Utility' })),
-  'Get-Process': () => [mk('Proc', { Handles: 612, 'NPM(K)': 28, 'PM(K)': 40124, 'WS(K)': 61212, Id: 4316, ProcessName: 'powershell' })],
+  'Get-Process': (named, input, ctx) => (ctx.procs ? ctx.procs().map((p) => mk('Proc', { Handles: p.handles || 300, 'WS(K)': p.ws || 24000, Id: p.pid, ProcessName: p.name, Path: p.path || '' })) : [mk('Proc', { Handles: 612, 'NPM(K)': 28, 'PM(K)': 40124, 'WS(K)': 61212, Id: 4316, ProcessName: 'powershell' })]),
 };
 
 function winPath(p, ctx) {

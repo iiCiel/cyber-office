@@ -6,6 +6,9 @@ import {
   newGame, runLine, answerInject, runRedTeam, expire, score, progress, recordBest,
   rolesFor, devicesForRole, injectsForRole, ROLES, MODES,
 } from '../game/ccdcLab.js';
+import {
+  attachEngine, tickTo, scoreboard, notePasswordRotated, notePcrFiled,
+} from '../game/ccdcEngine.js';
 import '../ui/screen.css';
 import '../ui/competitions.css';
 
@@ -127,6 +130,9 @@ export class CcdcLabScene extends Phaser.Scene {
   startRound() {
     this.sound2?.play('select');
     this.state = newGame(this.scenario, { mode: this.guided ? MODES.GUIDED : MODES.COMPETITION, role: this.role });
+    // Competition mode runs the live scoring engine: periodic service checks, SLA, red-team waves, timed injects.
+    if (!this.guided) attachEngine(this.state);
+    this.lastEventCount = 0;
     this.out = {};
     this.cmdHist = {};
     this.histPos = {};
@@ -161,6 +167,7 @@ export class CcdcLabScene extends Phaser.Scene {
         p.findingsTotal ? h('span', {}, `Findings hardened: ${p.fixed}/${p.findingsTotal}`) : null,
         injects.length ? h('span', {}, `Injects submitted: ${p.injectsDone}/${p.injectsTotal}`) : null,
         p.servicesTotal ? h('span', {}, `Services up: ${p.servicesUp}/${p.servicesTotal}`) : null),
+      this.state.engine ? this.liveBoard() : null,
       deskOnly ? this.captainBoard() : null,
       deskOnly ? null : h('div', { class: 'cc-devtabs', role: 'tablist' }, devices.map((d) => {
         const openOnBox = this.state.findingList.filter((f) => f.host === d.id && this.state.findings[f.id].status !== 'fixed').length;
@@ -177,6 +184,33 @@ export class CcdcLabScene extends Phaser.Scene {
     if (screen) screen.scrollTop = screen.scrollHeight;
     if (this.phase === 'play' && !deskOnly) setTimeout(() => this.root.querySelector('.eg-input')?.focus(), 0);
   }
+
+  // Live scoring board + event feed — the competition HUD. Shows the scoring engine's per-service uptime %, the
+  // SLA count it has accrued, red-team activity, and a running feed of waves / SLA hits / inject releases.
+  liveBoard() {
+    const sb = scoreboard(this.state);
+    if (!sb) return null;
+    const feed = sb.events.slice(-6).reverse();
+    return h('div', { class: 'cc-panel cc-live' },
+      h('div', { class: 'cc-live-grid' },
+        h('div', { class: 'cc-live-stats' },
+          h('div', { class: 'cc-live-stat' }, h('b', {}, sb.uptimePoints), h('span', {}, 'uptime points')),
+          h('div', { class: `cc-live-stat${sb.slaViolations ? ' bad' : ''}` }, h('b', {}, sb.slaViolations), h('span', {}, 'SLA violations')),
+          h('div', { class: `cc-live-stat${sb.probes ? ' warn' : ''}` }, h('b', {}, sb.probes), h('span', {}, 'red-team footholds')),
+          h('div', { class: `cc-live-stat${sb.compromised ? ' bad' : ''}` }, h('b', {}, sb.compromised), h('span', {}, 'compromised')),
+          sb.pcr && sb.pcr.breaking ? h('div', { class: 'cc-live-stat bad' }, h('b', {}, 'PCR'), h('span', {}, 'file it! scoring broken')) : null),
+        h('div', { class: 'cc-live-uptime' }, sb.rows.map((r) =>
+          h('div', { class: `cc-up-row ${r.up ? 'up' : 'down'}` },
+            h('span', { class: 'cc-up-name' }, r.name.replace(/ \(.*\)$/, '')),
+            h('span', { class: 'cc-up-bar', 'aria-hidden': 'true' }, h('i', { style: `width:${r.uptime}%` })),
+            h('span', { class: 'cc-up-pct' }, `${r.uptime}%`),
+            r.violations ? h('span', { class: 'cc-up-sla' }, `${r.violations}×SLA`) : null)))),
+      h('div', { class: 'cc-feed', role: 'log', 'aria-label': 'Live competition feed' },
+        feed.length ? feed.map((e) => h('div', { class: `cc-feed-line ${e.cls}` }, h('span', { class: 'cc-feed-t' }, this.fmtClock2(e.at)), e.text))
+          : h('div', { class: 'cc-feed-line note' }, 'Scoring engine running. Checks every 30s. Red team probes on a timer — harden fast.')));
+  }
+
+  fmtClock2(sec) { return `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`; }
 
   // The captain's desk: what the IR / captain seat actually works from — the team's asset list (the raw material
   // for the inventory inject) and the scored services the whole team is defending.
@@ -234,6 +268,7 @@ export class CcdcLabScene extends Phaser.Scene {
     // Guided mode: after a fix or a trap, show the coaching line so grading is learnable.
     if (this.guided && res.effects.why) buf.push({ cls: 'note', text: `Coach: ${res.effects.why}` });
     const e = res.effects;
+    if (e.pcrRotated && this.state.engine) notePasswordRotated(this.state);
     this.sound2?.play(e.fixed ? 'select' : (e.dropped && e.dropped.length) || e.trapId ? 'error' : e.stepId ? 'select' : 'click');
     this.render();
   }
@@ -248,10 +283,28 @@ export class CcdcLabScene extends Phaser.Scene {
 
   // ---- injects (free-written deliverables) ---------------------------------
   injectsPanel(injects) {
+    const eng = this.state.engine;
+    // Competition mode: injects arrive over time (like the real portal). Only show what has been released; the
+    // rest appear with a "pending" note so the player knows more is coming.
+    const released = eng ? injects.filter((i) => eng.injectTimers[i.id].released) : injects;
+    const pending = eng ? injects.length - released.length : 0;
     return h('div', { class: 'cc-panel' },
       h('h2', { class: 'cc-sec-title' }, 'Management injects (IR / captain)'),
-      h('p', { class: 'cc-sec-note' }, 'Written business tasks from the white team. Draft each deliverable and submit it — worth real points.'),
-      h('ul', { class: 'cc-injects' }, injects.map((i) => this.injectCard(i))));
+      h('p', { class: 'cc-sec-note' }, eng
+        ? 'Injects arrive from the white team over the round, each with a deadline. A late deliverable scores zero.'
+        : 'Written business tasks from the white team. Draft each deliverable and submit it — worth real points.'),
+      h('ul', { class: 'cc-injects' }, released.map((i) => this.injectCard(i))),
+      pending ? h('p', { class: 'cc-sec-note cc-inj-pending' }, `${pending} more inject${pending === 1 ? '' : 's'} still to arrive this round.`) : null);
+  }
+
+  injectDeadline(i) {
+    const eng = this.state.engine;
+    if (!eng) return null;
+    const t = eng.injectTimers[i.id];
+    if (this.state.injects[i.id].done) return null;
+    const left = Math.round(t.dueAt - eng.clock);
+    if (t.overdue || left < 0) return h('span', { class: 'cc-inj-due bad' }, 'OVERDUE · scores 0');
+    return h('span', { class: `cc-inj-due${left <= 60 ? ' bad' : ''}` }, `due in ${this.fmtClock2(left)}`);
   }
 
   injectCard(i) {
@@ -261,7 +314,7 @@ export class CcdcLabScene extends Phaser.Scene {
     const err = this.injErr?.[i.id];
     const g = rec.grade;
     return h('li', { class: `cc-inject${rec.done ? ' answered' : ''}`, 'data-inject': i.id },
-      h('div', { class: 'cc-inj-head' }, h('span', { class: 'cc-inj-pts' }, `${i.points} pts`), h('span', { class: 'cc-inj-from' }, i.from)),
+      h('div', { class: 'cc-inj-head' }, h('span', { class: 'cc-inj-pts' }, `${i.points} pts`), h('span', { class: 'cc-inj-from' }, i.from), this.injectDeadline(i)),
       h('h3', { class: 'cc-inj-title' }, i.title),
       h('p', { class: 'cc-inj-prompt' }, i.prompt),
       rec.done
@@ -280,6 +333,7 @@ export class CcdcLabScene extends Phaser.Scene {
     this.injErr = this.injErr || {};
     if (!r.ok) { this.injErr[id] = r.error; this.sound2?.play('error'); this.render(); return; }
     delete this.injErr[id];
+    if (r.isPcr && this.state.engine) notePcrFiled(this.state);
     this.sound2?.play('select');
     this.render();
   }
@@ -304,6 +358,13 @@ export class CcdcLabScene extends Phaser.Scene {
   tickClock() {
     if (!this.deadline || this.phase !== 'play') return;
     const ms = this.remainingMs();
+    // Drive the live scoring engine from the elapsed clock (service checks, SLA, red-team waves, inject timers).
+    if (this.state?.engine) {
+      const elapsed = Math.floor((this.state.timeLimitSec * 1000 - ms) / 1000);
+      tickTo(this.state, elapsed);
+      // A new live event (red-team wave, SLA hit, inject released) → re-render the HUD and feed.
+      if (this.state.engine.events.length !== this.lastEventCount) { this.lastEventCount = this.state.engine.events.length; this.render(); }
+    }
     if (ms <= 0) { this.deadline = 0; expire(this.state); this.timedOut = true; this.finishRound(); return; }
     const text = this.fmtClock(ms);
     if (text === this.lastClockText) return;
@@ -371,6 +432,10 @@ export class CcdcLabScene extends Phaser.Scene {
             h('p', {}, h('b', {}, 'Coach: '), f.teach),
             h('p', { class: 'cc-fix' }, h('b', {}, 'The fix: '), f.fix.why));
         }))) : null,
+      this.state.engine && this.state.engine.events.length ? h('div', { class: 'cc-panel cc-timeline' },
+        h('h2', {}, 'Round timeline (how the scoring engine and red team saw it)'),
+        h('ul', { class: 'cc-tl' }, this.state.engine.events.map((e) =>
+          h('li', { class: e.cls }, h('span', { class: 'cc-tl-t' }, this.fmtClock2(e.at)), h('span', {}, e.text))))) : null,
       h('div', { class: 'cc-foot' },
         h('button', { type: 'button', class: 'cc-again', onclick: () => this.replay() }, '↻ Run the round again'),
         h('button', { type: 'button', class: 'cc-quit', onclick: () => this.exit() }, 'Done'))));

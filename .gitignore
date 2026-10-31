@@ -7,3 +7,4 @@ smoke-out/
 
 # Local scratch art, not part of the game build
 /title.png
+.scratch/
