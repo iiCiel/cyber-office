@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
 import { VIEW_W, VIEW_H } from '../config.js';
 import { h, clear, placeOnCanvas } from '../ui/dom.js';
-import { ENGAGEMENTS } from '../cases/engagements.js';
-import { newRun, runCommand, nextStep, history, buildSiem, detections, isEvidence, scoreRun, recordBest } from '../game/engage.js';
+import { ENGAGEMENTS, CATEGORIES, LEVELS, metaFor } from '../cases/engagements.js';
+import { newRun, runCommand, nextStep, history, buildSiem, detections, isEvidence, scoreRun, recordBest, loadBests } from '../game/engage.js';
 import { searchText } from '../game/siemfmt.js';
 import '../ui/screen.css';
 
@@ -95,21 +95,55 @@ export class EngageScene extends Phaser.Scene {
   }
 
   renderPick() {
-    this.root.append(h('div', { class: 'eg-wrap' },
-      h('div', { class: 'eg-kicker' }, 'Red team engagements · simulated'),
-      h('div', { class: 'eg-panel' },
-        h('h1', {}, 'Choose an engagement'),
-        h('p', { class: 'eg-lede' }, 'Each one is a full scripted pentest of the fictional Halcyon Mutual: break in from the attacker’s seat, then switch to the SOC and find the trace every move left. Everything is canned — made-up hosts on documentation-only IP ranges, nothing is executed.'),
-        h('ul', { class: 'eg-picklist' }, ENGAGEMENTS.map((e) => h('li', {},
-          h('button', {
-            type: 'button', class: 'eg-pick', 'data-eng': e.id,
-            onclick: () => this.choose(e),
-          },
-          h('div', { class: 'eg-pick-head' }, h('span', { class: 'eg-pick-name' }, e.name), h('span', { class: 'eg-pick-steps' }, `${e.steps.length} moves`)),
-          h('div', { class: 'eg-pick-title' }, e.title),
-          h('p', { class: 'eg-pick-blurb' }, e.blurb))))),
-        h('div', { class: 'eg-foot' },
-          h('button', { type: 'button', class: 'eg-quit', onclick: () => this.exit() }, 'Back')))));
+    const bests = loadBests();
+    const done = ENGAGEMENTS.filter((e) => bests[e.id]);
+    const cat = this.pickCat || 'All';
+    const lvl = this.pickLvl || 'All';
+    const shown = ENGAGEMENTS.filter((e) => (cat === 'All' || metaFor(e).category === cat) && (lvl === 'All' || metaFor(e).level === lvl));
+    const chip = (label, on, onclick, extra = {}) => h('button', { type: 'button', class: `eg-chip${on ? ' on' : ''}`, 'aria-pressed': on ? 'true' : 'false', onclick, ...extra }, label);
+    const count = (c) => ENGAGEMENTS.filter((e) => metaFor(e).category === c).length;
+    const pips = (level) => h('span', { class: 'eg-pips', 'aria-hidden': 'true' }, [0, 1, 2].map((i) => h('i', { class: i <= LEVELS.indexOf(level) ? 'on' : '' })));
+    const tactics = (e) => [...new Set(e.steps.map((s) => s.tactic))];
+    const card = (e) => {
+      const m = metaFor(e);
+      const best = bests[e.id];
+      return h('li', {},
+        h('button', { type: 'button', class: `eg-pick lvl-${LEVELS.indexOf(m.level)}`, 'data-eng': e.id, 'aria-label': `${e.name}, ${m.level}, ${m.category}${best ? `, best grade ${best.letter}` : ''}`, onclick: () => this.choose(e) },
+          h('div', { class: 'eg-pick-top' },
+            h('span', { class: 'eg-icon', 'aria-hidden': 'true' }, m.icon),
+            h('div', { class: 'eg-pick-id' },
+              h('span', { class: 'eg-pick-cat' }, m.category),
+              h('span', { class: 'eg-pick-name' }, e.name)),
+            best ? h('span', { class: `eg-stamp g${best.letter}`, title: `Best: ${best.pct}%` }, best.letter) : h('span', { class: 'eg-stamp none' }, 'NEW')),
+          h('div', { class: 'eg-pick-badges' },
+            h('span', { class: `eg-level l${LEVELS.indexOf(m.level)}` }, pips(m.level), m.level),
+            h('span', { class: 'eg-pick-steps' }, `${e.steps.length} moves`)),
+          h('p', { class: 'eg-pick-blurb' }, e.blurb.replace(/\s*\d+ moves,.*$/, '')),
+          m.skill ? h('p', { class: 'eg-pick-skill' }, h('b', {}, 'Teaches: '), m.skill) : null,
+          h('div', { class: 'eg-pick-tactics' }, tactics(e).map((t) => h('span', {}, t))),
+          h('span', { class: 'eg-pick-go' }, best ? 'Replay →' : 'Start →')));
+    };
+    this.root.append(h('div', { class: 'eg-wrap wide eg-picker' },
+      h('div', { class: 'eg-pick-hero' },
+        h('div', {},
+          h('div', { class: 'eg-kicker' }, 'Red team engagements · simulated · Halcyon Mutual'),
+          h('h1', {}, 'Choose an engagement'),
+          h('p', { class: 'eg-lede' }, 'Break in from the attacker’s seat, then switch to the SOC and find the trace every move left. All canned: made-up hosts on documentation-only IP ranges, nothing is executed.')),
+        h('div', { class: 'eg-progress', 'aria-label': `${done.length} of ${ENGAGEMENTS.length} engagements completed` },
+          h('div', { class: 'eg-progress-num' }, `${done.length}/${ENGAGEMENTS.length}`),
+          h('div', { class: 'eg-progress-label' }, 'completed'),
+          h('div', { class: 'eg-bar' }, ENGAGEMENTS.map((e) => h('i', { class: bests[e.id] ? `on g${bests[e.id].letter}` : '', title: e.name }))))),
+      h('div', { class: 'eg-filters' },
+        h('div', { class: 'eg-chiprow', role: 'group', 'aria-label': 'Filter by category' },
+          chip(`All ${ENGAGEMENTS.length}`, cat === 'All', () => { this.pickCat = 'All'; this.render(); }, { 'data-cat': 'All' }),
+          CATEGORIES.filter(count).map((c) => chip(`${c} ${count(c)}`, cat === c, () => { this.pickCat = c; this.render(); }, { 'data-cat': c }))),
+        h('div', { class: 'eg-chiprow', role: 'group', 'aria-label': 'Filter by difficulty' },
+          ['All', ...LEVELS].map((l) => chip(l === 'All' ? 'Any level' : l, lvl === l, () => { this.pickLvl = l; this.render(); }, { 'data-level': l })))),
+      shown.length
+        ? h('ul', { class: 'eg-picklist' }, shown.map(card))
+        : h('p', { class: 'eg-empty' }, 'No engagement matches both filters yet.'),
+      h('div', { class: 'eg-foot' },
+        h('button', { type: 'button', class: 'eg-quit', onclick: () => this.exit() }, '← Back to title'))));
   }
 
   choose(eng) {

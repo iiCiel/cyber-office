@@ -128,3 +128,12 @@ export function recordBest(id, grade) {
     return null;
   }
 }
+
+/** Best grade per engagement id ({ pct, letter }), or {} if nothing saved / storage blocked. */
+export function loadBests() {
+  try {
+    return JSON.parse(localStorage.getItem(KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
