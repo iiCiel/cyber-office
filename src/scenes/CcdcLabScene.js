@@ -173,10 +173,7 @@ export class CcdcLabScene extends Phaser.Scene {
     this.root.append(h('div', { class: 'cc-wrap wide' },
       this.header(this.guided ? 'Defend · guided' : 'Defend · competition',
         h('div', { class: 'cc-head-right' }, this.deadline ? this.clockEl() : null, this.serviceBar())),
-      h('div', { class: 'cc-progress' },
-        p.findingsTotal ? h('span', {}, `Findings hardened: ${p.fixed}/${p.findingsTotal}`) : null,
-        injects.length ? h('span', {}, `Injects submitted: ${p.injectsDone}/${p.injectsTotal}`) : null,
-        p.servicesTotal ? h('span', {}, `Services up: ${p.servicesUp}/${p.servicesTotal}`) : null),
+      this.progressRow(p),
       this.state.engine ? this.liveBoard() : null,
       deskOnly ? this.captainBoard() : null,
       deskOnly ? null : h('div', { class: 'cc-devtabs', role: 'tablist' }, devices.map((d) => {
@@ -193,6 +190,56 @@ export class CcdcLabScene extends Phaser.Scene {
     const screen = this.root.querySelector('.eg-out');
     if (screen) screen.scrollTop = screen.scrollHeight;
     if (this.phase === 'play' && !deskOnly) setTimeout(() => this.root.querySelector('.eg-input')?.focus(), 0);
+    this.renderedReleased = this.releasedCount();
+  }
+
+  progressRow(p = progress(this.state)) {
+    return h('div', { class: 'cc-progress' },
+      p.findingsTotal ? h('span', {}, `Findings hardened: ${p.fixed}/${p.findingsTotal}`) : null,
+      p.injectsTotal ? h('span', {}, `Injects submitted: ${p.injectsDone}/${p.injectsTotal}`) : null,
+      p.servicesTotal ? h('span', {}, `Services up: ${p.servicesUp}/${p.servicesTotal}`) : null);
+  }
+
+  releasedCount() {
+    const eng = this.state?.engine;
+    return eng ? this.state.injectList.filter((i) => eng.injectTimers[i.id].released).length : this.state?.injectList.length || 0;
+  }
+
+  // Live refresh, once a second during play: swap ONLY the HUD pieces (live board, service bar, progress, inject
+  // countdowns) in place. The terminal input and the inject textareas are never rebuilt, so typed text, drafts
+  // and focus survive. When a new inject arrives, only the inject panel is rebuilt (drafts come from injDraft and
+  // focus/caret are restored).
+  refreshLive() {
+    if (this.phase !== 'play' || !this.root) return;
+    const swap = (sel, node) => { const old = this.root.querySelector(sel); if (old && node) old.replaceWith(node); };
+    if (this.state.engine) swap('.cc-live', this.liveBoard());
+    swap('.cc-svcbar', this.serviceBar());
+    swap('.cc-progress', this.progressRow());
+    for (const i of this.state.injectList) {
+      const card = this.root.querySelector(`[data-inject="${i.id}"]`);
+      if (!card) continue;
+      const old = card.querySelector('.cc-inj-due');
+      const fresh = this.injectDeadline(i);
+      if (old && fresh) old.replaceWith(fresh);
+      else if (old) old.remove();
+      else if (fresh) card.querySelector('.cc-inj-head')?.append(fresh);
+    }
+    const rel = this.releasedCount();
+    if (rel !== this.renderedReleased) {
+      this.renderedReleased = rel;
+      const panel = this.root.querySelector('.cc-injpanel');
+      if (panel) {
+        const act = document.activeElement;
+        const focusedId = act && act.classList?.contains('cc-inj-ta') ? act.closest('[data-inject]')?.getAttribute('data-inject') : null;
+        const caret = focusedId ? [act.selectionStart, act.selectionEnd] : null;
+        const next = this.injectsPanel(this.state.injectList);
+        panel.replaceWith(next);
+        if (focusedId) {
+          const ta = next.querySelector(`[data-inject="${focusedId}"] .cc-inj-ta`);
+          if (ta) { ta.focus(); try { ta.setSelectionRange(caret[0], caret[1]); } catch { /* ignore */ } }
+        }
+      }
+    }
   }
 
   // Live scoring board + event feed — the competition HUD. Shows the scoring engine's per-service uptime %, the
@@ -271,7 +318,9 @@ export class CcdcLabScene extends Phaser.Scene {
     const prompt = dev.prompt || `${dev.user || 'analyst'}@${dev.host}:~$`;
     const buf = this.out[devId];
     if (text.trim()) { this.cmdHist[devId].push(text.trim()); this.histPos[devId] = this.cmdHist[devId].length; }
-    const res = runLine(this.state, devId, text);
+    let res;
+    // Defensive: a malformed line must print an error, never break the scene.
+    try { res = runLine(this.state, devId, text); } catch (err) { res = { lines: [{ cls: 'err', text: `bash: ${err?.message || 'error'}` }], effects: {} }; }
     if (res.effects.clear) { this.out[devId] = []; this.render(); return; }
     buf.push({ cls: 'cmd', text: `${prompt} ${text}` });
     for (const l of res.lines) buf.push(l);
@@ -298,7 +347,7 @@ export class CcdcLabScene extends Phaser.Scene {
     // rest appear with a "pending" note so the player knows more is coming.
     const released = eng ? injects.filter((i) => eng.injectTimers[i.id].released) : injects;
     const pending = eng ? injects.length - released.length : 0;
-    return h('div', { class: 'cc-panel' },
+    return h('div', { class: 'cc-panel cc-injpanel' },
       h('h2', { class: 'cc-sec-title' }, 'Management injects (IR / captain)'),
       h('p', { class: 'cc-sec-note' }, eng
         ? 'Injects arrive from the white team over the round, each with a deadline. A late deliverable scores zero.'
@@ -329,7 +378,9 @@ export class CcdcLabScene extends Phaser.Scene {
       h('p', { class: 'cc-inj-prompt' }, i.prompt),
       rec.done
         ? h('div', {},
-          h('p', { class: 'cc-flash ok' }, '✓ Submitted to the white team.'),
+          rec.late
+            ? h('p', { class: 'cc-flash bad cc-inj-late' }, '⏱ Submitted late — 0 pts. The deadline had passed, so the white team scores it zero.')
+            : h('p', { class: 'cc-flash ok' }, '✓ Submitted to the white team.'),
           // Guided mode shows the judge's rubric result straight away; competition mode waits for the debrief.
           this.guided && g ? this.rubricResult(g) : null,
           this.guided ? h('p', { class: 'cc-inj-model' }, h('b', {}, 'A strong answer: '), i.model) : null)
@@ -372,13 +423,13 @@ export class CcdcLabScene extends Phaser.Scene {
     if (this.state?.engine) {
       const elapsed = Math.floor((this.state.timeLimitSec * 1000 - ms) / 1000);
       tickTo(this.state, elapsed);
-      // A new live event (red-team wave, SLA hit, inject released) → re-render the HUD and feed.
-      if (this.state.engine.events.length !== this.lastEventCount) { this.lastEventCount = this.state.engine.events.length; this.render(); }
     }
     if (ms <= 0) { this.deadline = 0; expire(this.state); this.timedOut = true; this.finishRound(); return; }
     const text = this.fmtClock(ms);
     if (text === this.lastClockText) return;
     this.lastClockText = text;
+    // Once a second: refresh the live board, service bar and inject countdowns in place (no full re-render).
+    this.refreshLive();
     const el = this.root?.querySelector('.cc-clock');
     if (el) { el.querySelector('.cc-clock-val').textContent = text; el.classList.toggle('low', ms <= 120000); }
   }
@@ -405,7 +456,7 @@ export class CcdcLabScene extends Phaser.Scene {
         h('h1', {}, 'Scorecard'),
         this.timedOut ? h('p', { class: 'cc-timeout' }, '⏱ Time ran out. Whatever was still open when the clock hit 0:00 is what the red team walked through.') : null,
         h('div', { class: 'cc-tally' },
-          g.serviceMax ? this.tallyRow('Service uptime', `+${g.servicePts}`, `of ${g.serviceMax}`, 'ok') : null,
+          g.serviceMax ? this.tallyRow('Service uptime', `+${g.servicePts}`, g.uptimeScored ? `of ${g.serviceMax} · earned check by check` : `of ${g.serviceMax}`, 'ok') : null,
           g.injectMax ? this.tallyRow('Injects', `+${g.injectPts}`, `of ${g.injectMax} · graded item by item`, g.injectPts >= g.injectMax * 0.8 ? 'ok' : 'bad') : null,
           g.serviceMax ? this.tallyRow('SLA violations', g.slaPenalty ? `−${g.slaPenalty}` : '0', `${g.slaCount} outage${g.slaCount === 1 ? '' : 's'} you caused`, g.slaPenalty ? 'bad' : 'ok') : null,
           g.findingsTotal ? this.tallyRow('Compromises', g.compromisePenalty ? `−${g.compromisePenalty}` : '0', `${g.compromises.length} breach${g.compromises.length === 1 ? '' : 'es'}`, g.compromisePenalty ? 'bad' : 'ok') : null,
@@ -416,17 +467,22 @@ export class CcdcLabScene extends Phaser.Scene {
         h('ul', { class: 'cc-svc-review' }, Object.values(this.state.services).map((s) =>
           h('li', { class: s.state },
             h('span', { class: `cc-dot ${s.state}`, 'aria-hidden': 'true' }), h('b', {}, s.name),
-            h('span', { class: 'cc-svc-verdict' }, s.state === 'up' ? `UP — +${s.points} kept` : `DOWN — ${s.points} lost`),
+            h('span', { class: 'cc-svc-verdict' }, g.uptimeScored
+              ? (() => { const b = g.serviceBreakdown.find((x) => x.id === s.id); const c = this.state.engine.checks[s.id]; const tot = c.ok + c.fail; return `${s.state === 'up' ? 'UP' : 'DOWN'} at the buzzer · ${tot ? Math.round((c.ok / tot) * 100) : 100}% uptime → +${b.earned} of ${b.max}`; })()
+              : s.state === 'up' ? `UP — +${s.points} kept` : `DOWN — ${s.points} lost`),
             s.drops ? h('span', { class: 'cc-svc-sla' }, `${s.drops} outage${s.drops === 1 ? '' : 's'} · −${s.drops * (this.scenario.slaPenalty || 0)} SLA`) : null)))) : null,
       g.compromises.length ? h('div', { class: 'cc-panel cc-breaches' },
         h('h2', {}, 'What the red team got in through'),
-        h('ul', {}, g.compromises.map((c) => h('li', {}, h('b', {}, c.title), h('p', {}, c.impact), h('span', { class: 'cc-pen' }, `−${c.penalty}`))))) : null,
+        h('ul', {}, g.compromises.map((c) => h('li', {}, h('b', {}, c.title), h('p', {}, c.impact),
+          c.halved ? h('p', { class: 'cc-sec-note' }, 'Halved: your on-time, full-marks incident report covered this one.') : null,
+          h('span', { class: 'cc-pen' }, `−${c.charged ?? c.penalty}`))))) : null,
       g.injectResults.length ? h('div', { class: 'cc-panel cc-inj-review' },
         h('h2', {}, 'Injects, as the judges graded them'),
         h('ul', { class: 'cc-review' }, g.injectResults.map((r) => {
           const inj = this.state.injectList.find((x) => x.id === r.id);
           return h('li', { class: r.points === r.max ? 'ok' : r.points ? 'warn' : 'bad', 'data-inject-review': r.id },
-            h('div', { class: 'cc-rev-head' }, h('b', {}, r.title), h('span', { class: 'cc-rev-status' }, r.answered ? `${r.points}/${r.max} pts` : 'not submitted · 0 pts')),
+            h('div', { class: 'cc-rev-head' }, h('b', {}, r.title), h('span', { class: 'cc-rev-status' }, r.late ? `late · 0/${r.max} pts` : r.answered ? `${r.points}/${r.max} pts` : 'not submitted · 0 pts')),
+            r.late ? h('p', { class: 'cc-inj-late' }, 'Submitted after the deadline — a late deliverable scores 0, however good it is.') : null,
             r.answered && r.missing.length ? h('p', {}, h('b', {}, 'Missing: '), r.missing.join('; ')) : null,
             r.answered && !r.missing.length ? h('p', {}, 'Every rubric item covered.') : null,
             h('p', { class: 'cc-fix' }, h('b', {}, 'A strong answer: '), inj.model));

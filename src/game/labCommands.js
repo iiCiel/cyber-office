@@ -3,6 +3,8 @@
 // and produce realistic output; they are merged UNDER each device's own commands, so a device can override any
 // of them with box-specific output. Everything is simulated.
 
+import { systemctlStatus, ufwStatus } from './hostState.js';
+
 const lines = (arr) => `${arr.join('\n')}\n`;
 
 /**
@@ -16,8 +18,10 @@ export function linuxRecon(opts = {}) {
     ss: () => lines(['State  Recv-Q Send-Q  Local Address:Port  Peer Address:Port Process', ...listenRows.split('\n')]),
     netstat: () => lines(['Active Internet connections (only servers)', 'Proto Local Address        State', ...listenRows.split('\n').map((l) => `tcp   ${(l.match(/0\.0\.0\.0:\d+/) || ['0.0.0.0:?'])[0].padEnd(20)} LISTEN`)]),
     ps: () => lines(['USER       PID  %CPU %MEM COMMAND', 'root         1   0.0  0.1 /sbin/init', 'root       742   0.0  0.2 /usr/sbin/sshd -D', `${opts.appUser || 'www-data'}  1203   0.3  1.1 ${opts.appProc || '/usr/sbin/apache2 -k start'}`]),
-    systemctl: (args) => {
+    systemctl: (args, _stdin, ctx) => {
       const a = (args || []).join(' ');
+      if ((args || [])[0] === 'status' && ctx?.live) return systemctlStatus(ctx.live, args[1]);
+      if ((args || [])[0] === 'is-active' && ctx?.live) return `${ctx.live.units?.[String(args[1] || '').replace(/\.service$/, '').replace(/^sshd$/, 'ssh')] || 'unknown'}\n`;
       if (/list-units|list-unit-files/.test(a)) return lines(['UNIT                     LOAD   ACTIVE SUB     DESCRIPTION', 'ssh.service              loaded active running OpenBSD Secure Shell server', `${opts.appUnit || 'apache2.service'}        loaded active running ${opts.appDesc || 'The Apache HTTP Server'}`, 'cron.service             loaded active running Regular background program processing daemon']);
       if (/list-timers/.test(a)) return lines(['NEXT                        LEFT       UNIT                     ACTIVATES', 'Wed 2026-10-31 10:05:00 EDT 4min       apt-daily.timer          apt-daily.service']);
       if (/^status/.test(a) || a.includes('status')) return lines([`● ${args[1] || 'unit'} - service`, '   Loaded: loaded (/lib/systemd/system)', '   Active: active (running) since 09:00:11 EDT', '   (simulated)']);
@@ -27,8 +31,8 @@ export function linuxRecon(opts = {}) {
     iptables: (args) => ((args || []).join(' ').includes('-L')
       ? lines(['Chain INPUT (policy ACCEPT)', 'target     prot opt source               destination', 'Chain FORWARD (policy ACCEPT)', 'Chain OUTPUT (policy ACCEPT)', '(no host firewall rules — the edge firewall is the control point)'])
       : lines(['iptables: use -L to list rules (simulated)'])),
-    ufw: (args) => ((args || [])[0] === 'status' || !(args || []).length
-      ? lines(['Status: active', 'To                         Action      From', '--                         ------      ----', '(no rules — default allow inbound)'])
+    ufw: (args, _stdin, ctx) => ((args || [])[0] === 'status' || !(args || []).length
+      ? (ctx?.live ? ufwStatus(ctx.live) : null) || lines(['Status: active', 'To                         Action      From', '--                         ------      ----', '(no rules — default allow inbound)'])
       : lines([`Rule added (simulated): ${(args || []).join(' ')}`])),
     lsof: (args) => lines(['COMMAND  PID  USER   FD   TYPE DEVICE NAME', 'sshd     742  root    3u  IPv4  tcp  *:22 (LISTEN)', '(simulated)']),
     who: () => lines(['analyst  pts/0        2026-10-31 09:12 (10.10.10.5)']),
@@ -41,10 +45,31 @@ export function winRecon(opts = {}) {
   const l2 = (arr) => `\n${arr.join('\n')}\n`;
   return {
     netstat: () => l2(['Active Connections', '', '  Proto  Local Address          State           PID', '  TCP    0.0.0.0:3389           LISTENING       1044', '  TCP    0.0.0.0:445            LISTENING       4', '  TCP    0.0.0.0:135            LISTENING       920']),
-    'get-scheduledtask': () => (opts.tasks || [
-      { TaskPath: '\\', TaskName: 'GoogleUpdateTaskMachine', State: 'Ready' },
-      { TaskPath: '\\Microsoft\\Windows\\Defrag\\', TaskName: 'ScheduledDefrag', State: 'Ready' },
-    ]),
+    // Status cmdlets read the box's LIVE state (ctx.live, see hostState.js) so they reflect the player's changes.
+    'get-scheduledtask': (args, _in, ctx) => {
+      const all = ctx?.live?.tasks || opts.tasks || [];
+      const n = (args || []).find((a) => !a.startsWith('-'));
+      return n ? all.filter((t) => t.TaskName.toLowerCase() === n.toLowerCase()) : all;
+    },
+    'get-service': (args, _in, ctx) => {
+      const all = ctx?.live?.winServices || [];
+      const n = ((args || []).find((a) => !a.startsWith('-')) || '').toLowerCase();
+      const sel = n ? all.filter((s) => s.Name.toLowerCase() === n) : all;
+      if (n && !sel.length) return `Get-Service : Cannot find any service with service name '${n}'.`;
+      return sel.map(({ Status, Name, DisplayName, StartType }) => ({ Status, Name, DisplayName, StartType }));
+    },
+    'get-localuser': (args, _in, ctx) => {
+      const all = ctx?.live?.localUsers || [];
+      const n = ((args || []).find((a) => !a.startsWith('-')) || '').toLowerCase();
+      const sel = n ? all.filter((u) => u.Name.toLowerCase() === n) : all;
+      if (n && !sel.length) return `Get-LocalUser : User ${n} was not found.`;
+      return sel;
+    },
+    'get-localgroupmember': (args, _in, ctx) => {
+      const g = ((args || []).find((a) => !a.startsWith('-')) || '').toLowerCase();
+      if (g && g !== 'administrators') return [];
+      return ctx?.live?.localAdmins || [];
+    },
     auditpol: (args) => `\nSystem audit policy\nCategory/Subcategory                      Setting\nLogon/Logoff\n  Logon                                   Success and Failure\n  Logoff                                  Success\nAccount Logon\n  Credential Validation                   ${opts.credAudit || 'No Auditing'}\n(simulated)\n`,
     tasklist: () => '\nImage Name                     PID Session Name\n========================= ======== ================\nSystem                           4 Services\nlsass.exe                      640 Services\nexplorer.exe                  3044 Console\n',
   };

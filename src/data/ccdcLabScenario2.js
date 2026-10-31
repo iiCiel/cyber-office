@@ -32,6 +32,45 @@ const DC_DIR = makeDirectory({
 DC_DIR.setEnabled('Guest', true);
 DC_DIR.addMember('Account Operators', 'Guest');
 
+// --- pg_hba.conf check for the db01 fix ---------------------------------------------------------------------
+// Reads the EDITED file and decides whether PostgreSQL is really hardened: no "trust" for 0.0.0.0/0, a password
+// method (scram-sha-256 / md5) for the LAN, and the scoring engine (hp-scorecheck from 198.51.100.9) still let in.
+export const HBA_PATH = '/etc/postgresql/14/main/pg_hba.conf';
+const SCORING_IP = '198.51.100.9';
+const ipNum = (ip) => ip.split('.').reduce((n, o) => n * 256 + Number(o), 0);
+function inCidr(ip, cidr) {
+  const [base, bits = '32'] = String(cidr).split('/');
+  if (!/^\d+\.\d+\.\d+\.\d+$/.test(base)) return false;
+  const b = Number(bits);
+  const size = 2 ** (32 - b);
+  return Math.floor(ipNum(ip) / size) === Math.floor(ipNum(base) / size);
+}
+const hbaRules = (text) => String(text || '').split('\n')
+  .map((l) => l.replace(/#.*/, '').trim()).filter(Boolean)
+  .map((l) => l.split(/\s+/))
+  .filter((t) => /^host(ssl)?$/.test(t[0]) && t.length >= 5)
+  .map(([, db, user, addr, method]) => ({ db, user, addr, method }));
+
+export function verifyHba(fs) {
+  const text = fs[HBA_PATH];
+  if (text === undefined || !hbaRules(text).length && !/local/.test(text)) {
+    return { ok: false, why: 'pg_hba.conf is gone or empty — nothing can log in to PostgreSQL now.', trap: { id: 'hba-wiped', drops: ['db'], note: 'pg_hba.conf was emptied; every client (including the scoring engine) is refused.', why: 'Edit the trust line; never empty pg_hba.conf. Restore it with the LAN + scoring lines using scram-sha-256.' } };
+  }
+  const rules = hbaRules(text);
+  if (rules.some((r) => r.method === 'trust' && /^0\.0\.0\.0\/0$|^all$/.test(r.addr))) {
+    return { ok: false, why: 'Not hardened yet: pg_hba.conf still has the "0.0.0.0/0 … trust" line (cat it to check). PostgreSQL reads rules top-down, so that line still lets anyone in without a password. Replace or delete it.' };
+  }
+  const pw = (r) => /^(scram-sha-256|md5)$/.test(r.method);
+  if (!rules.some((r) => pw(r) && /^10\.20\.30\./.test(r.addr))) {
+    return { ok: false, why: 'The trust line is gone, but there is no password-authenticated rule for the LAN (10.20.30.0/24) — app01 can no longer reach the DB. Add one with scram-sha-256.' };
+  }
+  const scoring = rules.find((r) => inCidr(SCORING_IP, r.addr) && (r.user === 'all' || r.user === 'hp-scorecheck'));
+  if (!scoring || !pw(scoring)) {
+    return { ok: false, why: `pg_hba.conf no longer admits the scoring engine (${SCORING_IP}) with a password — the scored DB check cannot log in.`, trap: { id: 'hba-no-scoring', drops: ['db'], note: `pg_hba.conf has no rule letting hp-scorecheck in from ${SCORING_IP}; the scored DB check fails.`, why: `Lock it down, but keep the scorer: add  host all hp-scorecheck ${SCORING_IP}/32 scram-sha-256  before removing the trust line.` } };
+  }
+  return { ok: true };
+}
+
 // Shared inspection commands for the Linux boxes: the recon a real competitor runs before touching anything.
 const bashExtras = (overrides = {}) => ({
   ss: (args) => {
@@ -41,10 +80,7 @@ const bashExtras = (overrides = {}) => ({
   },
   netstat: (args) => (overrides._listen || 'Active Internet connections\nProto Local Address      State\ntcp   0.0.0.0:22          LISTEN\n'),
   ps: () => 'USER   PID  COMMAND\nroot     1  /sbin/init\nroot   540  /usr/sbin/sshd -D\n',
-  systemctl: (args) => `${args[1] || 'unit'} — loaded, active (running) [simulated]\n`,
-  ufw: (args) => (args[0] === 'status' || !args.length
-    ? 'Status: active\nTo                         Action      From\n--                         ------      ----\n(no rules — default allow inbound)\n'
-    : `ufw: added rule (simulated): ${args.join(' ')}\n`),
+  // systemctl / ufw come from labCommands.js and read the box's live state (so a stop or a new rule shows up).
   find: undefined, // keep the real find from shellplus
   ...overrides,
 });
@@ -107,27 +143,23 @@ export const CCDC_LAB_2 = {
         'Get-Service Spooler',
         'Stop-Service Spooler -Force',
         'Set-Service Spooler -StartupType Disabled',
+        'Get-Service Spooler',
         'Get-ADUser Guest -Properties Enabled,MemberOf',
         "Get-ADGroupMember 'Account Operators'",
         'Disable-ADAccount -Identity Guest',
         "Remove-ADGroupMember -Identity 'Account Operators' -Members Guest -Confirm:$false",
       ],
       adSpec: null,
+      // Live state: Get-Service reads this, and Stop-Service / Set-Service change it.
+      live: { winServices: [
+        { Status: 'Running', Name: 'Spooler', DisplayName: 'Print Spooler', StartType: 'Automatic' },
+        { Status: 'Running', Name: 'DNS', DisplayName: 'DNS Server', StartType: 'Automatic' },
+        { Status: 'Running', Name: 'NTDS', DisplayName: 'Active Directory Domain Services', StartType: 'Automatic' },
+      ] },
       ctx: {
         dir: DC_DIR, user: 'Administrator', host: 'DC01', fs: {}, cwd: 'C:\\Users\\Administrator',
         events: () => [],
         commands: winCommands({
-          'get-service': (args) => {
-            const name = (args.find((a) => !a.startsWith('-')) || '').toLowerCase();
-            const all = [
-              { Status: 'Running', Name: 'Spooler', DisplayName: 'Print Spooler' },
-              { Status: 'Running', Name: 'DNS', DisplayName: 'DNS Server' },
-              { Status: 'Running', Name: 'NTDS', DisplayName: 'Active Directory Domain Services' },
-            ];
-            const sel = name ? all.filter((s) => s.Name.toLowerCase() === name) : all;
-            if (!sel.length) return `Get-Service : Cannot find any service with service name '${args[0]}'.`;
-            return sel.map((s) => s);
-          },
         }),
       },
     },
@@ -141,31 +173,32 @@ export const CCDC_LAB_2 = {
         'Disable-LocalUser -Name svc_update',
         'Remove-LocalGroupMember -Group Administrators -Member svc_update',
         'Remove-LocalUser -Name svc_update',
+        'Get-LocalUser',
       ],
+      // Live state: Get-LocalUser / Get-LocalGroupMember read this; Disable/Remove-Local* change it.
+      live: {
+        localUsers: [
+          { Name: 'Administrator', Enabled: false, Description: 'Built-in admin account' },
+          { Name: 'teller', Enabled: true, Description: 'Branch teller (domain-joined local profile)' },
+          { Name: 'svc_update', Enabled: true, Description: '' },
+        ],
+        localAdmins: [
+          { ObjectClass: 'User', Name: 'WS01\\Administrator', PrincipalSource: 'Local' },
+          { ObjectClass: 'Group', Name: 'HARBORPT\\Domain Admins', PrincipalSource: 'ActiveDirectory' },
+          { ObjectClass: 'User', Name: 'WS01\\svc_update', PrincipalSource: 'Local' },
+        ],
+      },
       ctx: {
         dir: DC_DIR, user: 'teller', host: 'WS01', fs: {}, cwd: 'C:\\Users\\teller',
         events: () => [],
         commands: winCommands({
-          'get-localuser': () => [
-            { Name: 'Administrator', Enabled: false, Description: 'Built-in admin account' },
-            { Name: 'teller', Enabled: true, Description: 'Branch teller (domain-joined local profile)' },
-            { Name: 'svc_update', Enabled: true, Description: '' },
-          ],
-          'get-localgroupmember': (args) => {
-            const g = (args.find((a) => !a.startsWith('-')) || '').toLowerCase();
-            if (g && g !== 'administrators') return [];
-            return [
-              { ObjectClass: 'User', Name: 'WS01\\Administrator', PrincipalSource: 'Local' },
-              { ObjectClass: 'Group', Name: 'HARBORPT\\Domain Admins', PrincipalSource: 'ActiveDirectory' },
-              { ObjectClass: 'User', Name: 'WS01\\svc_update', PrincipalSource: 'Local' },
-            ];
-          },
         }),
       },
     },
     {
       id: 'app01', name: 'Member portal server', host: 'app01', ip: '10.20.30.20', os: 'Ubuntu 22.04 (Apache + portal)', role: 'webdb', kind: 'bash',
       prompt: 'analyst@app01:~$', user: 'analyst', cwd: '/home/analyst',
+      live: { units: ['apache2', 'portal-api'] },
       brief: 'The member portal web server. Two problems: the whole .git folder was deployed into the web root (anyone can download the source and the DB credentials inside it), and a prior intruder left a script that a root cron re-runs every 5 minutes. Investigate, then clean up.',
       checklist: [
         'ls -la /var/www/portal',
@@ -197,11 +230,15 @@ export const CCDC_LAB_2 = {
     {
       id: 'db01', name: 'Database server', host: 'db01', ip: '10.20.30.40', os: 'Ubuntu 22.04 (PostgreSQL 14)', role: 'webdb', kind: 'bash',
       prompt: 'analyst@db01:~$', user: 'analyst', cwd: '/home/analyst',
+      live: { units: ['postgresql'] },
       brief: 'PostgreSQL trusts everyone: pg_hba.conf has a "host all all 0.0.0.0/0 trust" line (no password, any source) and it listens on every interface. Two legitimate clients need it: app01 on the LAN (10.20.30.20) and the scoring engine (198.51.100.9). Require real authentication and ALLOW 5432 only from those sources — do NOT just deny 5432, or you cut off both of them. Then rotate the hp-scorecheck password and file the PCR.',
       checklist: [
         'grep -n listen_addresses /etc/postgresql/14/main/postgresql.conf',
         'grep -n trust /etc/postgresql/14/main/pg_hba.conf',
+        // Keep the scoring engine able to log in FIRST, then replace the open trust line with the LAN + a password.
+        "echo 'host all hp-scorecheck 198.51.100.9/32 scram-sha-256' >> /etc/postgresql/14/main/pg_hba.conf",
         "sed -i 's/host.*all.*all.*0.0.0.0\\/0.*trust/host all all 10.20.30.0\\/24 scram-sha-256/' /etc/postgresql/14/main/pg_hba.conf",
+        'cat /etc/postgresql/14/main/pg_hba.conf',
         'systemctl reload postgresql',
         'ufw allow from 10.20.30.20 to any port 5432',
         'ufw allow from 198.51.100.9 to any port 5432',
@@ -304,12 +341,14 @@ export const CCDC_LAB_2 = {
       exploitable: true, compromise: { impact: 'Red team connects to PostgreSQL with no credentials and reads/alters the member database.', penalty: 60, drops: ['db'] },
       fix: {
         steps: [
-          { id: 'hba', accept: [/sed -i|nano|vi |vim|tee|>>/, /pg_hba/, /scram|md5/], label: 'Required real authentication in pg_hba.conf', output: ['pg_hba.conf: the 0.0.0.0/0 trust line is replaced with scram-sha-256 scoped to the LAN.'], todo: 'replace the "trust" line with a password method scoped to the LAN (edit pg_hba.conf)' },
+          // Any edit of pg_hba.conf is checked against the file it actually leaves behind (verifyHba), not the
+          // command text: appending a scram line under the trust line, or wiping the file, does not count.
+          { id: 'hba', accept: [/sed -i|tee|>>|>/, /pg_hba/], verify: verifyHba, restores: ['db'], label: 'Required real authentication in pg_hba.conf', output: ['pg_hba.conf: no trust line left; the LAN and the scoring engine (198.51.100.9) must authenticate with scram-sha-256.'], todo: 'edit pg_hba.conf: remove the 0.0.0.0/0 trust line, allow the LAN with scram-sha-256, keep hp-scorecheck allowed from 198.51.100.9' },
           { id: 'reload', accept: [/systemctl|service|pg_ctl/, /reload|restart/, /postgres/], label: 'Reloaded PostgreSQL', output: ['postgresql reloaded — the new pg_hba.conf is live.'], todo: 'reload PostgreSQL so the change takes effect (systemctl reload postgresql)' },
           { id: 'restrict', accept: [/ufw/, /5432/, /\ballow\b/, /from (10\.20\.30\.|198\.51\.100\.9\b)/], reject: [/\b(deny|reject|drop|block)\b/, /from any\b|0\.0\.0\.0\/0/], label: 'Restricted 5432 to the two clients', output: ['Rule added: allow 5432 from 10.20.30.0/24; the internet can no longer reach PostgreSQL.'], todo: 'restrict port 5432 to app01 and the scoring engine (ufw allow from 10.20.30.0/24 to any port 5432)' },
         ],
         restores: ['db'],
-        why: 'Replace the trust line with scram-sha-256 scoped to the LAN, reload PostgreSQL, and firewall 5432 to app01 and the scoring engine. The DB stays reachable by exactly the clients that need it.',
+        why: 'Add a scram-sha-256 rule for hp-scorecheck from the scoring engine (198.51.100.9/32), replace the 0.0.0.0/0 trust line with scram-sha-256 scoped to the LAN, reload PostgreSQL, and firewall 5432 to app01 and the scoring engine. The DB stays reachable by exactly the clients that need it.',
       },
       traps: [
         { id: 'deny-all-5432', match: [[/ufw/, /5432/, /deny|reject/]], drops: ['db'], note: 'Port 5432 blocked outright; app01 and the scoring engine can no longer reach the DB.', output: ['ufw: rule added — DENY 5432.'], why: 'Blocking 5432 for everyone cuts off the two legitimate clients too. Restrict by source, do not deny the port.' },
