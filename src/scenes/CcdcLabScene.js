@@ -188,7 +188,7 @@ export class CcdcLabScene extends Phaser.Scene {
       h('div', { class: 'cc-asset-scroll' }, h('table', { class: 'cc-assets' },
         h('thead', {}, h('tr', {}, ['Host', 'IP', 'OS', 'Seat'].map((t) => h('th', {}, t)))),
         h('tbody', {}, sc.devices.map((d) => h('tr', {},
-          h('td', {}, `${d.name} (${d.host})`), h('td', {}, d.ip), h('td', {}, d.os), h('td', {}, d.role)))))),
+          h('td', {}, `${d.name} (${d.host})`), h('td', { class: 'nw' }, d.ip), h('td', {}, d.os), h('td', { class: 'nw' }, d.role)))))),
       h('p', { class: 'cc-sec-note' }, `Scored services: ${sc.services.map((x) => `${x.name} on ${x.host}`).join(' · ')}.`));
   }
 
@@ -334,10 +334,10 @@ export class CcdcLabScene extends Phaser.Scene {
         h('h1', {}, 'Scorecard'),
         this.timedOut ? h('p', { class: 'cc-timeout' }, '⏱ Time ran out. Whatever was still open when the clock hit 0:00 is what the red team walked through.') : null,
         h('div', { class: 'cc-tally' },
-          this.tallyRow('Service uptime', `+${g.servicePts}`, `of ${g.serviceMax}`, 'ok'),
-          this.tallyRow('Injects', `+${g.injectPts}`, `of ${g.injectMax}`, 'ok'),
-          this.tallyRow('SLA violations', g.slaPenalty ? `−${g.slaPenalty}` : '0', `${g.slaCount} outage${g.slaCount === 1 ? '' : 's'} you caused`, g.slaPenalty ? 'bad' : 'ok'),
-          this.tallyRow('Compromises', g.compromisePenalty ? `−${g.compromisePenalty}` : '0', `${g.compromises.length} breach${g.compromises.length === 1 ? '' : 'es'}`, g.compromisePenalty ? 'bad' : 'ok'),
+          g.serviceMax ? this.tallyRow('Service uptime', `+${g.servicePts}`, `of ${g.serviceMax}`, 'ok') : null,
+          g.injectMax ? this.tallyRow('Injects', `+${g.injectPts}`, `of ${g.injectMax} · graded item by item`, g.injectPts >= g.injectMax * 0.8 ? 'ok' : 'bad') : null,
+          g.serviceMax ? this.tallyRow('SLA violations', g.slaPenalty ? `−${g.slaPenalty}` : '0', `${g.slaCount} outage${g.slaCount === 1 ? '' : 's'} you caused`, g.slaPenalty ? 'bad' : 'ok') : null,
+          g.findingsTotal ? this.tallyRow('Compromises', g.compromisePenalty ? `−${g.compromisePenalty}` : '0', `${g.compromises.length} breach${g.compromises.length === 1 ? '' : 'es'}`, g.compromisePenalty ? 'bad' : 'ok') : null,
           h('div', { class: 'cc-tally-row total' }, h('span', {}, 'Total'), h('b', {}, `${g.raw}`), h('span', {}, `of ${g.max} · ${g.pct}%`))),
         h('p', { class: 'cc-verdict' }, this.verdict(g))),
       Object.keys(this.state.services).length ? h('div', { class: 'cc-panel' },
@@ -381,6 +381,10 @@ export class CcdcLabScene extends Phaser.Scene {
   }
 
   verdict(g) {
+    if (!g.findingsTotal) {
+      if (g.pct >= 90) return 'Captain-grade write-ups: every inject hit what the judges look for.';
+      return 'Injects are graded item by item. Read what each one was missing below, then write them again.';
+    }
     if (g.pct >= 90) return 'Competition-ready. You hardened the boxes at the keyboard and kept the services serving — a winning round.';
     if (g.pct >= 75) return 'Strong round. Re-check the finding you left open or the service you dropped; those are the points to the top of the scoreboard.';
     if (g.pct >= 60) return 'A real first attempt. The red team got in somewhere, or you knocked a service over. Read the reviews and run it again.';

@@ -309,6 +309,7 @@ export class CptcLabScene extends Phaser.Scene {
 
   verdict(g) {
     if (g.pct >= 90) return 'A report that wins CPTC: you found the issues at the keyboard, rated them honestly, and wrote fixes and a summary a board can act on.';
+    if (g.remediation < 15) return 'Your remediations do not name the controls that actually fix each finding. Read "Missing" under each one below — that is where the points went.';
     if (g.pct >= 75) return 'Strong. Either you missed a finding in enumeration or a severity rating drifted from the matrix — tighten both.';
     if (g.pct >= 60) return 'A real first pass. The biggest lever is coverage: the findings you never confirmed at the terminal cannot be in the report.';
     return 'Thin report. Go back and actually run the test — enumerate every in-scope service — then rate and write up everything you confirm.';
