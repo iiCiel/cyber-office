@@ -5,6 +5,7 @@ import { CPTC_SCENARIO } from '../data/cptcScenario.js';
 import {
   newReport, setRoe, setRisk, setRemediation, setExec, completeness, scoreReport, severityTally,
   severityFor, recordBest, LIKELIHOOD, IMPACT, SEVERITIES, RISK_MATRIX,
+  roeChoicesFor, remediationsFor, execSummariesFor, execDisplayName, expire, MODES,
 } from '../game/cptc.js';
 import '../ui/screen.css';
 import '../ui/competitions.css';
@@ -32,12 +33,14 @@ export class CptcScene extends Phaser.Scene {
     this.state = newReport(this.scenario);
     this.flash = {};
     this.warn = '';
+    this.deadline = 0; // competition clock (ms timestamp), 0 = no clock
 
     this.root = h('div', { class: 'screen open cptc-screen', id: 'cptc' });
     document.body.append(this.root);
+    document.body.classList.add('portrait-ok'); // HTML screen: readable on an upright phone, skip the rotate prompt
     this.render();
 
-    const layout = () => placeOnCanvas(this.root, this.game.canvas, { x: 0, y: 0, w: VIEW_W, h: VIEW_H }, { viewW: VIEW_W });
+    const layout = () => placeOnCanvas(this.root, this.game.canvas, { x: 0, y: 0, w: VIEW_W, h: VIEW_H }, { viewW: VIEW_W, minW: 400 });
     layout();
     this.layout = layout;
     this.canvasRect = '';
@@ -47,11 +50,13 @@ export class CptcScene extends Phaser.Scene {
       window.removeEventListener('resize', layout);
       this.scale.off('resize', layout);
       this.root.remove();
+      document.body.classList.remove('portrait-ok');
     });
     this.input.keyboard.on('keydown-ESC', () => this.exit());
   }
 
   update() {
+    this.tickClock();
     if (!this.layout) return;
     const r = this.game.canvas.getBoundingClientRect();
     const key = `${r.left},${r.top},${r.width},${r.height}`;
@@ -59,6 +64,7 @@ export class CptcScene extends Phaser.Scene {
   }
 
   exit() {
+    this.deadline = 0;
     this.sound2?.play('click');
     this.scene.start(this.returnTo);
   }
@@ -74,10 +80,73 @@ export class CptcScene extends Phaser.Scene {
     else this.renderReport();
   }
 
+  get competition() {
+    return this.state.mode === MODES.COMPETITION;
+  }
+
   head(kicker, right) {
     return h('header', { class: 'cx-head' },
       h('div', {}, h('div', { class: 'cx-kicker' }, kicker), h('div', { class: 'cx-client' }, `Client: ${this.scenario.client}`)),
-      right || null);
+      (right || this.competition) ? h('div', { class: 'cx-head-right' }, this.competition ? this.clockEl() : null, right || null) : null);
+  }
+
+  // ---- mode + competition clock ----
+  setMode(mode) {
+    if (mode === this.state.mode) return;
+    this.sound2?.play('click');
+    this.state = newReport(this.scenario, { mode });
+    this.flash = {};
+    this.warn = '';
+    this.deadline = this.state.timeLimitSec ? Date.now() + this.state.timeLimitSec * 1000 : 0;
+    this.lastClockText = '';
+    this.render();
+  }
+
+  modeBar() {
+    const mins = Math.round((this.scenario.clockSeconds || 0) / 60);
+    const btn = (mode, title, sub) => h('button', { type: 'button', class: `cx-mode-btn${this.state.mode === mode ? ' on' : ''}`, 'data-mode': mode, onclick: () => this.setMode(mode) },
+      h('b', {}, title), h('span', {}, sub));
+    return h('div', { class: 'cx-panel cx-mode' },
+      h('h2', {}, 'How do you want to write it?'),
+      h('div', { class: 'cx-mode-row' },
+        btn(MODES.GUIDED, 'Guided', 'Coaching on every rules-of-engagement call. No clock.'),
+        btn(MODES.COMPETITION, `Competition · ${mins}-minute clock`, 'No feedback until the graded report. At 0:00 the report is handed in exactly as it stands.')),
+      h('p', { class: 'cx-note' }, 'Switching mode starts a fresh report.'));
+  }
+
+  remainingMs() {
+    return this.deadline ? Math.max(0, this.deadline - Date.now()) : 0;
+  }
+
+  fmtClock(ms) {
+    const t = Math.ceil(ms / 1000);
+    return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+  }
+
+  clockEl() {
+    const ms = this.state.phase === 'report' ? 0 : this.remainingMs();
+    return h('div', { class: `cc-clock${ms <= 120000 ? ' low' : ''}`, role: 'timer', 'aria-label': 'Time left to hand in the report' },
+      h('span', { class: 'cc-clock-label' }, 'Time left'),
+      h('b', { class: 'cc-clock-val' }, this.fmtClock(ms)));
+  }
+
+  tickClock() {
+    if (!this.deadline || this.state.phase === 'report') return;
+    const ms = this.remainingMs();
+    if (ms <= 0) {
+      this.deadline = 0;
+      expire(this.state);
+      this.generate(true);
+      return;
+    }
+    const text = this.fmtClock(ms);
+    if (text === this.lastClockText) return;
+    this.lastClockText = text;
+    const el = this.root?.querySelector('.cc-clock');
+    if (el) {
+      el.querySelector('.cc-clock-val').textContent = text;
+      el.classList.toggle('low', ms <= 120000);
+    }
   }
 
   steps(active) {
@@ -96,6 +165,7 @@ export class CptcScene extends Phaser.Scene {
         h('p', { class: 'cx-lede' }, this.scenario.engagement),
         h('p', { class: 'cx-scope' }, h('b', {}, 'Scope: '), this.scenario.scopeNote),
         h('p', { class: 'cx-note' }, 'CPTC is won on the report, not the breach. Before you write it, make the rules-of-engagement calls the judges watch for — scope and sensitive-data handling decide more than any exploit.')),
+      this.modeBar(),
       h('ol', { class: 'cx-roe' }, this.scenario.roe.map((d) => this.roeCard(d))),
       this.warn ? h('p', { class: 'cx-warn' }, this.warn) : null,
       h('div', { class: 'cx-foot' },
@@ -110,7 +180,7 @@ export class CptcScene extends Phaser.Scene {
     return h('li', { class: `cx-roe-card${pick ? ' answered' : ''}`, 'data-roe': d.id },
       h('h3', {}, d.title),
       h('p', { class: 'cx-roe-sit' }, d.situation),
-      h('div', { class: 'cx-choices' }, d.choices.map((c) =>
+      h('div', { class: 'cx-choices' }, roeChoicesFor(this.state, d).map((c) =>
         h('button', { type: 'button', class: `cx-choice${pick === c.id ? ' chosen' : ''}`, 'data-choice': c.id, onclick: () => this.pickRoe(d.id, c.id) }, c.label))),
       fl ? h('p', { class: `cx-flash ${fl.tone}` }, fl.msg) : null);
   }
@@ -119,8 +189,14 @@ export class CptcScene extends Phaser.Scene {
     setRoe(this.state, id, choiceId);
     const d = this.scenario.roe.find((x) => x.id === id);
     const c = d.choices.find((x) => x.id === choiceId);
-    this.sound2?.play(c.correct ? 'select' : 'click');
-    this.flash[id] = { tone: c.correct ? 'ok' : c.partial ? 'warn' : 'bad', msg: c.feedback };
+    if (this.competition) {
+      // No hints in competition: the call is recorded, judged only in the final report.
+      this.sound2?.play('click');
+      this.flash[id] = { tone: 'sub', msg: 'Call recorded. The judges grade it in the final report.' };
+    } else {
+      this.sound2?.play(c.correct ? 'select' : 'click');
+      this.flash[id] = { tone: c.correct ? 'ok' : c.partial ? 'warn' : 'bad', msg: c.feedback };
+    }
     this.warn = '';
     this.render();
     this.root.querySelector(`[data-roe="${id}"]`)?.scrollIntoView({ block: 'nearest' });
@@ -181,7 +257,7 @@ export class CptcScene extends Phaser.Scene {
         h('div', { class: 'cx-derived' }, derived ? h('span', { class: `cx-chip s${derived}` }, derived) : h('span', { class: 'cx-derived-none' }, 'severity appears here'))),
       h('div', { class: 'cx-rem' },
         h('span', { class: 'cx-rem-label' }, 'Recommended remediation:'),
-        h('div', { class: 'cx-choices' }, f.remediations.map((c) =>
+        h('div', { class: 'cx-choices' }, remediationsFor(this.state, f).map((c) =>
           h('button', { type: 'button', class: `cx-choice${rec.remediation === c.id ? ' chosen' : ''}`, 'data-rem': c.id, onclick: () => this.pickRem(f.id, c.id) }, c.label)))));
   }
 
@@ -231,13 +307,14 @@ export class CptcScene extends Phaser.Scene {
       this.steps('exec'),
       h('div', { class: 'cx-panel' },
         h('h2', {}, 'Your findings at a glance'),
+        h('p', { class: 'cx-note' }, 'Counted from YOUR ratings (likelihood × impact you set). The judges\' reference ratings are revealed in the report.'),
         h('div', { class: 'cx-tally' }, tally.map((t) => h('span', { class: `cx-chip s${t.sev}` }, `${t.count} ${t.sev}`))),
         h('p', { class: 'cx-note' }, 'Now pick the executive summary that goes on page one. Same findings, three ways of telling the board. Only one lets them actually decide.')),
-      h('ul', { class: 'cx-execs' }, this.scenario.execSummaries.map((e) => {
+      h('ul', { class: 'cx-execs' }, execSummariesFor(this.state).map((e) => {
         const on = this.state.execChoice === e.id;
         return h('li', { class: `cx-exec${on ? ' chosen' : ''}`, 'data-exec': e.id },
           h('button', { type: 'button', class: 'cx-exec-pick', onclick: () => this.pickExec(e.id) },
-            h('span', { class: 'cx-exec-label' }, h('i', { class: `cx-radio${on ? ' on' : ''}`, 'aria-hidden': 'true' }), e.label),
+            h('span', { class: 'cx-exec-label' }, h('i', { class: `cx-radio${on ? ' on' : ''}`, 'aria-hidden': 'true' }), execDisplayName(this.state, e.id)),
             h('p', { class: 'cx-exec-text' }, e.text)));
       })),
       this.warn ? h('p', { class: 'cx-warn' }, this.warn) : null,
@@ -255,12 +332,13 @@ export class CptcScene extends Phaser.Scene {
     this.render();
   }
 
-  generate() {
-    if (this.state.execChoice == null) {
+  generate(timedOut = false) {
+    if (!timedOut && this.state.execChoice == null) {
       this.warn = 'Choose an executive summary first.';
       this.sound2?.play('error');
       return this.render();
     }
+    this.deadline = 0;
     this.grade = scoreReport(this.state);
     recordBest(this.scenario.id, this.grade);
     this.sound2?.play(this.grade.letter === 'A' || this.grade.letter === 'B' ? 'select' : 'error');
@@ -279,6 +357,7 @@ export class CptcScene extends Phaser.Scene {
         h('div', { class: `cx-grade g${g.letter}` }, g.letter)),
       h('div', { class: 'cx-panel cx-scorecard' },
         h('h1', {}, `Report score: ${g.total} / ${g.max} (${g.pct}%)`),
+        this.state.timedOut ? h('p', { class: 'cc-timeout' }, '⏱ Time ran out. The report was handed in exactly as it stood at 0:00 — anything unrated or unanswered scored zero.') : null,
         h('div', { class: 'cx-dimbars' }, Object.values(g.dims).map((d) =>
           h('div', { class: 'cx-dim' },
             h('div', { class: 'cx-dim-top' }, h('span', {}, d.label), h('b', {}, `${d.pts}/${d.max}`), h('span', { class: 'cx-dim-raw' }, d.raw)),
@@ -286,8 +365,11 @@ export class CptcScene extends Phaser.Scene {
         h('p', { class: 'cx-verdict' }, this.verdict(g))),
       h('div', { class: 'cx-panel cx-report' },
         h('h2', {}, 'Executive summary'),
-        h('p', { class: `cx-report-exec ${exec?.correct ? 'ok' : exec?.partial ? 'warn' : 'bad'}` }, exec?.text || '(none selected)'),
-        h('p', { class: 'cx-exec-note' }, exec?.feedback)),
+        exec ? h('p', { class: 'cx-exec-reveal' }, h('b', {}, `You chose ${execDisplayName(this.state, exec.id)}: `), h('span', { class: `cx-exec-tag ${exec.correct ? 'ok' : exec.partial ? 'warn' : 'bad'}` }, exec.label)) : null,
+        h('p', { class: `cx-report-exec ${exec?.correct ? 'ok' : exec?.partial ? 'warn' : 'bad'}` }, exec?.text || '(none selected — the clock ran out before page one was written)'),
+        h('p', { class: 'cx-exec-note' }, exec?.feedback || 'A report with no executive summary loses the dimension that decides most CPTC placings.'),
+        h('ul', { class: 'cx-exec-key' }, execSummariesFor(this.state).map((e) =>
+          h('li', { class: e.correct ? 'ok' : e.partial ? 'warn' : 'bad' }, h('b', {}, `${execDisplayName(this.state, e.id)} — ${e.label}`), e.correct ? ' (the winning summary)' : '')))),
       h('div', { class: 'cx-panel' },
         h('h2', {}, 'Findings — risk-ranked'),
         h('p', { class: 'cx-note' }, 'The reference rating (Likelihood × Impact) with your call noted. Green = you matched it, amber = off by one rank, red = re-rate.'),
@@ -330,9 +412,12 @@ export class CptcScene extends Phaser.Scene {
 
   replay() {
     this.sound2?.play('click');
-    this.state = newReport(this.scenario);
+    const mode = this.state.mode;
+    this.state = newReport(this.scenario, { mode });
     this.flash = {};
     this.warn = '';
+    this.deadline = this.state.timeLimitSec ? Date.now() + this.state.timeLimitSec * 1000 : 0;
+    this.lastClockText = '';
     this.render();
   }
 }

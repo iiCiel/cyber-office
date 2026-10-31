@@ -7,6 +7,7 @@ import { CPTC_SCENARIO } from '../src/data/cptcScenario.js';
 import {
   newReport, setRoe, setRisk, setRemediation, setExec, completeness, scoreReport,
   severityFor, severityTally, SEVERITIES, LIKELIHOOD, IMPACT,
+  roeChoicesFor, remediationsFor, execSummariesFor, execDisplayName, expire, MODES,
 } from '../src/game/cptc.js';
 
 function perfectReport() {
@@ -89,10 +90,48 @@ test('an incomplete report is flagged by completeness()', () => {
   assert.equal(completeness(st).roeDone, 1);
 });
 
-test('severity tally counts the reference severities, highest first', () => {
-  const st = newReport(CPTC_SCENARIO);
-  const tally = severityTally(st);
-  const total = tally.reduce((n, t) => n + t.count, 0);
-  assert.equal(total, CPTC_SCENARIO.findings.length);
+test('severity tally counts the PLAYER\'s own ratings, not the answer key', () => {
+  const st = newReport(CPTC_SCENARIO, { seed: 1 });
+  // Nothing rated yet: no severities leak, everything is "Unrated".
+  assert.deepEqual(severityTally(st), [{ sev: 'Unrated', count: CPTC_SCENARIO.findings.length }]);
+  // Rate everything Low x Low: the tally says 5 Low even though the reference has Criticals.
+  for (const f of CPTC_SCENARIO.findings) { setRisk(st, f.id, 'likelihood', 'Low'); setRisk(st, f.id, 'impact', 'Low'); }
+  assert.deepEqual(severityTally(st), [{ sev: 'Low', count: CPTC_SCENARIO.findings.length }]);
+  // A perfect report's tally matches the reference distribution, highest first.
+  const tally = severityTally(perfectReport());
+  assert.equal(tally.reduce((n, t) => n + t.count, 0), CPTC_SCENARIO.findings.length);
   assert.equal(tally[0].sev, 'Critical');
+});
+
+test('shuffle: the correct RoE / remediation / exec option is not always first', () => {
+  const idx = (st) => [
+    ...CPTC_SCENARIO.roe.map((d) => roeChoicesFor(st, d).findIndex((c) => c.correct)),
+    ...CPTC_SCENARIO.findings.map((f) => remediationsFor(st, f).findIndex((r) => r.correct)),
+    execSummariesFor(st).findIndex((e) => e.correct),
+  ];
+  const one = idx(newReport(CPTC_SCENARIO, { seed: 2024 }));
+  assert.ok(new Set(one).size > 1 && one.some((i) => i !== 0), `indexes ${one}`);
+  let first = 0, total = 0;
+  for (let seed = 1; seed <= 50; seed++) for (const i of idx(newReport(CPTC_SCENARIO, { seed }))) { total++; if (i === 0) first++; }
+  assert.ok(first / total < 0.5, `correct-first rate ${first}/${total}`);
+  assert.deepEqual(newReport(CPTC_SCENARIO, { seed: 7 }).order, newReport(CPTC_SCENARIO, { seed: 7 }).order, 'stable for a seed');
+});
+
+test('exec summaries display as neutral "Summary A/B/C", never their grading label', () => {
+  const st = newReport(CPTC_SCENARIO, { seed: 11 });
+  const names = execSummariesFor(st).map((e) => execDisplayName(st, e.id));
+  assert.deepEqual(names, ['Summary A', 'Summary B', 'Summary C']);
+  for (const e of CPTC_SCENARIO.execSummaries) assert.ok(!names.includes(e.label));
+});
+
+test('competition mode has a clock; expire() marks the report handed in, unanswered parts score 0', () => {
+  const st = newReport(CPTC_SCENARIO, { mode: MODES.COMPETITION, seed: 3 });
+  assert.equal(st.timeLimitSec, CPTC_SCENARIO.clockSeconds);
+  assert.equal(newReport(CPTC_SCENARIO).timeLimitSec, 0);
+  const d = CPTC_SCENARIO.roe[0];
+  setRoe(st, d.id, d.choices.find((c) => c.correct).id);
+  expire(st);
+  assert.equal(st.timedOut, true);
+  const g = scoreReport(st);
+  assert.ok(g.pct > 0 && g.pct < 20, `only one RoE call scored: ${g.pct}%`);
 });

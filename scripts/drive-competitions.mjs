@@ -38,7 +38,7 @@ console.log('\n=== CCDC: Cedarline Freight ===');
   const g = ccdc.newGame(CCDC_SCENARIO);
   const before = Object.values(g.services).filter((s) => s.state === 'up').length;
   const r = ccdc.applyAction(g, 'firewall-anyany', 'deny-all');
-  ok('deny-all firewall drops a service', r.droppedService && Object.values(g.services).filter((s) => s.state === 'up').length < before, JSON.stringify(r));
+  ok('deny-all firewall drops all 4 services', r.droppedServices.length === 4 && Object.values(g.services).filter((s) => s.state === 'up').length < before, JSON.stringify(r));
 }
 
 // 3) The MySQL localhost trap drops the database service.

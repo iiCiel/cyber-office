@@ -155,7 +155,7 @@
 .cc-svc-review li.down .cc-svc-verdict { color: #ff9a9a; }
 .cc-svc-note { width: 100%; font-size: 12px; color: #c89a7a; }
 .cc-breaches ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-.cc-breaches li { position: relative; background: #1a0e10; border: 1px solid #5a2b2b; border-radius: 6px; padding: 10px 14px; }
+.cc-breaches li { position: relative; background: #1a0e10; border: 1px solid #5a2b2b; border-radius: 6px; padding: 10px 58px 10px 14px; }
 .cc-breaches b { color: #ffb3b3; }
 .cc-breaches p { margin: 4px 0 0; font-size: 13px; color: #d8b8b8; }
 .cc-persist b { color: #ff8a8a; }
@@ -291,3 +291,47 @@
 .cx-roe-review b { color: #f0ecff; }
 .cx-roe-review p { margin: 4px 0 0; font-size: 13px; color: #c6bce0; }
 @media (max-width: 760px) { .cx-dials { flex-direction: column; align-items: flex-start; } .cx-derived { margin-left: 0; } }
+
+/* ---- fix-up: competition clock, locked/submitted states, SLA, neutral exec labels ---- */
+.cc-head-right, .cx-head-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.cc-clock { display: flex; flex-direction: column; align-items: center; padding: 4px 12px; border: 1px solid #4fd08a; border-radius: 6px; background: #0a140e; min-width: 86px; }
+.cc-clock-label { font: 700 10px Consolas, monospace; letter-spacing: .08em; text-transform: uppercase; color: #8fb8a0; }
+.cc-clock-val { font: 700 22px Consolas, monospace; color: #6af09a; font-variant-numeric: tabular-nums; }
+.cc-clock.low { border-color: #ff7b7b; background: #2a1215; }
+.cc-clock.low .cc-clock-val { color: #ff9b9b; }
+.cc-tag.sub { color: #0a1016; background: #9fb4c8; }
+.cc-flash.sub, .cx-flash.sub { color: #c9d6e2; background: #121a22; border-color: #9fb4c8; }
+.cc-inj-choice:disabled { opacity: .6; cursor: default; }
+.cc-act.chosen:disabled, .cc-inj-choice.chosen:disabled { opacity: 1; }
+.cc-timeout { margin: 6px 0 10px; padding: 8px 12px; border-left: 3px solid #ffb257; background: #241a0f; color: #ffcf9a; font-size: 14px; border-radius: 5px; }
+.cc-mode-note { margin: 0 0 10px; font-size: 13px; color: #8fb8a0; }
+.cc-svc-sla { font: 700 12px Consolas, monospace; color: #ffb257; }
+.cx-mode-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.cx-mode-btn { flex: 1 1 240px; text-align: left; cursor: pointer; border: 1px solid #3a3466; border-radius: 6px; padding: 10px 12px; background: #11102a; color: #d8d4f0; display: flex; flex-direction: column; gap: 4px; }
+.cx-mode-btn b { color: #f0ecff; }
+.cx-mode-btn span { font-size: 13px; opacity: .85; }
+.cx-mode-btn.on { border-color: #ff7b9c; box-shadow: inset 0 0 0 1px #ff7b9c66; background: #1d1430; }
+.cx-exec-reveal { margin: 0 0 8px; }
+.cx-exec-tag { font: 700 12px Consolas, monospace; padding: 2px 7px; border-radius: 3px; color: #0a1016; }
+.cx-exec-tag.ok { background: #6af09a; } .cx-exec-tag.warn { background: #ffb257; } .cx-exec-tag.bad { background: #ff7b7b; }
+.cx-exec-key { margin: 10px 0 0; padding-left: 18px; font-size: 13px; }
+.cx-exec-key li.ok b { color: #6af09a; } .cx-exec-key li.warn b { color: #ffb257; } .cx-exec-key li.bad b { color: #ff9b9b; }
+.cx-chip.sUnrated { color: #d8d8e4; border-color: #5a5a6c; background: #23232e; }
+@media (max-width: 600px) {
+  .cc-head, .cx-head { flex-direction: column; align-items: stretch; }
+  .cc-head-right, .cx-head-right { justify-content: flex-start; }
+}
+/* Defend workspace: the scored-service bar (and the clock) stay pinned like a real scoreboard, so you SEE a
+   service drop the moment a change breaks it, wherever you are in the backlog. */
+.cc-wrap.wide > .cc-head { position: sticky; top: 0; z-index: 5; margin: -22px -26px 14px; padding: 12px 26px; background: #06100c; border-bottom: 1px solid #1d3a2a; }
+/* Phone portrait: the competition screens lay out at ~400px (placeOnCanvas minW 400) instead of shrinking a
+   700px layout to 56%, so text stays a readable size. Tighten padding and let wide bits wrap. */
+@media (max-width: 600px) {
+  .comp-wrap, .cc-wrap, .cx-wrap { padding-left: 14px; padding-right: 14px; }
+  .cc-wrap.wide > .cc-head { margin-left: -14px; margin-right: -14px; padding-left: 14px; padding-right: 14px; }
+  .comp-head h1 { font-size: 30px; }
+  .cc-progress, .cx-steps { flex-wrap: wrap; }
+  .cx-matrix { font-size: 12px; width: 100%; }
+  .cx-matrix th, .cx-matrix td { padding: 6px 4px; }
+  .cc-foot, .cx-foot { flex-wrap: wrap; }
+}

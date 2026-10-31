@@ -21,6 +21,8 @@
           color: #e6e6ea; font-family: system-ui, sans-serif; padding: 24px;
         }
         #game { display: none; }
+        /* The competition screens are plain HTML text and read fine upright, so they skip the rotate prompt. */
+        body.portrait-ok #rotate { display: none; }
       }
       #rotate .phone { font-size: 56px; animation: rot 2s ease-in-out infinite; }
       #rotate h1 { color: #3fe07a; font-size: 22px; margin: 16px 0 6px; }

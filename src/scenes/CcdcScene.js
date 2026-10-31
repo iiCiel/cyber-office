@@ -2,7 +2,10 @@ import Phaser from 'phaser';
 import { VIEW_W, VIEW_H } from '../config.js';
 import { h, clear, placeOnCanvas } from '../ui/dom.js';
 import { CCDC_SCENARIO } from '../data/ccdcScenario.js';
-import { newGame, applyAction, answerInject, runRedTeam, score, progress, recordBest, loadBests } from '../game/ccdc.js';
+import {
+  newGame, applyAction, answerInject, runRedTeam, expire, score, progress, recordBest,
+  actionsFor, choicesFor, isLocked, isInjectLocked, MODES,
+} from '../game/ccdc.js';
 import '../ui/screen.css';
 import '../ui/competitions.css';
 
@@ -26,16 +29,18 @@ export class CcdcScene extends Phaser.Scene {
   create() {
     this.cameras.main.setBackgroundColor('#06100c');
     this.sound2 = this.game.registry.get('sound');
-    this.guided = true; // guided (hints shown) by default; the brief lets you switch to timed/advanced
+    this.guided = true; // guided (hints shown) by default; the brief lets you switch to the timed competition mode
     this.state = newGame(this.scenario);
+    this.deadline = 0; // ms timestamp when the competition clock hits 0:00 (0 = no clock)
     this.phase = 'brief';
     this.flash = {}; // per-finding / per-inject transient feedback message
 
     this.root = h('div', { class: 'screen open ccdc-screen', id: 'ccdc' });
     document.body.append(this.root);
+    document.body.classList.add('portrait-ok'); // HTML screen: readable on an upright phone, skip the rotate prompt
     this.render();
 
-    const layout = () => placeOnCanvas(this.root, this.game.canvas, { x: 0, y: 0, w: VIEW_W, h: VIEW_H }, { viewW: VIEW_W });
+    const layout = () => placeOnCanvas(this.root, this.game.canvas, { x: 0, y: 0, w: VIEW_W, h: VIEW_H }, { viewW: VIEW_W, minW: 400 });
     layout();
     this.layout = layout;
     this.canvasRect = '';
@@ -45,12 +50,14 @@ export class CcdcScene extends Phaser.Scene {
       window.removeEventListener('resize', layout);
       this.scale.off('resize', layout);
       this.root.remove();
+      document.body.classList.remove('portrait-ok');
     });
     this.input.keyboard.on('keydown-ESC', () => this.exit());
   }
 
   // Phaser re-centres the canvas shortly after a resize; re-place the overlay whenever it moves.
   update() {
+    this.tickClock();
     if (!this.layout) return;
     const r = this.game.canvas.getBoundingClientRect();
     const key = `${r.left},${r.top},${r.width},${r.height}`;
@@ -58,6 +65,7 @@ export class CcdcScene extends Phaser.Scene {
   }
 
   exit() {
+    this.deadline = 0;
     this.sound2?.play('click');
     this.scene.start(this.returnTo);
   }
@@ -104,9 +112,9 @@ export class CcdcScene extends Phaser.Scene {
           h('button', { type: 'button', class: `cc-mode-btn${this.guided ? ' on' : ''}`, onclick: () => { this.guided = true; this.render(); } },
             h('b', {}, 'Guided'), h('span', {}, 'Coaching hint on every finding and inject. Learn the playbook.')),
           h('button', { type: 'button', class: `cc-mode-btn${this.guided ? '' : ' on'}`, onclick: () => { this.guided = false; this.render(); } },
-            h('b', {}, 'Competition'), h('span', {}, 'No hints. Make the calls a real blue-teamer makes, then see the scorecard.')))),
+            h('b', {}, `Competition · ${this.clockLabel()} clock`), h('span', {}, 'No hints. Every call is final, no feedback until the debrief, and when the clock hits 0:00 the red team runs.')))),
       h('div', { class: 'cc-foot' },
-        h('button', { type: 'button', class: 'cc-go', onclick: () => { this.sound2?.play('select'); this.phase = 'defend'; this.render(); } }, 'Take the keyboard →'),
+        h('button', { type: 'button', class: 'cc-go', onclick: () => this.startRound() }, 'Take the keyboard →'),
         h('button', { type: 'button', class: 'cc-quit', onclick: () => this.exit() }, 'Back')));
     this.root.append(panel);
   }
@@ -116,7 +124,8 @@ export class CcdcScene extends Phaser.Scene {
     const sc = score(this.state);
     const p = progress(this.state);
     const panel = h('div', { class: 'cc-wrap wide' },
-      this.header('Defend · harden without dropping a service', this.serviceBar(sc)),
+      this.header(this.guided ? 'Defend · guided · harden without dropping a service' : 'Defend · competition · every call is final',
+        h('div', { class: 'cc-head-right' }, this.guided ? null : this.clockEl(), this.serviceBar(sc))),
       h('div', { class: 'cc-progress' },
         h('span', {}, `Findings remediated: ${p.fixed}/${p.findingsTotal}`),
         h('span', {}, `Injects answered: ${p.injectsAnswered}/${p.injectsTotal}`),
@@ -124,11 +133,13 @@ export class CcdcScene extends Phaser.Scene {
       h('div', { class: 'cc-cols' },
         h('div', { class: 'cc-col-main' },
           h('h2', { class: 'cc-sec-title' }, 'Finding backlog'),
-          h('p', { class: 'cc-sec-note' }, 'Pick the one action that actually remediates each finding. Some choices look helpful but drop a scored service or leave the hole open.'),
+          h('p', { class: 'cc-sec-note' }, this.guided
+            ? 'Pick the one action that actually remediates each finding. Some choices look helpful but drop a scored service or leave the hole open. If you drop a service, fixing that same finding correctly brings it back — but the outage already cost an SLA penalty.'
+            : 'One pick per finding, and it is final. You will not be told whether it was right until the debrief — watch the scored-service bar, exactly like the real scoreboard.'),
           h('ol', { class: 'cc-findings' }, this.scenario.findings.map((f) => this.findingCard(f)))),
         h('div', { class: 'cc-col-side' },
           h('h2', { class: 'cc-sec-title' }, 'Management injects'),
-          h('p', { class: 'cc-sec-note' }, 'Business tasks from the white team. Each is worth points — do not skip them.'),
+          h('p', { class: 'cc-sec-note' }, this.guided ? 'Business tasks from the white team. Each is worth points — do not skip them.' : 'Business tasks from the white team. One submission each — no resubmits.'),
           h('ul', { class: 'cc-injects' }, this.scenario.injects.map((i) => this.injectCard(i))))),
       h('div', { class: 'cc-foot' },
         h('button', { type: 'button', class: 'cc-go cc-endround', 'data-action': 'end-round', onclick: () => this.endRound() }, 'End the round — run the red team →'),
@@ -146,24 +157,27 @@ export class CcdcScene extends Phaser.Scene {
 
   findingCard(f) {
     const rec = this.state.findings[f.id];
-    const done = rec.status === 'fixed';
-    const mis = rec.status === 'misfixed';
+    // Competition mode never reveals right/wrong before the debrief: a pick just reads "submitted".
+    const done = this.guided && rec.status === 'fixed';
+    const mis = this.guided && rec.status === 'misfixed';
+    const locked = isLocked(this.state, f.id);
+    const submitted = !this.guided && rec.picks > 0;
     const fl = this.flash[f.id];
     return h('li', { class: `cc-finding sev-${f.severity.toLowerCase()}${done ? ' fixed' : ''}${mis ? ' misfixed' : ''}`, 'data-finding': f.id },
       h('div', { class: 'cc-f-head' },
         h('span', { class: `cc-sev s-${f.severity.toLowerCase()}` }, f.severity),
         h('span', { class: 'cc-f-host' }, `${f.host} · ${f.ip}`),
         h('span', { class: 'cc-f-cat' }, f.category),
-        done ? h('span', { class: 'cc-tag ok' }, '✓ Remediated') : mis ? h('span', { class: 'cc-tag bad' }, '⚠ Still open') : null),
+        done ? h('span', { class: 'cc-tag ok' }, '✓ Remediated') : mis ? h('span', { class: 'cc-tag bad' }, '⚠ Still open') : submitted ? h('span', { class: 'cc-tag sub' }, '🔒 Submitted') : null),
       h('h3', { class: 'cc-f-title' }, f.title),
       h('p', { class: 'cc-f-ev' }, h('b', {}, 'What you found: '), f.evidence),
       this.guided ? h('p', { class: 'cc-f-teach' }, h('b', {}, 'Coach: '), f.teach) : null,
-      h('div', { class: 'cc-actions' }, f.actions.map((a) =>
+      h('div', { class: 'cc-actions' }, actionsFor(this.state, f).map((a) =>
         h('button', {
           type: 'button',
           class: `cc-act${rec.chosen === a.id ? ' chosen' : ''}`,
           'data-act': a.id,
-          disabled: done ? '' : undefined,
+          disabled: locked ? '' : undefined,
           onclick: () => this.doAction(f.id, a.id),
         }, a.label))),
       fl ? h('p', { class: `cc-flash ${fl.tone}` }, fl.msg) : null);
@@ -172,26 +186,37 @@ export class CcdcScene extends Phaser.Scene {
   injectCard(i) {
     const ans = this.state.injects[i.id].answer;
     const fl = this.flash[i.id];
+    const locked = isInjectLocked(this.state, i.id);
     return h('li', { class: `cc-inject${ans ? ' answered' : ''}`, 'data-inject': i.id },
       h('div', { class: 'cc-inj-head' }, h('span', { class: 'cc-inj-pts' }, `${i.points} pts`), h('span', { class: 'cc-inj-from' }, i.from)),
       h('h3', { class: 'cc-inj-title' }, i.title),
       h('p', { class: 'cc-inj-prompt' }, i.prompt),
-      h('div', { class: 'cc-inj-choices' }, i.choices.map((c) =>
-        h('button', { type: 'button', class: `cc-inj-choice${ans === c.id ? ' chosen' : ''}`, 'data-choice': c.id, onclick: () => this.doInject(i.id, c.id) }, c.label))),
+      h('div', { class: 'cc-inj-choices' }, choicesFor(this.state, i).map((c) =>
+        h('button', { type: 'button', class: `cc-inj-choice${ans === c.id ? ' chosen' : ''}`, 'data-choice': c.id, disabled: locked ? '' : undefined, onclick: () => this.doInject(i.id, c.id) }, c.label))),
       fl ? h('p', { class: `cc-flash ${fl.tone}` }, fl.msg) : null);
   }
 
   doAction(findingId, actionId) {
     const res = applyAction(this.state, findingId, actionId);
     if (!res.ok) return;
-    const tone = res.outcome === 'fixed' ? 'ok' : res.outcome === 'misfix' || res.droppedService ? 'bad' : 'warn';
-    this.sound2?.play(res.outcome === 'fixed' ? 'select' : res.droppedService ? 'error' : 'click');
     const f = this.scenario.findings.find((x) => x.id === findingId);
     const a = f.actions.find((x) => x.id === actionId);
-    let msg = res.message;
-    if (res.droppedService) msg += ' A scored service just went DOWN — fix the finding correctly to recover it.';
-    if (this.guided || res.outcome !== 'fixed') msg += ` — ${a.why}`;
-    this.flash[findingId] = { tone, msg };
+    const names = (ids) => ids.map((id) => this.state.services[id].name.replace(/ \(.*\)$/, '')).join(', ');
+    if (!this.guided) {
+      // Competition: the call is locked and nothing says whether it was right. The scored-service bar still
+      // updates live, exactly like the real scoreboard — that is the only signal a real team gets.
+      this.sound2?.play('click');
+      this.flash[findingId] = { tone: 'sub', msg: 'Change submitted and locked. Its effect on your score is revealed in the debrief.' };
+    } else {
+      const dropped = res.droppedServices.length > 0;
+      const tone = res.outcome === 'fixed' ? 'ok' : res.outcome === 'misfixed' || dropped ? 'bad' : 'warn';
+      this.sound2?.play(res.outcome === 'fixed' ? 'select' : dropped ? 'error' : 'click');
+      let msg = res.message;
+      if (dropped) msg += ` DOWN now: ${names(res.droppedServices)}. Fix this finding correctly to bring ${res.droppedServices.length > 1 ? 'them' : 'it'} back (the outage still costs an SLA penalty).`;
+      if (res.restoredServices.length) msg += ` Back UP: ${names(res.restoredServices)}.`;
+      msg += ` — ${a.why}`;
+      this.flash[findingId] = { tone, msg };
+    }
     this.render();
     this.root.querySelector(`[data-finding="${findingId}"]`)?.scrollIntoView({ block: 'nearest' });
   }
@@ -199,14 +224,76 @@ export class CcdcScene extends Phaser.Scene {
   doInject(injectId, choiceId) {
     const res = answerInject(this.state, injectId, choiceId);
     if (!res.ok) return;
-    this.sound2?.play(res.correct ? 'select' : 'click');
-    this.flash[injectId] = { tone: res.correct ? 'ok' : 'warn', msg: res.message };
+    if (!this.guided) {
+      this.sound2?.play('click');
+      this.flash[injectId] = { tone: 'sub', msg: 'Submitted to the white team. Graded in the debrief.' };
+    } else {
+      this.sound2?.play(res.correct ? 'select' : 'click');
+      this.flash[injectId] = { tone: res.correct ? 'ok' : 'warn', msg: res.message };
+    }
     this.render();
     this.root.querySelector(`[data-inject="${injectId}"]`)?.scrollIntoView({ block: 'nearest' });
   }
 
+  // ---- round lifecycle + competition clock ----
+  startRound() {
+    this.sound2?.play('select');
+    this.state = newGame(this.scenario, { mode: this.guided ? MODES.GUIDED : MODES.COMPETITION });
+    this.flash = {};
+    this.deadline = this.state.timeLimitSec ? Date.now() + this.state.timeLimitSec * 1000 : 0;
+    this.lastClockText = '';
+    this.phase = 'defend';
+    this.render();
+  }
+
+  clockLabel() {
+    const sec = this.scenario.clockSeconds || 0;
+    return `${Math.round(sec / 60)}-minute`;
+  }
+
+  remainingMs() {
+    return this.deadline ? Math.max(0, this.deadline - Date.now()) : 0;
+  }
+
+  fmtClock(ms) {
+    const t = Math.ceil(ms / 1000);
+    return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+  }
+
+  clockEl() {
+    const ms = this.remainingMs();
+    return h('div', { class: `cc-clock${ms <= 120000 ? ' low' : ''}`, role: 'timer', 'aria-label': 'Time left in the round' },
+      h('span', { class: 'cc-clock-label' }, 'Time left'),
+      h('b', { class: 'cc-clock-val' }, this.fmtClock(ms)));
+  }
+
+  // Called every frame: refresh the countdown text in place (no full re-render) and end the round at 0:00.
+  tickClock() {
+    if (!this.deadline || this.phase !== 'defend') return;
+    const ms = this.remainingMs();
+    if (ms <= 0) {
+      this.deadline = 0;
+      expire(this.state);
+      this.finishRound();
+      return;
+    }
+    const text = this.fmtClock(ms);
+    if (text === this.lastClockText) return;
+    this.lastClockText = text;
+    const el = this.root?.querySelector('.cc-clock');
+    if (el) {
+      el.querySelector('.cc-clock-val').textContent = text;
+      el.classList.toggle('low', ms <= 120000);
+    }
+  }
+
   endRound() {
+    this.deadline = 0;
     runRedTeam(this.state);
+    this.finishRound();
+  }
+
+  finishRound() {
     this.grade = score(this.state);
     recordBest(this.scenario.id, this.grade);
     this.sound2?.play(this.grade.letter === 'A' || this.grade.letter === 'B' ? 'select' : 'error');
@@ -224,9 +311,12 @@ export class CcdcScene extends Phaser.Scene {
         h('div', { class: `cc-grade g${g.letter}` }, g.letter)),
       h('div', { class: 'cc-panel cc-scorecard' },
         h('h1', {}, 'Scorecard'),
+        g.timedOut ? h('p', { class: 'cc-timeout' }, '⏱ Time ran out. The round ended at the buzzer: whatever was still open when the clock hit 0:00 is what the red team walked through.') : null,
+        h('p', { class: 'cc-mode-note' }, this.state.mode === MODES.COMPETITION ? 'Competition round: every call was final and graded only now.' : 'Guided round.'),
         h('div', { class: 'cc-tally' },
           this.tallyRow('Service uptime', `+${g.servicePts}`, `of ${g.serviceMax}`, 'ok'),
           this.tallyRow('Injects', `+${g.injectPts}`, `of ${g.injectMax}`, 'ok'),
+          this.tallyRow('SLA violations', g.slaPenalty ? `−${g.slaPenalty}` : '0', `${g.slaCount} outage${g.slaCount === 1 ? '' : 's'} you caused`, g.slaPenalty ? 'bad' : 'ok'),
           this.tallyRow('Compromises', g.compromisePenalty ? `−${g.compromisePenalty}` : '0', `${g.compromiseCount} breach${g.compromiseCount === 1 ? '' : 'es'}`, g.compromisePenalty ? 'bad' : 'ok'),
           h('div', { class: 'cc-tally-row total' }, h('span', {}, 'Total'), h('b', {}, `${g.total}`), h('span', {}, `of ${g.max} · ${g.pct}%`))),
         h('p', { class: 'cc-verdict' }, this.verdict(g))),
@@ -236,6 +326,7 @@ export class CcdcScene extends Phaser.Scene {
           h('li', { class: s.state },
             h('span', { class: `cc-dot ${s.state}`, 'aria-hidden': 'true' }),
             h('b', {}, s.name), h('span', { class: 'cc-svc-verdict' }, s.state === 'up' ? `UP — +${s.points} kept` : `DOWN — ${s.points} lost`),
+            s.drops ? h('span', { class: 'cc-svc-sla' }, `${s.drops} outage${s.drops === 1 ? '' : 's'} you caused · −${s.drops * (this.scenario.slaPenalty || 0)} SLA`) : null,
             s.note ? h('span', { class: 'cc-svc-note' }, s.note) : null)))),
       g.compromises.length ? h('div', { class: 'cc-panel cc-breaches' },
         h('h2', {}, 'What the red team got in through'),
@@ -290,9 +381,6 @@ export class CcdcScene extends Phaser.Scene {
 
   replay() {
     this.sound2?.play('click');
-    this.state = newGame(this.scenario);
-    this.flash = {};
-    this.phase = 'defend';
-    this.render();
+    this.startRound();
   }
 }

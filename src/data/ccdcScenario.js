@@ -11,21 +11,24 @@
 //
 // Each finding: { id, host, ip, title, severity, category, evidence, teach, exploitable, compromiseImpact,
 //   compromisePenalty, dropsOnCompromise?, persistence?, actions: [{ id, label, result, fixes?/misfix?,
-//   dropsService?, dropNote?, restoresService?, why }] }. Exactly one (sometimes two) action `fixes` the
-// finding; the others are traps (misfix, often dropsService) or no-ops. `why` is the coaching line shown in
-// guided mode and always in the debrief, so grading is learnable.
+//   dropsService?: string[], dropNote?, restoresService?: string[], why }] }. Exactly one action `fixes` the
+// finding; the others are traps (misfix, often dropsService) or no-ops. The fixing action's restoresService
+// lists EVERY service any of that finding's traps can drop, so a dropped service is always recoverable by
+// fixing the finding that broke it (tests/ccdc.test.js enforces this). `why` is the coaching line shown in
+// guided mode and always in the debrief, so grading is learnable. Option order is shuffled per game.
 
 export const CCDC_SCENARIO = {
   id: 'cedarline-2026',
   company: 'Cedarline Freight Co.',
   tagline: 'A 40-person freight brokerage. You and your team just took over IT at 9:00 AM. The last admin left no documentation and a lot of bad habits.',
-  clock: '6-hour round (guided: no clock)',
+  clockSeconds: 900, // competition mode: a real 15-minute countdown; at 0:00 the round ends and the red team runs
+  slaPenalty: 15, // per service outage caused by your own change (real CCDC logs SLA violations; recovery does not refund them)
 
   services: [
-    { id: 'web01', name: 'Company website (HTTP/HTTPS)', proto: 'HTTP', host: 'web01', ip: '10.10.10.20', points: 120, check: 'GET / returns 200 with the Cedarline homepage' },
+    { id: 'web01', name: 'Company website (HTTP/HTTPS)', proto: 'HTTP', host: 'web01', ip: '10.10.10.20', points: 120, check: 'GET / returns 200 with the Cedarline homepage (pages are built from the shipments DB)' },
     { id: 'dc01', name: 'DNS', proto: 'DNS', host: 'dc01', ip: '10.10.10.10', points: 120, check: 'A record lookups for cedarline.example resolve' },
     { id: 'mail01', name: 'Mail (SMTP + IMAP)', proto: 'SMTP/IMAP', host: 'mail01', ip: '10.10.10.30', points: 120, check: 'Authenticated send + mailbox fetch succeed' },
-    { id: 'db01', name: 'Shipments database (MySQL)', proto: 'MySQL', host: 'db01', ip: '10.10.10.40', points: 120, check: 'web01 can query the wp_shipments table' },
+    { id: 'db01', name: 'Shipments database (MySQL)', proto: 'MySQL', host: 'db01', ip: '10.10.10.40', points: 120, check: 'The scoring engine logs in as ccdc-scorecheck and SELECTs from wp_shipments; the website also reads it' },
   ],
 
   // The network you inherited, for the inventory inject and the topology panel.
@@ -51,9 +54,9 @@ export const CCDC_SCENARIO = {
     ],
     traps: [
       'Default-deny with no allow rules = every scored service drops at once. Allow first, deny last.',
-      'Binding MySQL to 127.0.0.1 looks safe but the web server reaches it over the LAN — you just dropped the database score. Bind to the internal interface and firewall it to web01 instead.',
+      'Binding MySQL to 127.0.0.1 looks safe, but the web server and the scoring engine both reach it over the network — you just dropped the database AND the website. Bind to the internal interface and restrict it on db01\'s host firewall instead.',
       'Rotating the DB password without updating the app config breaks the website: WordPress can no longer log in. Change both together.',
-      'A full "Windows Update + reboot now" on the DC mid-round takes DNS down for the whole reboot. Disable the risky feature instead; schedule reboots for a maintenance window.',
+      'A full "Windows Update + reboot now" on the DC mid-round takes DNS down for the whole reboot. Turn off the risky protocol with a setting that needs no restart; schedule anything that needs a reboot for a maintenance window.',
       'Changing the scored service account password without a Change Request stops the scoring engine from logging in — you lose uptime you were actually serving.',
     ],
   },
@@ -86,16 +89,16 @@ export const CCDC_SCENARIO = {
       title: 'MySQL root password is "root" and it listens on every interface',
       severity: 'Critical',
       category: 'Default credentials / exposure',
-      evidence: 'bind-address = 0.0.0.0, and root has the password "root" with remote login allowed. web01 reaches the DB at 10.10.10.40 over the LAN.',
-      teach: 'Two problems at once: a trivial password and a service exposed far wider than it needs to be. Fix both without cutting off the one client that legitimately needs it — the web server.',
+      evidence: 'bind-address = 0.0.0.0, and root has the password "root" with remote login allowed. Two legitimate clients reach the DB at 10.10.10.40 over the network: web01 (WordPress) and the scoring engine\'s MySQL check.',
+      teach: 'Two problems at once: a trivial password and a service exposed far wider than it needs to be. Fix both without cutting off the clients that legitimately need it — the web server and the scoring engine.',
       exploitable: true,
       compromiseImpact: 'Red team connects to MySQL directly and dumps/alters the shipments table.',
       compromisePenalty: 55,
       actions: [
-        { id: 'proper', label: 'Set a strong root password, update wp-config.php on web01 to match, and bind MySQL to the LAN interface (10.10.10.40) firewalled to web01 only', result: 'Root is strong, the website still connects, and only web01 can reach the DB.', fixes: true, restoresService: 'db01', why: 'Right. The DB stays reachable by the one host that needs it, the app config is updated in the same change, and the password is no longer trivial.' },
-        { id: 'localhost', label: 'Bind MySQL to 127.0.0.1 so nothing external can reach it', result: 'MySQL now only answers on localhost. web01 can no longer connect over the LAN — the shipments DB check fails.', misfix: true, dropsService: 'db01', dropNote: 'Bound to localhost; web01 cannot reach it over the LAN.', why: 'Classic trap. The web server talks to MySQL over the network, so localhost-only cuts off the legitimate client and drops the scored service. Firewall it to web01 instead.' },
-        { id: 'rotate-only', label: 'Rotate the root password only, leave the app config alone', result: 'Root is strong — but web01 still has the old password in wp-config.php, so the website now throws a database error.', misfix: true, dropsService: 'web01', dropNote: 'WordPress cannot log in to MySQL after the password change.', why: 'Trap. Rotating a DB password without updating the app that uses it breaks the app. Change both together.' },
-        { id: 'leave', label: 'Leave it — changing DB settings is risky mid-round', result: 'No change.', why: 'A blank-tier password on an internet-adjacent database is the opposite of safe. The risk is in leaving it.' },
+        { id: 'proper', label: 'Set a strong root password, update wp-config.php on web01 to match, bind MySQL to the LAN interface (10.10.10.40), and on db01\'s host firewall allow 3306 only from web01 and the scoring engine', result: 'Root is strong, the website still connects, the scoring check still passes, and nothing else can reach the DB.', fixes: true, restoresService: ['db01', 'web01'], why: 'Right. The DB stays reachable by exactly the clients that need it, the app config changes in the same step as the password, and the password is no longer trivial. If an earlier trap broke the DB or the site, this brings both back.' },
+        { id: 'localhost', label: 'Bind MySQL to 127.0.0.1 so nothing external can reach it', result: 'MySQL now only answers on localhost. web01 and the scoring engine can no longer connect — the MySQL check fails and the website throws "Error establishing a database connection".', misfix: true, dropsService: ['db01', 'web01'], dropNote: 'MySQL bound to 127.0.0.1; web01 and the scoring engine cannot reach it.', why: 'Classic trap. The web server and the scoring engine talk to MySQL over the network, so localhost-only cuts off both legitimate clients and drops two scored services. Restrict it with db01\'s host firewall instead.' },
+        { id: 'rotate-only', label: 'Rotate the root password only, leave the app config alone', result: 'Root is strong — but web01 still has the old password in wp-config.php, so the website now throws a database error.', misfix: true, dropsService: ['web01'], dropNote: 'WordPress cannot log in to MySQL after the password change.', why: 'Trap. Rotating a DB password without updating the app that uses it breaks the app. Change both together.' },
+        { id: 'leave', label: 'Leave it — changing DB settings is risky mid-round', result: 'No change.', why: 'A trivial default password on a database the whole internet can reach is the opposite of safe. The risk is in leaving it.' },
       ],
     },
     {
@@ -146,13 +149,13 @@ export const CCDC_SCENARIO = {
       severity: 'Critical',
       category: 'Firewall / exposure',
       evidence: 'The WAN rule set is a single permit any any. Every internal service is reachable from the internet, including MySQL, RDP and SMB.',
-      teach: 'Default-deny is the goal — but the order matters more than the goal. Allow the scored ports first, then deny everything else, or you drop all four services with one rule.',
+      teach: 'Default-deny is the goal — but the order matters more than the goal. Allow the scored ports first, then deny everything else, or you drop all four services with one rule. The scoring engine polls from outside, so every scored service crosses this firewall.',
       exploitable: true,
       compromiseImpact: 'Every exposed internal service (RDP, SMB, MySQL) is reachable from the red team\'s box.',
       compromisePenalty: 50,
       actions: [
-        { id: 'allow-then-deny', label: 'Add explicit allow rules for the scored ports (80/443, 53, 25/143/993, and MySQL from web01 only), THEN set the default inbound policy to deny', result: 'Scored services stay reachable; everything else is blocked. RDP and SMB are no longer exposed.', fixes: true, why: 'Right. Allow-list the services that must survive, then deny the rest. This is the only safe order.' },
-        { id: 'deny-all', label: 'Set the default policy to deny any-any immediately to be safe', result: 'All inbound traffic is dropped — including HTTP, DNS, mail and MySQL. All four scored services go dark at once.', misfix: true, dropsService: 'web01', dropNote: 'Default-deny with no allow rules blocked the scored ports too.', why: 'The textbook CCDC self-inflicted wound. Deny-all with no allow rules first takes down everything you are scored on. Allow first, deny last.' },
+        { id: 'allow-then-deny', label: 'Add WAN allow rules for the scored ports (80/443, 53, 25/143/993, and 3306 from the scoring engine\'s address only), THEN set the default inbound policy to deny', result: 'Every scored service is reachable by the scoring engine; everything else is blocked. RDP, SMB and internet-wide MySQL are no longer exposed.', fixes: true, restoresService: ['web01', 'dc01', 'mail01', 'db01'], why: 'Right. Allow-list the services that must survive, then deny the rest — the only safe order. (web01-to-db01 traffic is LAN and never crosses the edge; that restriction lives on db01\'s host firewall.) If a deny-all took everything down, this restores all four.' },
+        { id: 'deny-all', label: 'Set the default policy to deny any-any immediately to be safe', result: 'All inbound traffic is dropped — including HTTP, DNS, mail and MySQL. All four scored services go dark at once.', misfix: true, dropsService: ['web01', 'dc01', 'mail01', 'db01'], dropNote: 'Edge firewall set to deny-all with no allow rules; the scoring engine cannot reach the scored ports.', why: 'The textbook CCDC self-inflicted wound. Deny-all with no allow rules first takes down everything you are scored on. Allow first, deny last.' },
         { id: 'block-mysql-only', label: 'Add one rule to block MySQL from the internet and leave the rest any-any', result: 'MySQL is no longer internet-exposed, but RDP, SMB and everything else still are.', misfix: true, why: 'A single block rule on an any-any base leaves the whole rest of the attack surface open. You need default-deny with an allow-list, not one-off blocks.' },
         { id: 'leave', label: 'Leave it — the internal network is trusted', result: 'No change.', why: 'An any-any WAN rule means the "internal" network is reachable from the entire internet. It is the widest hole on the scoreboard.' },
       ],
@@ -170,8 +173,8 @@ export const CCDC_SCENARIO = {
       compromiseImpact: 'Red team relays spam through your server; the domain gets blocklisted.',
       compromisePenalty: 35,
       actions: [
-        { id: 'restrict', label: 'Set mynetworks to the LAN and require authentication (SASL) for anything else', result: 'Local and authenticated users still send and receive; open relaying is refused.', fixes: true, why: 'Right. Relaying is scoped to your own hosts and authenticated users, which closes the abuse without touching the scored send/receive path.' },
-        { id: 'block-25', label: 'Firewall off port 25 entirely', result: 'No mail can be delivered to or from the server — the SMTP score check fails.', misfix: true, dropsService: 'mail01', dropNote: 'Port 25 blocked; SMTP delivery and the scored check both fail.', why: 'Trap. Closing the mail port stops the abuse and the service you are scored on. Fix the relay config, do not kill the port.' },
+        { id: 'restrict', label: 'Set mynetworks to the LAN and require authentication (SASL) for anything else', result: 'Local and authenticated users still send and receive; open relaying is refused.', fixes: true, restoresService: ['mail01'], why: 'Right. Relaying is scoped to your own hosts and authenticated users, which closes the abuse without touching the scored send/receive path.' },
+        { id: 'block-25', label: 'Firewall off port 25 entirely', result: 'No mail can be delivered to or from the server — the SMTP score check fails.', misfix: true, dropsService: ['mail01'], dropNote: 'Port 25 blocked; SMTP delivery and the scored check both fail.', why: 'Trap. Closing the mail port stops the abuse and the service you are scored on. Fix the relay config, do not kill the port.' },
         { id: 'leave', label: 'Leave it — mail still works', result: 'No change.', why: 'It "works" for the whole internet. An open relay is active abuse surface and a reputation risk.' },
       ],
     },
@@ -182,14 +185,14 @@ export const CCDC_SCENARIO = {
       title: 'One shared local-admin password reused on every box — including the scored service account',
       severity: 'High',
       category: 'Default credentials / change control',
-      evidence: 'Every workstation and server shares the local admin password "Winter2026". The scoring engine logs in with a dedicated account, ccdc-scorecheck, that shares it too.',
+      evidence: 'Every workstation and server shares the local admin password "Winter2026". The scoring engine\'s authenticated MySQL check logs in as a dedicated account, ccdc-scorecheck, which uses the same password.',
       teach: 'Reused admin passwords let one cracked box unlock them all. Rotate every one — but the scored service account is special: change it without a Change Request and the scoring engine locks out, and you lose uptime you are actually serving.',
       exploitable: true,
       compromiseImpact: 'One cracked hash unlocks local admin on every machine via password reuse.',
       compromisePenalty: 50,
       actions: [
-        { id: 'rotate-pcr', label: 'Rotate every admin password to a unique value, and file a Change Request before touching ccdc-scorecheck so scoring is not interrupted', result: 'Each box has a unique admin password; the scored account is changed under an approved PCR with the new credential handed to the scoring team.', fixes: true, why: 'Right. Kill the password reuse everywhere, and treat the scored account as change-controlled so you do not blind the scoring engine.' },
-        { id: 'rotate-all-nopcr', label: 'Rotate every admin password including ccdc-scorecheck immediately, no paperwork', result: 'Reuse is gone — but the scoring engine still has the old ccdc-scorecheck password and can no longer log in to check your services. Scoring stalls.', misfix: true, dropsService: 'db01', dropNote: 'Scored service account changed with no Change Request; the scoring engine is locked out.', why: 'Trap. Rotating the scored account without a PCR stops the scoring engine from logging in. You were serving the service but stopped getting credit. File the PCR first.' },
+        { id: 'rotate-pcr', label: 'Rotate every admin password to a unique value, and file a Change Request before touching ccdc-scorecheck so scoring is not interrupted', result: 'Each box has a unique admin password; the scored account is changed under an approved PCR with the new credential handed to the scoring team.', fixes: true, restoresService: ['db01'], why: 'Right. Kill the password reuse everywhere, and treat the scored account as change-controlled so you do not blind the scoring engine.' },
+        { id: 'rotate-all-nopcr', label: 'Rotate every admin password including ccdc-scorecheck immediately, no paperwork', result: 'Reuse is gone — but the scoring engine still has the old ccdc-scorecheck password and can no longer log in to check your services. Scoring stalls.', misfix: true, dropsService: ['db01'], dropNote: 'ccdc-scorecheck changed with no Change Request; the scoring engine\'s MySQL check can no longer log in.', why: 'Trap. Rotating the scored account without a PCR stops the scoring engine from logging in. You were serving the service but stopped getting credit. File the PCR first.' },
         { id: 'one-box', label: 'Change only ws01\'s password', result: 'ws01 is unique; every server still shares "Winter2026".', misfix: true, why: 'The reuse is the problem, and it spans every box. Fixing one machine leaves the shared password live on the servers.' },
         { id: 'leave', label: 'Leave it — the password is fairly long', result: 'No change.', why: 'Length does not help when the same password is on every host and already known. Reuse is the risk, not entropy.' },
       ],
@@ -201,15 +204,15 @@ export const CCDC_SCENARIO = {
       title: 'SMBv1 enabled on the domain controller',
       severity: 'High',
       category: 'Unpatched / legacy protocol',
-      evidence: 'The legacy SMBv1 feature is installed on dc01 — the protocol family behind EternalBlue-class worms. No current client needs it.',
-      teach: 'Disable the dangerous legacy feature — but do NOT trigger a full update-and-reboot of the DC mid-round, because DNS lives on it and a reboot drops the scored service for the whole restart.',
+      evidence: 'SMBv1 is enabled on dc01 (Get-SmbServerConfiguration shows EnableSMB1Protocol = True) — the protocol family behind EternalBlue-class worms. No current client needs it.',
+      teach: 'Turn off the dangerous legacy protocol — but do NOT trigger a reboot of the DC mid-round, because DNS lives on it and a restart drops the scored service. Know which change needs a reboot: switching the SMB1 server protocol off does not; uninstalling the SMB1 Windows feature does.',
       exploitable: true,
       compromiseImpact: 'Red team uses an SMBv1 exploit to run code on the DC.',
       compromisePenalty: 45,
       dropsOnCompromise: 'dc01',
       actions: [
-        { id: 'disable-feature', label: 'Disable the SMBv1 Windows feature (no reboot required for the removal) and schedule any pending reboot for a maintenance window', result: 'SMBv1 is off; DNS keeps serving the whole time.', fixes: true, why: 'Right. Remove the risky feature without taking the box down, and keep reboots out of the scored window.' },
-        { id: 'full-update-reboot', label: 'Run all pending Windows Updates and reboot the DC now to be fully patched', result: 'The DC reboots for several minutes. DNS is down for the entire restart — the scored service check fails repeatedly.', misfix: true, dropsService: 'dc01', dropNote: 'DC rebooted mid-round for a full update; DNS was down throughout.', why: 'Trap. A full update-and-reboot of the DC takes DNS offline for the whole reboot. Disable the specific feature now; save reboots for a planned window.' },
+        { id: 'disable-feature', label: 'Disable the SMBv1 server protocol now (Set-SmbServerConfiguration -EnableSMB1Protocol $false, no reboot needed), and schedule removal of the SMB1 Windows feature, which does need a reboot, for a maintenance window', result: 'The DC stops accepting SMBv1 immediately; DNS keeps serving the whole time. Feature removal and its restart are on the change calendar for after the round.', fixes: true, restoresService: ['dc01'], why: 'Right. The protocol switch closes the hole with no restart; uninstalling the feature needs a reboot, so it waits for a maintenance window. If an earlier reboot took DNS down, this gets the DC back serving with SMBv1 off.' },
+        { id: 'full-update-reboot', label: 'Run all pending Windows Updates and reboot the DC now to be fully patched', result: 'The DC reboots for several minutes. DNS is down for the entire restart — the scored service check fails repeatedly.', misfix: true, dropsService: ['dc01'], dropNote: 'DC rebooted mid-round for a full update; DNS was down throughout.', why: 'Trap. A full update-and-reboot of the DC takes DNS offline for the whole reboot. Disable the specific feature now; save reboots for a planned window.' },
         { id: 'firewall-445', label: 'Block port 445 at the host firewall on the DC', result: 'SMB is blocked on the DC — including the file sharing domain clients rely on; logons and GPO start failing.', misfix: true, why: 'Blocking 445 outright on a DC breaks domain file sharing and policy. Disable the legacy SMBv1 dialect specifically instead.' },
         { id: 'leave', label: 'Leave it — nobody is using SMBv1', result: 'No change.', why: 'Nobody legitimate is using it, which is exactly why you can safely remove it. Left enabled, it is a worm highway.' },
       ],

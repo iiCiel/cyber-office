@@ -19,6 +19,14 @@
 // The report then "writes itself" from your calls: exec summary + risk-ranked findings table + remediation.
 // Scored across those four dimensions and graded A–F. Deterministic and pure (a unit test plays a perfect and
 // an all-wrong run). All content lives in the scenario (src/data/cptcScenario.js).
+//
+// Two modes: guided (instant coaching on each RoE call) and competition (no feedback until the graded report,
+// plus a real countdown; expire() marks the report as handed in at the buzzer). Option order — RoE choices,
+// remediations, executive summaries — is shuffled per game with a seed so the answer is never "the top one".
+
+import { rng, shuffled, freshSeed, inOrder } from './shuffle.js';
+
+export const MODES = { GUIDED: 'guided', COMPETITION: 'competition' };
 
 export const SEVERITIES = ['Critical', 'High', 'Medium', 'Low'];
 export const LIKELIHOOD = ['Low', 'Medium', 'High'];
@@ -38,19 +46,51 @@ export function severityFor(likelihood, impact) {
 
 // ---- new game -------------------------------------------------------------
 
-export function newReport(scenario) {
+export function newReport(scenario, opts = {}) {
+  const seed = opts.seed ?? freshSeed();
+  const mode = opts.mode === MODES.COMPETITION ? MODES.COMPETITION : MODES.GUIDED;
+  const random = rng(seed);
+  const order = { roe: {}, rem: {}, exec: [] };
   const roe = {};
-  for (const d of scenario.roe) roe[d.id] = null;
+  for (const d of scenario.roe) {
+    roe[d.id] = null;
+    order.roe[d.id] = shuffled(d.choices.map((c) => c.id), random);
+  }
   const findings = {};
-  for (const f of scenario.findings) findings[f.id] = { likelihood: null, impact: null, remediation: null };
+  for (const f of scenario.findings) {
+    findings[f.id] = { likelihood: null, impact: null, remediation: null };
+    order.rem[f.id] = shuffled(f.remediations.map((r) => r.id), random);
+  }
+  order.exec = shuffled(scenario.execSummaries.map((e) => e.id), random);
   return {
     scenario,
+    seed,
+    mode,
+    timeLimitSec: mode === MODES.COMPETITION ? scenario.clockSeconds || 0 : 0,
+    order, // per-game shuffled option ids, stable within the round
     roe, // id -> choiceId
     findings, // id -> { likelihood, impact, remediation }
     execChoice: null,
     phase: 'scope',
     submitted: false,
+    timedOut: false,
   };
+}
+
+/** RoE choices / remediations / exec summaries in this game's shuffled display order. */
+export const roeChoicesFor = (state, d) => inOrder(d.choices, state.order?.roe?.[d.id]);
+export const remediationsFor = (state, f) => inOrder(f.remediations, state.order?.rem?.[f.id]);
+export const execSummariesFor = (state) => inOrder(state.scenario.execSummaries, state.order?.exec);
+
+/** Neutral display name for an executive summary ("Summary A/B/C" by shuffled position) — never its grading label. */
+export function execDisplayName(state, execId) {
+  const i = execSummariesFor(state).findIndex((e) => e.id === execId);
+  return i < 0 ? 'Summary' : `Summary ${String.fromCharCode(65 + i)}`;
+}
+
+/** The competition clock hit zero: the report is handed in exactly as it stands. */
+export function expire(state) {
+  state.timedOut = true;
 }
 
 // ---- player input ---------------------------------------------------------
@@ -186,14 +226,21 @@ function letterFor(pct) {
   return 'F';
 }
 
-// Severity tally for the exec summary, highest first.
+// Severity tally for the exec step, highest first — built from the PLAYER's own ratings (likelihood × impact
+// they set), never the answer key, so it shows "your findings" and leaks nothing. Unrated findings are counted
+// separately so a timed-out report still adds up.
 export function severityTally(state) {
   const t = { Critical: 0, High: 0, Medium: 0, Low: 0 };
+  let unrated = 0;
   for (const f of state.scenario.findings) {
-    const s = severityFor(f.refLikelihood, f.refImpact);
+    const rec = state.findings[f.id];
+    const s = rec?.likelihood && rec?.impact ? severityFor(rec.likelihood, rec.impact) : null;
     if (s) t[s]++;
+    else unrated++;
   }
-  return SEVERITIES.map((s) => ({ sev: s, count: t[s] })).filter((x) => x.count > 0);
+  const out = SEVERITIES.map((s) => ({ sev: s, count: t[s] })).filter((x) => x.count > 0);
+  if (unrated) out.push({ sev: 'Unrated', count: unrated });
+  return out;
 }
 
 // ---- best-grade persistence ------------------------------------------------

@@ -26,9 +26,10 @@ export class CompetitionsScene extends Phaser.Scene {
     this.sound2 = this.game.registry.get('sound');
     this.root = h('div', { class: 'screen open comp-screen', id: 'competitions' });
     document.body.append(this.root);
+    document.body.classList.add('portrait-ok'); // HTML screen: readable on an upright phone, skip the rotate prompt
     this.render();
 
-    const layout = () => placeOnCanvas(this.root, this.game.canvas, { x: 0, y: 0, w: VIEW_W, h: VIEW_H }, { viewW: VIEW_W });
+    const layout = () => placeOnCanvas(this.root, this.game.canvas, { x: 0, y: 0, w: VIEW_W, h: VIEW_H }, { viewW: VIEW_W, minW: 400 });
     layout();
     this.layout = layout;
     this.canvasRect = '';
@@ -38,6 +39,7 @@ export class CompetitionsScene extends Phaser.Scene {
       window.removeEventListener('resize', layout);
       this.scale.off('resize', layout);
       this.root.remove();
+      document.body.classList.remove('portrait-ok');
     });
     this.input.keyboard.on('keydown-ESC', () => this.exit());
   }
@@ -84,13 +86,13 @@ export class CompetitionsScene extends Phaser.Scene {
         card({
           mode: 'ccdc', scene: 'Ccdc', cls: 'blue', badge: 'CCDC', side: 'Blue team · defence', best: ccdcBest,
           name: 'Collegiate Cyber Defense',
-          tag: 'Inherit a small business full of misconfigurations and harden it under the clock — while keeping the scored services online and a live red team out.',
+          tag: 'Inherit a small business full of misconfigurations and harden it while keeping the scored services online and the red team out. Guided with coaching, or a 15-minute competition clock where every call is final.',
           learn: ['The first-15-minute checklist', 'Harden without dropping a scored service', 'Handle management injects', 'Score = uptime + injects − compromises'],
         }),
         card({
           mode: 'cptc', scene: 'Cptc', cls: 'red', badge: 'CPTC', side: 'Pentest · the report', best: cptcBest,
           name: 'Collegiate Penetration Testing',
-          tag: 'The testing is done — now write the report that actually wins: scope calls, risk ratings, root-cause remediation and an executive summary a board can act on.',
+          tag: 'The testing is done — now write the report that actually wins: scope calls, risk ratings, root-cause remediation and an executive summary a board can act on. Guided, or against a 10-minute clock.',
           learn: ['Rules-of-engagement judgment', 'Risk = likelihood × impact', 'Remediation that fixes the root cause', 'Executive writing that wins CPTC'],
         })),
       h('div', { class: 'comp-foot' },

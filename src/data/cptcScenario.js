@@ -11,6 +11,8 @@ export const CPTC_SCENARIO = {
   engagement: 'External + internal network penetration test, two-week engagement, remote.',
   scopeNote: 'In scope: the 198.51.100.0/24 external range and the corp.meridian.example internal domain. Out of scope: the clinical devices VLAN and any third-party SaaS. Social engineering: email phishing allowed, phone/in-person not authorised.',
 
+  clockSeconds: 600, // competition mode: a real 10-minute countdown; at 0:00 the report is handed in as it stands
+
   // Rules-of-engagement judgment calls. These mirror the on-the-spot decisions CPTC judges watch for: a team
   // that oversteps scope or mishandles sensitive data loses more than points.
   roe: [
