@@ -3,8 +3,20 @@ import assert from 'node:assert/strict';
 import { CPTC_LAB } from '../src/data/cptcLabScenario.js';
 import {
   newReport, runEnum, discoveredFindings, rate, setExecSummary, toReport, expire, score, progress,
-  severityFor, MODES,
+  severityFor, MODES, lockFinding, gradeText,
 } from '../src/game/cptclab.js';
+
+// Real, specific write-ups (what a strong CPTC team writes).
+const REAL_REM = {
+  'ext-rdp': 'Remove RDP from the internet (close 3389 at the edge) and put remote access behind a VPN with MFA.',
+  'sql-injection': 'Rewrite the login query with parameterised queries / prepared statements, validate input server-side, and use a least-privilege database account.',
+  'smb-share': 'Restrict the HR$ share to the HR group only, remove Authenticated Users read access, move the file, and audit who accessed it.',
+  'default-snmp': 'Change or disable the public SNMP community string (move to SNMPv3) and segment the printer VLAN with an ACL.',
+  'weak-tls': 'Disable TLS 1.0 and 1.1 and serve TLS 1.2+ only.',
+};
+const REAL_EXEC = 'Meridian faces an elevated risk of a patient-data breach: Remote Desktop is exposed to the internet and the patient portal has a SQL injection flaw. We recommend fixing both within 72 hours; once remediated, the main ransomware and data-theft paths are closed.';
+const BOILER = 'Root-cause remediation written out in full for this finding.';
+const discoverAll = (s) => { for (const c of ['xfreerdp /v:198.51.100.20', 'sqlmap -u https://portal.meridian.example/login', 'smbclient -L //10.20.0.15 -N', 'snmpwalk -v2c -c public 10.20.0.40', 'sslscan www.meridian.example']) runEnum(s, c); toReport(s); };
 
 const fresh = (opts = {}) => newReport(CPTC_LAB, { seed: 1, ...opts });
 
@@ -67,9 +79,9 @@ test('a thorough, well-written report scores an A; the severity must match the r
   for (const f of CPTC_LAB.findings) {
     rate(s, f.id, 'likelihood', f.refLikelihood);
     rate(s, f.id, 'impact', f.refImpact);
-    rate(s, f.id, 'remediation', 'Root-cause remediation written out in full detail here.');
+    rate(s, f.id, 'remediation', REAL_REM[f.id]);
   }
-  setExecSummary(s, 'An elevated risk of a patient-data breach from internet-exposed RDP and portal SQL injection; remediate both within 72 hours.');
+  setExecSummary(s, REAL_EXEC);
   const g = score(s);
   assert.equal(g.coverage, 35);
   assert.equal(g.risk, 30);
@@ -117,4 +129,55 @@ test('progress tracks discovered vs fully-written findings', () => {
   const p = progress(s);
   assert.equal(p.found, 1);
   assert.equal(p.rated, 1);
+});
+
+test('boilerplate remediation earns no remediation credit and the report cannot reach an A', () => {
+  const s = fresh();
+  discoverAll(s);
+  for (const f of CPTC_LAB.findings) { rate(s, f.id, 'likelihood', f.refLikelihood); rate(s, f.id, 'impact', f.refImpact); rate(s, f.id, 'remediation', BOILER); }
+  setExecSummary(s, REAL_EXEC);
+  const g = score(s);
+  assert.equal(g.remediation, 0);
+  assert.notEqual(g.letter, 'A');
+  assert.ok(g.remRows.every((r) => r.missing.length > 0), 'debrief lists the missing controls');
+});
+
+test('naming a known-wrong control is penalised; rejecting it is not', () => {
+  const rdp = CPTC_LAB.findings.find((f) => f.id === 'ext-rdp').remediationRubric;
+  const bad = gradeText(rdp, 'Move RDP to a non-standard port, put it behind a VPN and require MFA.');
+  assert.ok(bad.wrong.length === 1 && bad.credit < 0.5, JSON.stringify(bad));
+  const good = gradeText(rdp, 'Remove RDP from the internet; require VPN with MFA. Moving the port does not fix it.');
+  assert.equal(good.wrong.length, 0);
+  assert.equal(good.credit, 1);
+  const sql = CPTC_LAB.findings.find((f) => f.id === 'sql-injection').remediationRubric;
+  assert.ok(gradeText(sql, 'Deploy a WAF in front of the portal.').credit === 0);
+});
+
+test('exec summary is graded on business risk, both critical issues, a timeframe and an outcome', () => {
+  const s = fresh();
+  discoverAll(s);
+  setExecSummary(s, 'The assessment went well and the team was very helpful. Some things could be improved over time.');
+  assert.ok(score(s).exec <= 2, `filler exec got ${score(s).exec}`);
+  setExecSummary(s, REAL_EXEC);
+  assert.equal(score(s).exec, 10);
+  setExecSummary(s, REAL_EXEC + ' CVSS 9.8 on port 3389/tcp.');
+  assert.ok(score(s).exec < 10, 'jargon costs points');
+});
+
+test('guided lock: the model answer is only available after the player commits; locked ratings are frozen', () => {
+  const s = fresh();
+  runEnum(s, 'xfreerdp /v:198.51.100.20');
+  toReport(s);
+  assert.equal(lockFinding(s, 'ext-rdp').ok, false, 'cannot lock before rating');
+  rate(s, 'ext-rdp', 'likelihood', 'High');
+  rate(s, 'ext-rdp', 'impact', 'High');
+  assert.equal(lockFinding(s, 'ext-rdp').ok, false, 'cannot lock without a remediation');
+  rate(s, 'ext-rdp', 'remediation', REAL_REM['ext-rdp']);
+  const r = lockFinding(s, 'ext-rdp');
+  assert.equal(r.ok, true);
+  assert.equal(r.feedback.credit, 1);
+  rate(s, 'ext-rdp', 'impact', 'Low');
+  rate(s, 'ext-rdp', 'remediation', 'changed');
+  assert.equal(s.report['ext-rdp'].impact, 'High');
+  assert.equal(s.report['ext-rdp'].remediation, REAL_REM['ext-rdp']);
 });

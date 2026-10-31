@@ -4,7 +4,7 @@ import { h, clear, placeOnCanvas } from '../ui/dom.js';
 import { CPTC_LAB } from '../data/cptcLabScenario.js';
 import {
   newReport, runEnum, discoveredFindings, rate, setExecSummary, toReport, expire, score, progress, recordBest,
-  severityFor, LEVELS, MODES,
+  severityFor, LEVELS, MODES, lockFinding, gradeText,
 } from '../game/cptclab.js';
 import '../ui/screen.css';
 import '../ui/competitions.css';
@@ -94,7 +94,7 @@ export class CptcLabScene extends Phaser.Scene {
         h('h2', {}, 'How you want to play'),
         h('div', { class: 'cc-mode-row' },
           h('button', { type: 'button', class: `cc-mode-btn${this.guided ? ' on' : ''}`, onclick: () => { this.guided = true; this.render(); } },
-            h('b', {}, 'Guided'), h('span', {}, 'Hints on what to enumerate next, and the model answer shown after you write each finding.')),
+            h('b', {}, 'Guided'), h('span', {}, 'Hints on what to enumerate next. Lock in each write-up to compare it with the model answer.')),
           h('button', { type: 'button', class: `cc-mode-btn${this.guided ? '' : ' on'}`, onclick: () => { this.guided = false; this.render(); } },
             h('b', {}, `Competition · ${this.clockLabel()} clock`), h('span', {}, 'A live countdown across the whole engagement. At 0:00 the report is graded as it stands.')))),
       h('div', { class: 'cx-foot' },
@@ -188,19 +188,42 @@ export class CptcLabScene extends Phaser.Scene {
     const r = this.state.report[f.id];
     const sev = r.likelihood && r.impact ? severityFor(r.likelihood, r.impact) : null;
     const picker = (field) => h('div', { class: 'cx-rate' }, h('span', { class: 'cx-rate-label' }, field === 'likelihood' ? 'Likelihood' : 'Impact'),
-      h('div', { class: 'cx-rate-btns' }, LEVELS.map((lvl) => h('button', { type: 'button', class: `cx-rate-btn${r[field] === lvl ? ' on' : ''}`, onclick: () => { rate(this.state, f.id, field, lvl); this.render(); } }, lvl))));
-    const ta = h('textarea', { class: 'cc-inj-ta', rows: '2', 'aria-label': `Remediation for ${f.title}`, placeholder: 'Write the root-cause remediation…', oninput: (e) => { r.remediation = e.target.value; } }, r.remediation || '');
+      h('div', { class: 'cx-rate-btns' }, LEVELS.map((lvl) => h('button', { type: 'button', class: `cx-rate-btn${r[field] === lvl ? ' on' : ''}`, disabled: r.locked ? '' : undefined, onclick: () => { rate(this.state, f.id, field, lvl); this.render(); } }, lvl))));
+    const ta = h('textarea', { class: 'cc-inj-ta', rows: '2', 'aria-label': `Remediation for ${f.title}`, placeholder: 'Write the root-cause remediation: which control fixes it, not just "fix it"…', disabled: r.locked ? '' : undefined, oninput: (e) => { rate(this.state, f.id, 'remediation', e.target.value); } }, r.remediation || '');
+    const err = this.lockErr?.[f.id];
     return h('li', { class: 'cx-report-card' },
       h('div', { class: 'cx-rc-head' }, h('b', {}, f.title), h('span', { class: 'cx-rc-sys' }, f.system)),
       h('p', { class: 'cx-rc-ev' }, h('b', {}, 'Evidence: '), f.evidence),
       h('div', { class: 'cx-rate-row' }, picker('likelihood'), picker('impact'), sev ? h('span', { class: `cx-sevtag s-${sev.toLowerCase()}` }, sev) : h('span', { class: 'cx-sevtag none' }, 'rate it')),
       ta,
-      this.guided ? h('p', { class: 'cx-rc-model' }, h('b', {}, 'Model: '), `${severityFor(f.refLikelihood, f.refImpact)} (${f.refLikelihood}×${f.refImpact}). `, f.modelRemediation) : null);
+      // Guided mode: the model answer is revealed only AFTER the player commits their own rating + remediation.
+      this.guided && !r.locked ? h('button', { type: 'button', class: 'cx-lock', onclick: () => this.lock(f.id) }, 'Lock in & compare with the model') : null,
+      err ? h('p', { class: 'cc-flash bad', role: 'alert' }, err) : null,
+      this.guided && r.locked ? this.remFeedback(f, gradeText(f.remediationRubric, r.remediation)) : null);
+  }
+
+  lock(id) {
+    const res = lockFinding(this.state, id);
+    this.lockErr = this.lockErr || {};
+    if (!res.ok) { this.lockErr[id] = res.error; this.sound2?.play('error'); } else { delete this.lockErr[id]; this.sound2?.play('select'); }
+    this.render();
+  }
+
+  remFeedback(f, g) {
+    return h('div', { class: 'cx-rem-feedback' },
+      h('p', { class: 'cx-rc-model' }, h('b', {}, 'Model rating: '), `${severityFor(f.refLikelihood, f.refImpact)} (${f.refLikelihood}×${f.refImpact}).`),
+      h('div', { class: 'cc-rubric' },
+        h('p', { class: 'cc-rubric-score' }, h('b', {}, `Remediation: ${Math.round(g.credit * 100)}%`), ` — ${g.hits.length}/${g.hits.length + g.missing.length} required controls`),
+        g.hits.length ? h('ul', { class: 'cc-rubric-list ok' }, g.hits.map((t) => h('li', {}, `✓ ${t}`))) : null,
+        g.missing.length ? h('ul', { class: 'cc-rubric-list bad' }, g.missing.map((t) => h('li', {}, `✗ missing: ${t}`))) : null,
+        g.wrong.length ? h('ul', { class: 'cc-rubric-list bad' }, g.wrong.map((t) => h('li', {}, `✗ wrong control: ${t}`))) : null),
+      h('p', { class: 'cx-rc-model' }, h('b', {}, 'Model remediation: '), f.modelRemediation));
   }
 
   execField() {
     const ta = h('textarea', { class: 'cc-inj-ta', rows: '4', 'aria-label': 'Executive summary', placeholder: 'Draft the executive summary…', oninput: (e) => setExecSummary(this.state, e.target.value) }, this.state.execSummary || '');
-    return h('div', {}, ta, this.guided ? h('p', { class: 'cx-rc-model' }, h('b', {}, 'What wins: '), this.scenario.execModel) : null);
+    // The model summary is shown in the debrief, after submission — never next to the box you are writing in.
+    return h('div', {}, ta);
   }
 
   // ---- clock ---------------------------------------------------------------
@@ -244,8 +267,8 @@ export class CptcLabScene extends Phaser.Scene {
         h('div', { class: 'cc-tally' },
           this.tallyRow('Coverage', `+${g.coverage}`, `${g.foundCount}/${g.totalFindings} findings confirmed at the terminal`, g.coverage >= 25 ? 'ok' : 'bad'),
           this.tallyRow('Risk rating', `+${g.risk}`, 'severity vs the reference matrix', g.risk >= 20 ? 'ok' : 'bad'),
-          this.tallyRow('Remediation', `+${g.remediation}`, 'a root-cause fix written per finding', g.remediation >= 18 ? 'ok' : 'bad'),
-          this.tallyRow('Executive summary', `+${g.exec}`, g.execOk ? 'written' : 'missing or too thin', g.exec ? 'ok' : 'bad'),
+          this.tallyRow('Remediation', `+${g.remediation}`, 'the root-cause controls each finding needs', g.remediation >= 18 ? 'ok' : 'bad'),
+          this.tallyRow('Executive summary', `+${g.exec}`, g.execOk ? 'business risk, both criticals, a timeframe' : 'missing what the board needs', g.exec ? 'ok' : 'bad'),
           h('div', { class: 'cc-tally-row total' }, h('span', {}, 'Total'), h('b', {}, `${g.pct}`), h('span', {}, `of 100 · ${g.pct}%`))),
         h('p', { class: 'cc-verdict' }, this.verdict(g))),
       g.ratingRows.length ? h('div', { class: 'cx-panel' },
@@ -253,6 +276,23 @@ export class CptcLabScene extends Phaser.Scene {
         h('ul', { class: 'cc-review' }, g.ratingRows.map((r) => h('li', { class: r.credit === 1 ? 'ok' : r.credit ? 'warn' : 'bad' },
           h('div', { class: 'cx-rev-head' }, h('b', {}, r.title), h('span', {}, `you: ${r.yours || '—'} · reference: ${r.ref}`)),
           h('p', {}, r.credit === 1 ? 'Rated correctly.' : r.credit ? 'One step off — close.' : 'Off by two or more, or unrated. Re-read likelihood × impact.'))))) : null,
+      g.remRows.length ? h('div', { class: 'cx-panel cx-rem-review' },
+        h('h2', {}, 'Your remediations, graded'),
+        h('ul', { class: 'cc-review' }, g.remRows.map((r) => {
+          const f = this.scenario.findings.find((x) => x.id === r.id);
+          return h('li', { class: r.credit >= 0.99 ? 'ok' : r.credit > 0 ? 'warn' : 'bad', 'data-rem': r.id },
+            h('div', { class: 'cx-rev-head' }, h('b', {}, r.title), h('span', {}, `${Math.round(r.credit * 100)}% of the controls`)),
+            h('p', {}, h('b', {}, 'You wrote: '), r.text || '(nothing)'),
+            r.missing.length ? h('p', {}, h('b', {}, 'Missing: '), r.missing.join('; ')) : null,
+            r.wrong.length ? h('p', {}, h('b', {}, 'Wrong control: '), r.wrong.join('; ')) : null,
+            h('p', { class: 'cc-fix' }, h('b', {}, 'Model: '), f.modelRemediation));
+        }))) : null,
+      h('div', { class: 'cx-panel cx-exec-review' },
+        h('h2', {}, 'Executive summary, graded'),
+        h('p', {}, h('b', {}, `${g.exec}/10 · `), g.execGrade.hits.length ? `covered: ${g.execGrade.hits.join('; ')}` : 'covered nothing the board needs'),
+        g.execGrade.missing.length ? h('p', {}, h('b', {}, 'Missing: '), g.execGrade.missing.join('; ')) : null,
+        g.execGrade.wrong.length ? h('p', {}, h('b', {}, 'Cost points: '), g.execGrade.wrong.join('; ')) : null,
+        h('p', { class: 'cc-fix' }, h('b', {}, 'What wins: '), this.scenario.execModel)),
       this.scenario.findings.length > g.foundCount ? h('div', { class: 'cx-panel' },
         h('h2', {}, 'What you missed'),
         h('ul', { class: 'cc-review' }, this.scenario.findings.filter((f) => !this.state.discovered[f.id]).map((f) => h('li', { class: 'bad' },
@@ -269,6 +309,7 @@ export class CptcLabScene extends Phaser.Scene {
 
   verdict(g) {
     if (g.pct >= 90) return 'A report that wins CPTC: you found the issues at the keyboard, rated them honestly, and wrote fixes and a summary a board can act on.';
+    if (g.remediation < 15) return 'Your remediations do not name the controls that actually fix each finding. Read "Missing" under each one below — that is where the points went.';
     if (g.pct >= 75) return 'Strong. Either you missed a finding in enumeration or a severity rating drifted from the matrix — tighten both.';
     if (g.pct >= 60) return 'A real first pass. The biggest lever is coverage: the findings you never confirmed at the terminal cannot be in the report.';
     return 'Thin report. Go back and actually run the test — enumerate every in-scope service — then rate and write up everything you confirm.';

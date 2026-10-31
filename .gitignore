@@ -4,3 +4,6 @@ dist/
 .DS_Store
 smoke-out/
 .claude/
+
+# Local scratch art, not part of the game build
+/title.png

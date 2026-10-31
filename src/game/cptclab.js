@@ -28,7 +28,7 @@ export function newReport(scenario, opts = {}) {
   const mode = opts.mode === MODES.COMPETITION ? MODES.COMPETITION : MODES.GUIDED;
   const discovered = {}; // findingId -> true once the right command reveals it
   const report = {}; // findingId -> { likelihood, impact, remediation }
-  for (const f of scenario.findings) report[f.id] = { likelihood: null, impact: null, remediation: '' };
+  for (const f of scenario.findings) report[f.id] = { likelihood: null, impact: null, remediation: '', locked: false };
   return {
     scenario, seed, mode,
     timeLimitSec: mode === MODES.COMPETITION ? scenario.clockSeconds || 0 : 0,
@@ -89,12 +89,49 @@ export const discoveredFindings = (state) => state.scenario.findings.filter((f) 
 
 export function rate(state, findingId, field, value) {
   const r = state.report[findingId];
-  if (!r) return;
+  if (!r || r.locked) return;
   if (field === 'likelihood' || field === 'impact') r[field] = value;
   if (field === 'remediation') r.remediation = value;
 }
 
 export function setExecSummary(state, text) { state.execSummary = text; }
+
+/**
+ * Commit a finding's write-up (guided mode's "check my write-up"). Only once the player has rated it and written a
+ * remediation; after that the rating and text are frozen and the model answer + rubric feedback can be shown.
+ */
+export function lockFinding(state, findingId) {
+  const r = state.report[findingId];
+  if (!r) return { ok: false, error: 'No such finding.' };
+  if (!r.likelihood || !r.impact) return { ok: false, error: 'Rate likelihood and impact first.' };
+  if ((r.remediation || '').trim().length < 12) return { ok: false, error: 'Write the remediation first.' };
+  r.locked = true;
+  return { ok: true, feedback: gradeText(findingRubric(state, findingId), r.remediation) };
+}
+
+const findingRubric = (state, id) => state.scenario.findings.find((f) => f.id === id)?.remediationRubric;
+
+/**
+ * Grade free text against a rubric { need:[{label,re}], wrong:[{label,re,unless?}] }.
+ * credit = items covered / items needed, minus 0.5 per wrong control named (floored at 0).
+ */
+const NEGATION = /\b(not|no|never|instead of|rather than|avoid|bypass(ed)?|insufficient|alone|wrong|still|unnecessary)\b|n't\b/i;
+
+export function gradeText(rubric, text) {
+  const t = String(text || '');
+  if (!rubric || !t.trim()) return { credit: 0, hits: [], missing: (rubric?.need || []).map((n) => n.label), wrong: [] };
+  const hits = [];
+  const missing = [];
+  for (const n of rubric.need || []) (n.re.test(t) ? hits : missing).push(n.label);
+  // A wrong control only costs credit when it is RECOMMENDED: a clause that names it in order to reject it
+  // ("moving the port does not fix it", "a WAF alone is not enough") is fine.
+  const clauses = t.split(/[.;!?\n]+/);
+  const wrong = (rubric.wrong || []).filter((w) => !(w.unless && w.unless.test(t))
+    && clauses.some((c) => w.re.test(c) && !NEGATION.test(c))).map((w) => w.label);
+  const need = (rubric.need || []).length || 1;
+  const credit = Math.max(0, hits.length / need - 0.5 * wrong.length);
+  return { credit, hits, missing, wrong };
+}
 
 export function toReport(state) { if (state.phase === 'enum') state.phase = 'report'; }
 
@@ -108,8 +145,8 @@ export function expire(state) {
  * Grade the engagement on four weighted dimensions, CPTC-style:
  *   Coverage (35): how many in-scope findings you actually discovered at the terminal.
  *   Risk rating (30): for discovered findings, how close your severity is to the reference (exact / one step off).
- *   Remediation (25): a non-trivial, root-cause remediation written for each discovered finding.
- *   Executive summary (10): a non-trivial written summary.
+ *   Remediation (25): per finding, the root-cause controls its rubric requires, minus wrong controls named.
+ *   Executive summary (10): business risk, both critical issues by name, a timeframe, and the outcome — no jargon.
  */
 export function score(state) {
   const sc = state.scenario;
@@ -134,23 +171,26 @@ export function score(state) {
   });
   const risk = found.length ? Math.round((riskPts / found.length) * 30) : 0;
 
-  let remCount = 0;
+  // Remediation is graded against each finding's keyword rubric (root-cause controls it must name) with a
+  // penalty for naming a known-wrong control — boilerplate that names no control earns nothing.
+  let remCredit = 0;
   const remRows = found.map((f) => {
     const r = state.report[f.id];
-    const ok = (r.remediation || '').trim().length >= 12;
-    if (ok) remCount += 1;
-    return { id: f.id, title: f.title, written: ok, text: r.remediation || '' };
+    const g = gradeText(f.remediationRubric, r.remediation);
+    remCredit += g.credit;
+    return { id: f.id, title: f.title, written: !!(r.remediation || '').trim(), text: r.remediation || '', ...g, model: f.modelRemediation };
   });
-  const remediation = found.length ? Math.round((remCount / found.length) * 25) : 0;
+  const remediation = found.length ? Math.round((remCredit / found.length) * 25) : 0;
 
-  const execOk = (state.execSummary || '').trim().length >= 25;
-  const exec = execOk ? 10 : 0;
+  const execGrade = gradeText(sc.execRubric, state.execSummary);
+  const exec = Math.round(execGrade.credit * 10);
+  const execOk = exec >= 8;
 
   const pct = coverage + risk + remediation + exec;
   return {
     coverage, risk, remediation, exec, pct, letter: letterFor(pct),
     foundCount: found.length, totalFindings: all.length,
-    ratingRows, remRows, execOk,
+    ratingRows, remRows, execOk, execGrade,
   };
 }
 

@@ -401,3 +401,20 @@
 .cx-sevtag.s-high { background: #3a241a; color: #ffb257; } .cx-sevtag.s-critical { background: #3a1a1f; color: #ff9b9b; }
 .cx-rc-model { font-size: 12px; color: #b98fd0; margin-top: 8px; line-height: 1.45; }
 .cx-rev-head { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+
+/* ---- IR / captain desk (seat with no terminal) + inject rubric results ---- */
+.cc-captain .cc-asset-scroll { overflow-x: auto; max-width: 100%; }
+.cc-assets { width: 100%; border-collapse: collapse; font: 12.5px/1.4 Consolas, monospace; color: #cfe9da; }
+.cc-assets th, .cc-assets td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #1d3a2a; overflow-wrap: break-word; }
+.cc-assets td.nw { white-space: nowrap; }
+@media (max-width: 520px) { .cc-assets { font-size: 11px; } .cc-assets th, .cc-assets td { padding: 5px 4px; } }
+.cc-assets th { color: #8fd3a8; font-weight: 600; }
+.cc-rubric { margin-top: 8px; font-size: 12.5px; }
+.cc-rubric-score { margin: 0 0 4px; color: #d7efe1; }
+.cc-rubric-list { margin: 0; padding-left: 4px; list-style: none; }
+.cc-rubric-list li { margin: 2px 0; }
+.cc-rubric-list.ok li { color: #aef0c8; }
+.cc-rubric-list.bad li { color: #ffb3b3; }
+.cx-rem-feedback { margin-top: 6px; font-size: 12.5px; }
+.cx-lock { margin-top: 8px; font: inherit; font-size: 12.5px; padding: 6px 12px; border-radius: 5px; border: 1px solid #6aa8f0; background: #0f1a2a; color: #cfe3ff; cursor: pointer; }
+.cx-lock:disabled { opacity: .5; cursor: not-allowed; }

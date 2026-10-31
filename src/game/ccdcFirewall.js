@@ -15,8 +15,11 @@ const HELP = [
   '  default pass | default block       set the default inbound policy (block = default-deny)',
   '  del <n>                            delete rule number n',
   '  help',
-  'Scored ports: 80/443 web01 · 53 dc01 · 25/143/993 mail01 · 3306 db01 (from the scoring engine only).',
-  'Win order: add the pass rules for the scored ports FIRST, then "default block".',
+  'Scored ports: 80/443 web01 · 53 dc01 · 25/143/993 mail01 · 3306 db01 (from the scoring engine only:',
+  '  pass tcp to db01 port 3306 from scoring   — the scoring engine is 198.51.100.9).',
+  'Each pass rule must name one scored host and only its scored ports. "to any", "port any" or a wide range',
+  'like 1-65535 is still wide open.',
+  'Win order: add the pass rules for the scored ports FIRST, then "del" the any-any rule and "default block".',
 ];
 
 export function firewallHelp() { return HELP; }
@@ -80,14 +83,27 @@ export function applyFirewallCommand(fw, rawLine) {
 
 // --- evaluation -------------------------------------------------------------
 
-// Does the rule set allow a given scored service's traffic to reach it? A pass rule matches if proto/port/dst
-// line up and nothing blocks it earlier. Default-allow means everything not explicitly blocked gets through.
-function allowed(fw, svc) {
+const ALIASES = { scoring: 'scoring', 'scoring-engine': 'scoring', scorer: 'scoring' };
+const canonFrom = (f, spec) => {
+  const v = String(f || 'any').toLowerCase();
+  if (v === 'any' || v === '0.0.0.0/0' || v === '*') return 'any';
+  if (ALIASES[v]) return 'scoring';
+  if (spec?.scoringIp && v === spec.scoringIp) return 'scoring';
+  return v;
+};
+// Rule dst may be a host name or its IP.
+const dstIs = (r, svc) => r.dst === 'any' || r.dst === svc.host || (svc.ip && r.dst === svc.ip);
+
+// Does the rule set allow a given scored service's traffic (from its real source) to reach it? First match wins.
+// A service with `src: 'scoring'` is only polled by the scoring engine, so a rule scoped to some other source
+// does not carry its traffic.
+function allowed(fw, svc, spec) {
   for (const r of fw.rules) {
     const protoOk = r.proto === 'any' || svc.proto === 'any' || r.proto === svc.proto;
-    const dstOk = r.dst === 'any' || r.dst === svc.host;
     const portOk = portMatch(r.port, svc.ports);
-    if (protoOk && dstOk && portOk) return r.action === 'pass';
+    const from = canonFrom(r.from, spec);
+    const fromOk = from === 'any' || (svc.src ? from === svc.src : false);
+    if (protoOk && dstIs(r, svc) && portOk && fromOk) return r.action === 'pass';
   }
   return fw.default === 'pass';
 }
@@ -102,28 +118,57 @@ function portMatch(rulePort, svcPorts) {
   return false;
 }
 
-// Is the WAN still wide open (an any-any pass that leaves everything exposed)?
-function wideOpen(fw) {
-  if (fw.default === 'pass') return true;
-  return fw.rules.some((r) => r.action === 'pass' && r.proto === 'any' && r.dst === 'any' && r.port === 'any' && r.from === 'any');
+// Every port a rule's port field covers (null = any / unbounded).
+function rulePorts(rulePort) {
+  if (rulePort === 'any') return null;
+  const m = String(rulePort).match(/^(\d+)-(\d+)$/);
+  if (m) { const a = +m[1], b = +m[2]; if (b - a > 2000) return null; const out = []; for (let p = a; p <= b; p++) out.push(p); return out; }
+  return /^\d+$/.test(String(rulePort)) ? [+rulePort] : null;
+}
+
+/**
+ * Is the WAN still exposed? Returns a reason string, or null when every pass rule is scoped to a scored host and
+ * only that host's scored ports, and services that must be source-scoped (MySQL) are.
+ */
+function exposure(fw, spec) {
+  if (fw.default === 'pass') return 'the default inbound policy is still PASS (default-allow)';
+  const svcs = spec.services || [];
+  for (const r of fw.rules) {
+    if (r.action !== 'pass') continue;
+    if (r.dst === 'any') return `rule "pass ${r.proto} to any port ${r.port}" still exposes every internal host`;
+    const hostSvcs = svcs.filter((s) => dstIs(r, s));
+    if (!hostSvcs.length) return `rule passes traffic to ${r.dst}, which runs no scored service`;
+    const ports = rulePorts(r.port);
+    if (!ports) return `rule "pass ${r.proto} to ${r.dst} port ${r.port}" opens every port on ${r.dst}, not just its scored ones`;
+    const allowedPorts = new Set(hostSvcs.flatMap((s) => s.ports));
+    const extra = ports.filter((p) => !allowedPorts.has(p));
+    if (extra.length) return `rule "pass ${r.proto} to ${r.dst} port ${r.port}" opens ${extra.length} non-scored port(s) on ${r.dst}`;
+    for (const s of hostSvcs) {
+      if (s.src && portMatch(r.port, s.ports) && canonFrom(r.from, spec) === 'any') {
+        return `${s.id} port ${s.ports.join('/')} is open to the whole internet; scope it with "from scoring" (${spec.scoringIp || 'the scoring engine'})`;
+      }
+    }
+  }
+  return null;
 }
 
 /**
  * Evaluate the firewall finding against the current rules.
- *   fwSpec: { scored:[svcId], services:[{id,host,proto,ports}] } describing the scored traffic that must survive.
+ *   fwSpec: { scored:[svcId], scoringIp, services:[{id,host,ip,proto,ports,src?}] } describing the scored traffic
+ *   that must survive.
  * Returns { fixed, down:[svcId], note }.
- *   - fixed when the default policy is block, no wide-open any-any pass remains, and every scored service is
- *     still allowed through.
- *   - down lists scored services the current rules would cut off (default-block with no matching pass rule).
+ *   - fixed when the default policy is block, no pass rule leaves anything beyond the scored ports exposed, and
+ *     every scored service is still reachable from its real source.
+ *   - down lists scored services the current rules would cut off.
  */
-export function evalFirewall(fw, fwSpec, serviceList) {
+export function evalFirewall(fw, fwSpec) {
   const svcById = Object.fromEntries((fwSpec.services || []).map((s) => [s.id, s]));
   const down = [];
   for (const id of fwSpec.scored) {
     const svc = svcById[id];
-    if (svc && !allowed(fw, svc)) down.push(id);
+    if (svc && !allowed(fw, svc, fwSpec)) down.push(id);
   }
-  const open = wideOpen(fw);
+  const open = exposure(fw, fwSpec);
   const fixed = fw.default === 'block' && !open && down.length === 0;
-  return { fixed, down, note: open ? 'the WAN is still open any-any' : 'no allow rule for this scored port' };
+  return { fixed, down, open, note: open || 'no allow rule for this scored port' };
 }

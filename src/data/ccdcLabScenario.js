@@ -60,15 +60,32 @@ export const CCDC_LAB = {
     {
       id: 'edge-fw', name: 'Edge firewall', host: 'edge-fw', ip: '203.0.113.2', os: 'pfSense (FreeBSD)', role: 'network', kind: 'firewall',
       prompt: 'edge-fw rule-editor>',
-      brief: 'The WAN rule set is a single permit-any-any: the whole internet can reach every internal service. Allow the scored ports first, THEN set the default inbound policy to block.',
-      checklist: ['Type `show` to read the current rules', 'Add `pass` rules for every scored port (80/443→web01, 53→dc01, 25/143/993→mail01, 3306→db01)', 'Only then `default block`', 'Re-run `show` to confirm'],
+      brief: 'The WAN rule set is a single permit-any-any (rule 1): the whole internet can reach every internal service. Add a pass rule for each scored port FIRST (MySQL only from the scoring engine, 198.51.100.9), then delete the any-any rule and set the default inbound policy to block.',
+      // Every checklist item is a real command: clicking it loads exactly that line.
+      checklist: [
+        'show',
+        'pass tcp to web01 port 80', 'pass tcp to web01 port 443',
+        'pass any to dc01 port 53',
+        'pass tcp to mail01 port 25', 'pass tcp to mail01 port 143', 'pass tcp to mail01 port 993',
+        'pass tcp to db01 port 3306 from scoring',
+        'del 1',
+        'default block',
+        'show',
+      ],
       firewall: { default: 'pass', rules: [{ action: 'pass', proto: 'any', dst: 'any', port: 'any', from: 'any' }] },
     },
     {
       id: 'dc01', name: 'Domain controller', host: 'dc01', ip: '10.10.10.10', os: 'Windows Server 2019', role: 'windows', kind: 'pwsh',
       prompt: 'PS C:\\Users\\Administrator>', user: 'Administrator', cwd: 'C:\\Users\\Administrator',
       brief: 'The DC also serves DNS (a scored service), so NEVER reboot it mid-round. Find the extra Domain Admin and turn off SMBv1 without a restart.',
-      checklist: ["Get-ADGroupMember 'Domain Admins'  — spot the account you did not create", 'Remove the rogue account from Domain Admins (disable it first)', 'Get-SmbServerConfiguration  — check EnableSMB1Protocol', 'Set-SmbServerConfiguration -EnableSMB1Protocol $false  (no reboot)'],
+      checklist: [
+        "Get-ADGroupMember 'Domain Admins'",
+        'Get-ADUser svc-backup2 -Properties *',
+        'Disable-ADAccount -Identity svc-backup2',
+        "Remove-ADGroupMember -Identity 'Domain Admins' -Members svc-backup2 -Confirm:$false",
+        'Get-SmbServerConfiguration',
+        'Set-SmbServerConfiguration -EnableSMB1Protocol $false -Force',
+      ],
       ctx: {
         dir: DC_DIR, user: 'Administrator', host: 'DC01', fs: {}, cwd: 'C:\\Users\\Administrator',
         events: () => [],
@@ -86,7 +103,15 @@ export const CCDC_LAB = {
       id: 'web01', name: 'Web server', host: 'web01', ip: '10.10.10.20', os: 'Ubuntu 20.04 (Apache + WordPress)', role: 'webdb', kind: 'bash',
       prompt: 'analyst@web01:~$', user: 'analyst', cwd: '/home/analyst',
       brief: 'WordPress admin accepts admin/admin, and a prior intruder left a PHP file in the uploads folder that a root cron job re-runs every 10 minutes. Investigate, then clean up.',
-      checklist: ['cat /var/www/html/wp-config.php', 'ls -R /var/www/html/wp-content/uploads', 'cat /var/spool/cron/crontabs/root', 'wp user update admin --user_pass <strong>', 'rm the web shell, then crontab -r'],
+      checklist: [
+        'cat /var/www/html/wp-config.php',
+        'wp user list',
+        "wp user update admin --user_pass='Cedar#Lane-Freight-2026!'",
+        'ls -R /var/www/html/wp-content/uploads',
+        'crontab -l',
+        'rm /var/www/html/wp-content/uploads/2026/10/stats.php',
+        'crontab -r',
+      ],
       ctx: {
         user: 'analyst', host: 'web01', cwd: '/home/analyst', history: [],
         fs: {
@@ -116,8 +141,13 @@ export const CCDC_LAB = {
     {
       id: 'db01', name: 'Database server', host: 'db01', ip: '10.10.10.40', os: 'Ubuntu 20.04 (MySQL 8)', role: 'webdb', kind: 'bash',
       prompt: 'analyst@db01:~$', user: 'analyst', cwd: '/home/analyst',
-      brief: 'MySQL root password is "root" and it listens on 0.0.0.0 (every interface). Two legitimate clients need it over the LAN: web01 and the scoring engine. Set a strong root password and restrict the port — do NOT just block 3306, or you cut off both of them.',
-      checklist: ['grep bind-address /etc/mysql/mysql.conf.d/mysqld.cnf', "mysql -e \"ALTER USER 'root'@'localhost' IDENTIFIED BY '<strong>'\"", 'ufw allow from 10.10.10.0/24 to any port 3306  (LAN clients only)'],
+      brief: 'MySQL root password is "root" and it listens on 0.0.0.0 (every interface). Two legitimate clients need it: web01 on the LAN (10.10.10.20) and the scoring engine (198.51.100.9, through the edge firewall). Set a strong root password and ALLOW 3306 only from those sources — do NOT just deny 3306, or you cut off both of them.',
+      checklist: [
+        'grep bind-address /etc/mysql/mysql.conf.d/mysqld.cnf',
+        "mysql -e \"ALTER USER 'root'@'localhost' IDENTIFIED BY 'Cedar#DB-Ship-2026!'\"",
+        'ufw allow from 10.10.10.0/24 to any port 3306',
+        'ufw allow from 198.51.100.9 to any port 3306',
+      ],
       ctx: {
         user: 'analyst', host: 'db01', cwd: '/home/analyst', history: [],
         fs: {
@@ -134,12 +164,22 @@ export const CCDC_LAB = {
     {
       id: 'mail01', name: 'Mail server', host: 'mail01', ip: '10.10.10.30', os: 'Ubuntu 20.04 (Postfix + Dovecot)', role: 'linux', kind: 'bash',
       prompt: 'analyst@mail01:~$', user: 'analyst', cwd: '/home/analyst',
-      brief: 'Postfix is an open relay: mynetworks = 0.0.0.0/0 means it relays mail for the entire internet. Scope relaying to the LAN and authenticated users — do NOT just close port 25, or legitimate mail (a scored service) stops too.',
-      checklist: ['grep mynetworks /etc/postfix/main.cf', 'postconf -e "mynetworks=10.10.10.0/24, 127.0.0.0/8"'],
+      brief: 'Two problems. Postfix is an open relay (mynetworks = 0.0.0.0/0 relays for the entire internet): scope it to the LAN — do NOT just close port 25, or scored mail stops too. And a prior intruder left an SSH key in root\u2019s authorized_keys with root login allowed: remove the key, turn off root login, and reload sshd.',
+      checklist: [
+        'grep mynetworks /etc/postfix/main.cf',
+        'postconf -e "mynetworks=10.10.10.0/24, 127.0.0.0/8"',
+        'grep PermitRootLogin /etc/ssh/sshd_config',
+        'cat /root/.ssh/authorized_keys',
+        "sed -i '/redteam@/d' /root/.ssh/authorized_keys",
+        "sed -i 's/^PermitRootLogin yes/PermitRootLogin no/' /etc/ssh/sshd_config",
+        'systemctl reload ssh',
+      ],
       ctx: {
         user: 'analyst', host: 'mail01', cwd: '/home/analyst', history: [],
         fs: {
           '/home/analyst/README.txt': 'Cedarline mail (Postfix + Dovecot). SMTP 25, IMAP 143/993.\n',
+          '/etc/ssh/sshd_config': 'Port 22\nPermitRootLogin yes        # root can log in over SSH — with the planted key below, that is a backdoor\nPasswordAuthentication yes\nPubkeyAuthentication yes\n',
+          '/root/.ssh/authorized_keys': 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExAmPlEkEyForTheSimulationOnly0000000000000 redteam@203.0.113.66\n',
           '/etc/postfix/main.cf': 'myhostname = mail01.cedarline.local\nmynetworks = 0.0.0.0/0        # OPEN RELAY — relays for the whole internet\nsmtpd_relay_restrictions = permit_mynetworks permit_sasl_authenticated defer_unauth_destination\ninet_interfaces = all\n',
         },
         commands: bashExtras({
@@ -160,14 +200,16 @@ export const CCDC_LAB = {
       exploitable: true, compromise: { impact: 'Every exposed internal service (RDP, SMB, MySQL) is reachable from the red team.', penalty: 50 },
       fw: {
         scored: ['web01', 'dc01', 'mail01', 'db01'],
+        scoringIp: '198.51.100.9',
         services: [
-          { id: 'web01', host: 'web01', proto: 'tcp', ports: [80, 443] },
-          { id: 'dc01', host: 'dc01', proto: 'any', ports: [53] },
-          { id: 'mail01', host: 'mail01', proto: 'tcp', ports: [25, 143, 993] },
-          { id: 'db01', host: 'db01', proto: 'tcp', ports: [3306] },
+          { id: 'web01', host: 'web01', ip: '10.10.10.20', proto: 'tcp', ports: [80, 443] },
+          { id: 'dc01', host: 'dc01', ip: '10.10.10.10', proto: 'any', ports: [53] },
+          { id: 'mail01', host: 'mail01', ip: '10.10.10.30', proto: 'tcp', ports: [25, 143, 993] },
+          // MySQL is only polled by the scoring engine; it must never be open to the whole internet.
+          { id: 'db01', host: 'db01', ip: '10.10.10.40', proto: 'tcp', ports: [3306], src: 'scoring' },
         ],
       },
-      fix: { restores: ['web01', 'dc01', 'mail01', 'db01'], why: 'Allow-list the scored services first, then set the default inbound policy to block. (web01→db01 traffic is LAN and never crosses the edge; restrict that on db01 instead.)' },
+      fix: { restores: ['web01', 'dc01', 'mail01', 'db01'], why: 'Allow-list exactly the scored ports per host first (MySQL only "from scoring"), then delete the any-any rule and set the default inbound policy to block. "to any", "port any" or 1-65535 is still wide open. (web01→db01 traffic is LAN and never crosses the edge; restrict that on db01 instead.)' },
       traps: [],
     },
     {
@@ -205,7 +247,7 @@ export const CCDC_LAB = {
       fix: {
         steps: [
           { id: 'root-pw', accept: [/alter user/, /root/, /identified by/], label: 'Set a strong root password', output: ['Query OK, 0 rows affected — root now has a strong, unique password.'], todo: "set a strong root password (ALTER USER 'root'@'localhost' IDENTIFIED BY ...)" },
-          { id: 'restrict', accept: [/ufw/, /3306/, /allow|from|10\.10\.10/], label: 'Restricted 3306 to the LAN clients', output: ['Rule added: allow 3306 from 10.10.10.0/24; the internet can no longer reach MySQL.'], todo: 'restrict port 3306 to the LAN (ufw allow from 10.10.10.0/24 to any port 3306)' },
+          { id: 'restrict', accept: [/ufw/, /3306/, /\ballow\b/, /from (10\.10\.10\.|198\.51\.100\.9\b)/], reject: [/\b(deny|reject|drop|block)\b/, /from any\b|0\.0\.0\.0\/0/], label: 'Restricted 3306 to the LAN clients', output: ['Rule added: allow 3306 from 10.10.10.0/24; the internet can no longer reach MySQL.'], todo: 'restrict port 3306 to the LAN (ufw allow from 10.10.10.0/24 to any port 3306)' },
         ],
         restores: ['db01'],
         why: 'A strong root password plus a host-firewall rule that lets only web01 and the scoring engine reach 3306. The DB stays reachable by exactly the clients that need it.',
@@ -229,12 +271,31 @@ export const CCDC_LAB = {
       ],
     },
     {
+      id: 'ssh-root-key', host: 'mail01', title: 'Planted SSH key + root login on the mail server', severity: 'High',
+      teach: 'An authorized_keys entry is persistence that survives every password change. Remove the key, stop root logging in over SSH, and reload sshd so the change takes effect.',
+      exploitable: true, compromise: { impact: 'Red team SSHes in as root with its planted key and owns the mail server.', penalty: 45, drops: ['mail01'] },
+      fix: {
+        steps: [
+          { id: 'rm-key', accept: [/authorized_keys/, /\brm\b|truncate|sed -i|>\s*\/root/], label: 'Removed the planted SSH key', output: ['Removed the redteam@203.0.113.66 key from /root/.ssh/authorized_keys.'], todo: 'remove the planted key from /root/.ssh/authorized_keys' },
+          { id: 'no-root', accept: [/sshd_config|permitrootlogin/, /permitrootlogin\s+(no|prohibit-password)/], label: 'Turned off SSH root login', output: ['sshd_config: PermitRootLogin no'], todo: 'set PermitRootLogin no in /etc/ssh/sshd_config' },
+          { id: 'reload', accept: [/systemctl|service/, /reload|restart/, /\bssh/], label: 'Reloaded sshd', output: ['sshd reloaded — the new config is live. Existing sessions keep working.'], todo: 'reload sshd (systemctl reload ssh)' },
+        ],
+        why: 'Delete the attacker key from root\u2019s authorized_keys, set PermitRootLogin no, and reload sshd. A config change that is never reloaded protects nothing.',
+      },
+      traps: [
+        { id: 'lock-root-pw', match: [[/passwd/, /-l/, /root/]], output: ['Root\u2019s password is locked — but key-based login does not use the password. The planted key still works.'], why: 'Locking the password does not stop SSH key logins. Remove the key itself.' },
+        { id: 'stop-postfix', match: [[/systemctl/, /stop/, /postfix/]], drops: ['mail01'], note: 'Postfix stopped; the scored mail check fails.', output: ['postfix stopped.'], why: 'The backdoor is in SSH, not Postfix. Stopping the mail service drops a scored service and fixes nothing.' },
+      ],
+    },
+    {
       id: 'rogue-da', host: 'dc01', title: 'An extra Domain Admin account you did not create', severity: 'Critical',
       teach: 'A rogue privileged account survives every password reset. Finding and removing extra admins is a top-three first-15-minute task.',
       exploitable: true, compromise: { impact: 'Red team signs in as the hidden Domain Admin and re-owns the domain after your other fixes.', penalty: 65 },
       fix: {
-        accept: [[/remove-adgroupmember/, /svc-backup2/], [/disable-adaccount/, /svc-backup2/]],
-        output: ['svc-backup2 removed from Domain Admins (and disabled). The real svc-backup account is untouched.'],
+        steps: [
+          { id: 'disable', accept: [/disable-adaccount/, /svc-backup2/], label: 'Disabled svc-backup2', output: ['svc-backup2 disabled — it can no longer sign in.'], todo: 'disable the account (Disable-ADAccount -Identity svc-backup2)' },
+          { id: 'remove', accept: [/remove-adgroupmember/, /domain admins/, /svc-backup2/], label: 'Removed svc-backup2 from Domain Admins', output: ['svc-backup2 removed from Domain Admins. The real svc-backup account is untouched.'], todo: "remove it from Domain Admins (Remove-ADGroupMember -Identity 'Domain Admins' -Members svc-backup2)" },
+        ],
         why: 'Remove-ADGroupMember -Identity "Domain Admins" -Members svc-backup2 (disable it first). Verify it is not referenced by any real service before deleting.',
       },
       traps: [
@@ -257,14 +318,68 @@ export const CCDC_LAB = {
     },
   ],
 
-  // Written business injects — the IR / captain seat drafts a deliverable; full marks for a submitted answer.
+  // Written business injects — the IR / captain seat drafts a deliverable. Each is graded against a rubric (the
+  // items a white-team judge looks for) with partial credit; blanks are refused and filler earns nothing.
   // These stay as written tasks (real CCDC injects are written); the core defending is done at the terminals.
   injects: [
-    { id: 'inv-memo', title: 'Inject 1 — Asset inventory memo', from: 'Operations Manager', points: 25, prompt: 'Management has no idea what is on the network. Draft an asset inventory (host, IP, OS, role, service) they can hand the auditor by noon.', model: 'A table: each host with its IP, OS, role and the service it provides. An auditor can act on it and it is your own map for the round.' },
-    { id: 'new-user', title: 'Inject 2 — New hire account (least privilege)', from: 'HR', points: 25, prompt: 'A new accounting clerk starts today. Describe exactly how you create their account with the access they need and nothing more.', model: 'A standard domain user added only to the Accounting group that owns the shared folder they need — not a Domain Admin, not local admin everywhere.' },
-    { id: 'vendor-ftp', title: 'Inject 3 — Vendor file-transfer request', from: 'Vendor (Northgate Logistics)', points: 25, prompt: 'A partner asks you to "open FTP, port 21, to the internet" so they can drop manifest files. Write your response.', model: 'Offer SFTP (port 22) to a scoped, dedicated account instead of plaintext FTP open to the world — the secure "yes, but".' },
-    { id: 'incident-report', title: 'Inject 4 — Incident report', from: 'CEO', points: 25, prompt: 'You found a web shell on the web server. Write the incident report the CEO asked for.', model: 'Structured: what was found, when, affected systems, actions taken, and a recommendation. Facts and remediation, not blame.' },
-    { id: 'pcr', title: 'Inject 5 — Change request for the scored account', from: 'White team (judges)', points: 25, prompt: 'You must rotate the ccdc-scorecheck password. Submit the required change request so scoring is not interrupted.', model: 'A PCR naming the host, account, change, time window, rollback plan, and the new credential handed to the scoring team.' },
+    {
+      id: 'inv-memo', title: 'Inject 1 — Asset inventory memo', from: 'Operations Manager', points: 25,
+      prompt: 'Management has no idea what is on the network. Draft an asset inventory (host, IP, OS, role, service) they can hand the auditor by noon.',
+      model: 'A table: each host with its IP, OS, role and the service it provides. An auditor can act on it and it is your own map for the round.',
+      rubric: [
+        { label: 'names at least 4 hosts (edge-fw, dc01, web01, db01, mail01)', re: /\b(edge-fw|dc01|web01|db01|mail01)\b/i, min: 4 },
+        { label: 'gives their IP addresses', re: /\b(10\.10\.10\.\d{1,3}|203\.0\.113\.\d{1,3})\b/, min: 3 },
+        { label: 'states the operating systems', re: /windows|ubuntu|linux|pfsense|freebsd/i },
+        { label: 'states each box’s role / scored service', re: /\b(dns|smtp|imap|mail|mysql|database|web|wordpress|apache|domain controller|firewall)\b/i, min: 3 },
+      ],
+    },
+    {
+      id: 'new-user', title: 'Inject 2 — New hire account (least privilege)', from: 'HR', points: 25,
+      prompt: 'A new accounting clerk starts today. Describe exactly how you create their account with the access they need and nothing more.',
+      model: 'A standard domain user added only to the Accounting group that owns the shared folder they need — not a Domain Admin, not local admin everywhere.',
+      rubric: [
+        { label: 'creates a standard domain user (e.g. New-ADUser)', re: /new-aduser|domain user|standard user|regular user|user account/i },
+        { label: 'adds them only to the Accounting group', re: /accounting/i },
+        { label: 'explicitly no admin rights / least privilege', re: /least[- ]privilege|not (a |an )?(domain |local )?admin|no admin|without admin|non-?admin/i },
+        { label: 'secure first password (change at next logon / temporary)', re: /change.{0,30}(first|next) (logon|login|sign)|changepasswordatlogon|temporar|one-time/i },
+      ],
+    },
+    {
+      id: 'vendor-ftp', title: 'Inject 3 — Vendor file-transfer request', from: 'Vendor (Northgate Logistics)', points: 25,
+      prompt: 'A partner asks you to "open FTP, port 21, to the internet" so they can drop manifest files. Write your response.',
+      model: 'Offer SFTP (port 22) to a scoped, dedicated account instead of plaintext FTP open to the world — the secure "yes, but".',
+      rubric: [
+        { label: 'offers SFTP instead of FTP', re: /\bsftp\b|ssh file transfer/i },
+        { label: 'names port 22', re: /\b22\b/ },
+        { label: 'explains why plain FTP is refused (cleartext credentials)', re: /plain ?text|clear ?text|unencrypted|not encrypted|in the clear/i },
+        { label: 'a dedicated, scoped account for the vendor', re: /dedicated|separate account|own account|scoped|chroot|upload[- ]only|restricted account/i },
+        { label: 'restricts by the vendor’s source IP', re: /source ip|their ip|allow-?list|whitelist|ip address|from (their|the vendor|northgate)/i },
+      ],
+    },
+    {
+      id: 'incident-report', title: 'Inject 4 — Incident report', from: 'CEO', points: 25,
+      prompt: 'You found a web shell on the web server. Write the incident report the CEO asked for.',
+      model: 'Structured: what was found, when, affected systems, actions taken, and a recommendation. Facts and remediation, not blame.',
+      rubric: [
+        { label: 'what was found (the web shell, stats.php)', re: /web ?shell|stats\.php|backdoor/i },
+        { label: 'when it was found / timeline', re: /\b\d{1,2}:\d{2}\b|\b(am|pm)\b|timeline|this morning|at \d/i },
+        { label: 'the affected system (web01)', re: /web01|web server|wordpress/i },
+        { label: 'actions taken (removed the file and the root cron)', re: /(remov|delet|clean)[^.]{0,60}(cron|stats\.php|file|shell)|crontab/i },
+        { label: 'a recommendation to prevent recurrence', re: /recommend|going forward|prevent|next step/i },
+      ],
+    },
+    {
+      id: 'pcr', title: 'Inject 5 — Change request for the scored account', from: 'White team (judges)', points: 25,
+      prompt: 'You must rotate the ccdc-scorecheck password. Submit the required change request so scoring is not interrupted.',
+      model: 'A PCR naming the host, account, change, time window, rollback plan, and the new credential handed to the scoring team.',
+      rubric: [
+        { label: 'names the account (ccdc-scorecheck)', re: /ccdc-scorecheck/i },
+        { label: 'names the host (db01)', re: /db01|10\.10\.10\.40|database server/i },
+        { label: 'a change time window', re: /window|\b\d{1,2}:\d{2}\b|between/i },
+        { label: 'a rollback plan', re: /roll ?back|revert|back ?out|restore the old/i },
+        { label: 'hands the new credential to the white / scoring team', re: /white team|scoring team|judges|scoring engine|notify/i },
+      ],
+    },
   ],
 };
 

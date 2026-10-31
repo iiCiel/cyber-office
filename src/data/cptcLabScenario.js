@@ -55,6 +55,16 @@ export const CPTC_LAB = {
       evidence: 'RDP (TCP 3389) reachable from the internet on a server that accepts domain credentials. No MFA, no VPN.',
       businessImpact: 'An internet-facing RDP with domain logon is the most common ransomware entry point in healthcare. One guessed/phished password = an interactive domain foothold.',
       refLikelihood: 'High', refImpact: 'High',
+      remediationRubric: {
+        need: [
+          { label: 'take RDP off the internet (close 3389 at the edge)', re: /(remov|clos|block|disabl|restrict|take)[^.]{0,40}(rdp|3389|remote desktop|internet)|(rdp|3389)[^.]{0,30}(off|behind|not)[^.]{0,20}(internet|exposed|public)/i },
+          { label: 'put remote access behind a VPN / RD Gateway', re: /\bvpn\b|gateway|zero[- ]trust|ztna/i },
+          { label: 'require MFA', re: /\bmfa\b|multi-?factor|two-?factor|\b2fa\b/i },
+        ],
+        wrong: [
+          { label: 'moving RDP to another port is obscurity, not a fix', re: /(chang|mov)[^.]{0,25}port|non-?standard port|different port|high port/i },
+        ],
+      },
       modelRemediation: 'Remove RDP from the internet; require VPN with MFA for remote access. Moving the port or just lengthening the password does not fix the exposure.',
     },
     {
@@ -70,7 +80,18 @@ export const CPTC_LAB = {
       evidence: 'The login form concatenates user input into a SQL query; an assessor-supplied value altered the query and returned data from other tables.',
       businessImpact: 'The portal fronts patient records. Injection here can read or modify the patient database — a reportable PHI breach.',
       refLikelihood: 'High', refImpact: 'High',
-      modelRemediation: 'Use parameterised queries / prepared statements and validate input server-side. A WAF is defence-in-depth, not a fix; blocklisting characters is trivially bypassed.',
+      remediationRubric: {
+        need: [
+          { label: 'parameterised queries / prepared statements', re: /parameteri[sz]ed|prepared statement|bind (variable|parameter)|placeholders/i },
+          { label: 'server-side input validation', re: /validat/i },
+          { label: 'least-privilege database account for the app', re: /least[- ]privilege|(db|database) (account|user)|limited (db|database)/i },
+        ],
+        wrong: [
+          { label: 'a WAF alone is not the fix (only defence-in-depth)', re: /\bwaf\b|web application firewall/i, unless: /defen[cs]e[- ]in[- ]depth|in addition|as well as|not a (fix|substitute)|additional layer/i },
+          { label: 'blocklisting / stripping characters is trivially bypassed', re: /blocklist|blacklist|strip(ping)? (quotes|characters)|escape quotes|filter(ing)? (out )?(quotes|special characters)/i },
+        ],
+      },
+      modelRemediation: 'Use parameterised queries / prepared statements, validate input server-side, and run the app under a least-privilege database account. A WAF is defence-in-depth, not a fix; blocklisting characters is trivially bypassed.',
     },
     {
       id: 'smb-share', title: 'Open file share exposing an HR spreadsheet', system: 'Internal / fileserver 10.20.0.15',
@@ -84,7 +105,18 @@ export const CPTC_LAB = {
       evidence: 'An SMB share is readable by every domain user and contains a spreadsheet of staff salaries and SSNs.',
       businessImpact: 'Any employee or any attacker with any domain foothold can read sensitive HR data. High impact, but needs a foothold or valid account first.',
       refLikelihood: 'Medium', refImpact: 'High',
-      modelRemediation: 'Restrict the share to the HR group and audit access; move the file to a controlled location. A hidden ($) share is still readable; disk encryption is the wrong control.',
+      remediationRubric: {
+        need: [
+          { label: 'restrict the share to the HR group only', re: /(restrict|limit|only)[^.]{0,40}\b(hr|human resources)\b|\bhr\b (group|team|staff) only/i },
+          { label: 'remove Authenticated Users / Everyone read access', re: /authenticated users|everyone|remov[^.]{0,30}(access|permission|read)/i },
+          { label: 'audit who accessed it / move the file to a controlled location', re: /audit|review (the )?(access|permissions)|move (the )?(file|spreadsheet)|access log/i },
+        ],
+        wrong: [
+          { label: 'a hidden ($) share is still readable — hiding is not access control', re: /\bhid(e|den|ing)\b|rename the share/i },
+          { label: 'disk encryption does not stop an authorised domain user reading it', re: /encrypt/i, unless: /not|wrong|does ?n.t/i },
+        ],
+      },
+      modelRemediation: 'Restrict the share to the HR group only, remove the Authenticated Users read permission, and audit access; move the file to a controlled location. A hidden ($) share is still readable; disk encryption is the wrong control.',
     },
     {
       id: 'default-snmp', title: 'Network printers answer to a default SNMP community string', system: 'Internal / printer VLAN',
@@ -97,6 +129,15 @@ export const CPTC_LAB = {
       evidence: 'Office multifunction printers respond to the "public" SNMP community, leaking device config and cached document metadata.',
       businessImpact: 'Information leakage and a possible pivot/recon aid on the internal network. Needs internal access; impact is moderate.',
       refLikelihood: 'Medium', refImpact: 'Medium',
+      remediationRubric: {
+        need: [
+          { label: 'change or disable the default community string (or move to SNMPv3)', re: /(chang|disabl|rotat|remov|replac|turn off)[^.]{0,40}(community|snmp|public)|snmp ?v3/i },
+          { label: 'segment / ACL the printer VLAN', re: /segment|vlan|\bacl\b|restrict[^.]{0,30}(snmp|161|management)/i },
+        ],
+        wrong: [
+          { label: 'replacing the printers is unnecessary — it is a config problem', re: /replac(e|ing) (the |all )?printers|new printers|buy/i },
+        ],
+      },
       modelRemediation: 'Change or disable the SNMP community strings and segment the printer VLAN. Replacing the printers is unnecessary; the configuration is the problem.',
     },
     {
@@ -110,10 +151,32 @@ export const CPTC_LAB = {
       evidence: 'The public brochure site still negotiates TLS 1.0. It hosts no logins and no patient data.',
       businessImpact: 'A dated protocol on a static marketing site. Real but low: no sensitive data flows through it, and exploitation needs a privileged network position.',
       refLikelihood: 'Low', refImpact: 'Low',
+      remediationRubric: {
+        need: [
+          { label: 'disable TLS 1.0 / 1.1', re: /(disabl|turn off|remov|drop|deprecat)[^.]{0,30}tls ?(v)?1\.[01]|tls ?1\.[01][^.]{0,25}(disabl|off|remov)/i },
+          { label: 'serve TLS 1.2+ only', re: /tls ?(v)?1\.[23]/i },
+        ],
+        wrong: [
+          { label: 'rebuilding the site for a config change is out of proportion', re: /rebuild|redesign|rewrite the (site|website)|new (site|website)/i },
+        ],
+      },
       modelRemediation: 'Disable TLS 1.0/1.1; serve TLS 1.2+ only. Rate it honestly as Low and fix it anyway — do not inflate every crypto finding, and do not rebuild the whole site for a config change.',
     },
   ],
 
+  // The executive summary is graded on what a board needs, not on length.
+  execRubric: {
+    need: [
+      { label: 'business risk in plain language (patient data / breach / ransomware)', re: /patient|breach|ransomware|business|reputation|hipaa|regulat/i },
+      { label: 'names the internet-exposed RDP', re: /\brdp\b|remote desktop|remote access/i },
+      { label: 'names the portal SQL injection', re: /\bsql\b|sql injection|sqli/i },
+      { label: 'a timeframe (e.g. within 72 hours)', re: /\b\d+\s*(hours?|days?|weeks?)\b|immediately|this week|within/i },
+      { label: 'the action and the outcome once fixed', re: /(once|after|when)[^.]{0,50}(fix|remediat|closed|done|address)|reduc|lower(s|ed)? the risk|recommend/i },
+    ],
+    wrong: [
+      { label: 'jargon the board cannot act on (ports, CVSS, CVE ids)', re: /cvss|\/tcp\b|port \d{2,5}|cve-\d/i },
+    ],
+  },
   execModel: 'A winning executive summary leads with business risk in plain language (an elevated risk of a patient-data breach), names the two critical issues — internet-exposed RDP and portal SQL injection — quantifies urgency (remediate within 72 hours), and states the outcome once fixed. No ports, CVSS vectors or jargon the board cannot act on; and it does not soft-pedal the critical findings behind reassurance.',
 };
 
