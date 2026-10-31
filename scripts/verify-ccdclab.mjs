@@ -118,6 +118,11 @@ const termText = (page) => page.locator('.eg-out').innerText();
   const { page, errors } = await makePage({ width: 1366, height: 900 });
   await toPlay(page, { guided: false });
   check('competition mode shows a live clock', await page.locator('.cc-clock').count() === 1);
+  // Prove the countdown is actually LIVE: the mm:ss value decreases over a short wait.
+  const t0 = await page.locator('.cc-clock-val').innerText();
+  await page.waitForTimeout(1600);
+  const t1 = await page.locator('.cc-clock-val').innerText();
+  check('the clock is live and ticks DOWN', t0 !== t1 && /^\d+:\d\d$/.test(t1), `${t0} -> ${t1}`);
   // Shorten the deadline so the scene's own timer ends the round, like the real buzzer.
   await page.evaluate(() => { window.__game.scene.getScene('CcdcLab').deadline = Date.now() + 1500; });
   await page.waitForFunction(() => window.__game.scene.getScene('CcdcLab').phase === 'debrief', null, { timeout: 8000 });
