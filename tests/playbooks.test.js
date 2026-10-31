@@ -6,6 +6,7 @@ import { CASES } from '../src/cases/index.js';
 import { PLAYBOOKS } from '../src/cases/playbooks.js';
 
 const realCases = CASES.filter((c) => c.caseFile.kind !== 'lab');
+const labCases = CASES.filter((c) => c.caseFile.kind === 'lab');
 const TID = /^T\d{4}(\.\d{3})?$/;
 // Things an exploit recipe would contain but a kill-chain narrative should not.
 const RECIPE = /(\$\{|<\?php|cmd\.exe|\/bin\/bash -c|base64 -d|curl\s+-s\s+http|powershell -enc|UNION SELECT|; DROP |nc -e)/i;
@@ -16,12 +17,19 @@ test('every real (non-lab) case has an Attacker\'s Playbook', () => {
   }
 });
 
+test('every practice lab also has an Attacker\'s Playbook', () => {
+  for (const c of labCases) {
+    assert.ok(c.caseFile.attackerView, `${c.caseFile.id} (lab) is missing attackerView`);
+  }
+});
+
 test('playbook keys all map to a registered case id', () => {
   const ids = new Set(CASES.map((c) => c.caseFile.id));
   for (const id of Object.keys(PLAYBOOKS)) assert.ok(ids.has(id), `PLAYBOOKS has an unknown case id: ${id}`);
 });
 
-for (const c of realCases) {
+// Well-formedness and tie-to-technique checks apply to every case that carries a playbook — real or lab.
+for (const c of CASES) {
   const cf = c.caseFile;
   const av = cf.attackerView;
   test(`${cf.id}: playbook is well-formed`, () => {
