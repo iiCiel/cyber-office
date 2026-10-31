@@ -17,6 +17,7 @@
 import { run as runBash } from './shell.js';
 import { runPwsh } from './pwsh.js';
 import { evalFirewall, applyFirewallCommand, firewallHelp } from './ccdcFirewall.js';
+import { applyEdit, isEdit } from './ccdcEdit.js';
 import { rng, freshSeed } from './shuffle.js';
 
 export const SERVICE_STATE = { UP: 'up', DOWN: 'down' };
@@ -101,6 +102,9 @@ export function newGame(scenario, opts = {}) {
       cwd: d.cwd || (d.kind === 'pwsh' ? 'C:\\Users\\Administrator' : `/home/${d.user || 'analyst'}`),
       history: [],
       firewall: d.kind === 'firewall' ? { rules: (d.firewall?.rules || []).map((r) => ({ ...r })), default: d.firewall?.default || 'pass' } : null,
+      // A per-game, mutable copy of the box's filesystem so edits (sed -i, echo >>, rm, …) actually change it and
+      // `cat` reflects the change. Starts as a deep copy of the scenario's read-only fs.
+      fs: d.kind === 'bash' && d.ctx?.fs ? JSON.parse(JSON.stringify(d.ctx.fs)) : null,
     };
   }
 
@@ -163,6 +167,20 @@ export function runLine(state, deviceId, rawLine) {
   const lower = line.toLowerCase();
   const findings = state.findingList.filter((f) => f.host === deviceId);
 
+  // A file-editing command (sed -i / echo >> / rm / tee / truncate / nano…) on a Linux box actually changes the
+  // box's own filesystem, so a later `cat` shows the edited result. Apply the change first, then still let the
+  // trap/fix logic below recognise the command (e.g. removing a planted file is both an edit AND the fix).
+  let editLines = null;
+  if (dev.kind === 'bash' && ds.fs && isEdit(line)) {
+    const er = applyEdit(ds.fs, line);
+    if (er.handled) editLines = er.lines;
+  }
+
+  // 0) Rotating the scored account's password? The command is legitimate, but until a PCR is filed the scoring
+  //    engine can no longer authenticate — flag it so the live engine fails that service until the PCR lands.
+  const pcr = state.scenario.pcr;
+  const pcrRotated = pcr && pcr.host === deviceId && matchesAll(pcr.rotateMatch, lower);
+
   // 1) A plausible-but-wrong trap command? (Can drop a scored service.) Traps are checked BEFORE fixes so a
   //    harmful command (e.g. denying 3306 for everyone) can never be mistaken for the scoped fix.
   for (const f of findings) {
@@ -205,13 +223,17 @@ export function runLine(state, deviceId, rawLine) {
     }
   }
 
-  // 3) Everything else: the real inspection engine for this box.
-  const ctx = { ...dev.ctx, cwd: ds.cwd };
+  // 2.5) A file edit that wasn't itself a trap or a fix (e.g. editing a config by hand): report what it did.
+  if (editLines) return { lines: editLines, effects: {} };
+
+  // 3) Everything else: the real inspection engine for this box (reading the box's current, possibly edited, fs).
+  const ctx = { ...dev.ctx, cwd: ds.cwd, fs: ds.fs || dev.ctx?.fs };
   const res = dev.kind === 'pwsh' ? runPwsh(line, ctx) : runBash(line, ctx);
   if (res.cwd) ds.cwd = res.cwd;
   const text = res.out == null ? '' : String(res.out).replace(/\n$/, '');
   const lines = text === '' ? [] : text.split('\n').map((t) => ({ cls: res.error ? 'err' : '', text: t }));
-  return { lines, effects: {} };
+  if (pcrRotated) lines.push({ cls: 'warn', text: `Scored account ${pcr.account} rotated. File the Password Change Request inject, or ${pcr.service} will start failing its scored check.` });
+  return { lines, effects: pcrRotated ? { pcrRotated: true } : {} };
 }
 
 function finishFix(state, f, lines) {
@@ -285,7 +307,8 @@ export function answerInject(state, injectId, text) {
   rec.answer = body;
   rec.done = true;
   rec.grade = gradeInject(i, body);
-  return { ok: true, grade: rec.grade };
+  const isPcr = state.scenario.pcr && state.scenario.pcr.injectId === injectId;
+  return { ok: true, grade: rec.grade, isPcr };
 }
 
 // --- red team ---------------------------------------------------------------
@@ -319,8 +342,10 @@ export function score(state) {
   const servicePts = up.reduce((n, s) => n + (s.points || 0), 0);
   const serviceMax = state.serviceList.reduce((n, s) => n + (s.points || 0), 0);
 
+  // SLA: with the live engine attached, use the violations the scoring engine actually accrued over the round
+  // (consecutive missed checks). Without it (pure unit tests, checklist drills), fall back to the drop counter.
   const slaEach = sc.slaPenalty || 0;
-  const slaCount = services.reduce((n, s) => n + (s.drops || 0), 0);
+  const slaCount = state.engine ? state.engine.slaViolations : services.reduce((n, s) => n + (s.drops || 0), 0);
   const slaPenalty = slaCount * slaEach;
 
   const injectResults = state.injectList.map((i) => {
@@ -331,7 +356,19 @@ export function score(state) {
   const injectPts = injectResults.reduce((n, r) => n + r.points, 0);
   const injectMax = state.injectList.reduce((n, i) => n + (i.points || 0), 0);
 
-  const compromisePenalty = state.compromises.reduce((n, c) => n + c.penalty, 0);
+  // Incident-report mitigation (real CCDC: an accurate, timely report reclaims part of the red team's points).
+  // A compromise whose finding is covered by a submitted, full-marks incident-report inject costs half.
+  const reportedFull = (findingId) => {
+    const f = state.findingList.find((x) => x.id === findingId);
+    const injId = f?.reportableBy;
+    if (!injId) return false;
+    const rec = state.injects[injId];
+    if (!rec?.done) return false;
+    const inj = state.injectList.find((x) => x.id === injId);
+    const g = rec.grade || gradeInject(inj, rec.answer);
+    return g.pts >= g.max;
+  };
+  const compromisePenalty = state.compromises.reduce((n, c) => n + Math.round(c.penalty * (reportedFull(c.id) ? 0.5 : 1)), 0);
 
   const fixed = state.findingList.filter((f) => state.findings[f.id].status === 'fixed').length;
   const raw = servicePts + injectPts - slaPenalty - compromisePenalty;

@@ -10,6 +10,7 @@
 // The `why` lines are the coaching shown in guided mode and always in the debrief.
 
 import { makeDirectory } from '../game/directory.js';
+import { withRecon } from '../game/labCommands.js';
 
 // --- the Active Directory model on dc01 (contains the planted rogue Domain Admin) -------------------------
 const DC_DIR = makeDirectory({
@@ -30,14 +31,10 @@ const DC_DIR = makeDirectory({
   ],
 });
 
-// A couple of inspection-only shell commands per Linux box, so investigating (not just fixing) feels real.
-const bashExtras = (overrides = {}) => ({
-  ufw: (args) => (args[0] === 'status' || !args.length
-    ? 'Status: active\nTo                         Action      From\n--                         ------      ----\n(no rules — default allow inbound)\n'
-    : `ufw: added rule (simulated): ${args.join(' ')}\n`),
-  systemctl: (args) => `${args[1] || 'service'} — active (running) [simulated]\n`,
-  ...overrides,
-});
+// Box-specific inspection commands. The generic inventory commands (ss, systemctl, journalctl, iptables, ufw,
+// last, …) come from labCommands.js via withRecon(); only the per-box specials (wp, crontab, mysql, postconf)
+// are declared here.
+const bashExtras = (overrides = {}) => ({ ...overrides });
 
 export const CCDC_LAB = {
   id: 'cedarline-lab-2026',
@@ -45,6 +42,24 @@ export const CCDC_LAB = {
   tagline: 'A 40-person freight brokerage. You and your team just took over IT at 9:00 AM — no documentation, a lot of bad habits, and a red team already connected.',
   clockSeconds: 900,
   slaPenalty: 15,
+  injectWindow: 300, // default inject deadline (5 min) once released
+
+  // Red team waves across the round (game-seconds elapsed). A wave probes the exploitable findings still open;
+  // a finding probed in one wave and left open becomes a confirmed compromise at the next. Earlier = more time
+  // pressure, exactly like the real event's escalating timeline.
+  redWaves: [
+    { n: 1, at: 180, label: 'external recon + default-credential sweep' },
+    { n: 2, at: 450, label: 'exploiting what is still exposed' },
+    { n: 3, at: 720, label: 'establishing persistence on anything unfixed' },
+  ],
+
+  // Password Change Request: the scoring engine logs into MySQL as ccdc-scorecheck. If you rotate that account's
+  // password at the terminal without filing the PCR (inject 5), the DB check fails until the white team gets the
+  // new credential. Ties a terminal action to an inject — a classic CCDC gotcha.
+  pcr: {
+    account: 'ccdc-scorecheck', host: 'db01', service: 'db01', injectId: 'pcr',
+    rotateMatch: [/alter user/, /ccdc-scorecheck/, /identified by/],
+  },
 
   // Scored services the engine polls from outside the firewall. Keep them UP. `proto`/`ports` drive the
   // firewall evaluation; `host` ties a service to the box it runs on.
@@ -98,6 +113,21 @@ export const CCDC_LAB = {
           ],
         },
       },
+    },
+    {
+      id: 'ws01', name: 'Accounting workstation', host: 'ws01', ip: '10.10.10.50', os: 'Windows 10', role: 'windows', kind: 'pwsh',
+      prompt: 'PS C:\\Users\\accounting>', user: 'accounting', cwd: 'C:\\Users\\accounting',
+      brief: 'The accounting teller PC. A prior intruder registered a scheduled task that re-launches their tooling at every logon. Find it with Get-ScheduledTask and remove it — leave the legitimate Windows tasks (GoogleUpdate, Defrag) alone.',
+      checklist: [
+        'Get-ScheduledTask',
+        'Unregister-ScheduledTask -TaskName SystemCheck -Confirm:$false',
+      ],
+      recon: { tasks: [
+        { TaskPath: '\\', TaskName: 'SystemCheck', State: 'Ready' },
+        { TaskPath: '\\Microsoft\\Windows\\Defrag\\', TaskName: 'ScheduledDefrag', State: 'Ready' },
+        { TaskPath: '\\', TaskName: 'GoogleUpdateTaskMachine', State: 'Ready' },
+      ] },
+      ctx: { dir: DC_DIR, user: 'accounting', host: 'WS01', fs: {}, cwd: 'C:\\Users\\accounting', events: () => [], commands: {} },
     },
     {
       id: 'web01', name: 'Web server', host: 'web01', ip: '10.10.10.20', os: 'Ubuntu 20.04 (Apache + WordPress)', role: 'webdb', kind: 'bash',
@@ -226,7 +256,7 @@ export const CCDC_LAB = {
       ],
     },
     {
-      id: 'web-shell', host: 'web01', title: 'Web shell + root cron left by a prior intrusion', severity: 'High',
+      id: 'web-shell', host: 'web01', title: 'Web shell + root cron left by a prior intrusion', severity: 'High', reportableBy: 'incident-report',
       teach: 'Persistence must be removed AND its trigger closed, or it simply reappears. Remove the file and the cron entry together.',
       exploitable: true, compromise: { impact: 'The cron re-opens the attacker’s access every 10 minutes regardless of your other fixes.', penalty: 45 },
       fix: {
@@ -316,6 +346,19 @@ export const CCDC_LAB = {
         { id: 'reboot', match: [/restart-computer/, [/shutdown/, /\/r|-r/]], drops: ['dc01'], note: 'The DC rebooted mid-round; DNS was down for the whole restart.', output: ['Restarting DC01... DNS will be unavailable until it comes back.'], why: 'A reboot of the DC takes DNS (a scored service) offline for minutes. Disable the protocol with the no-reboot setting instead.' },
       ],
     },
+    {
+      id: 'ws-schtask', host: 'ws01', title: 'Malicious scheduled task on the accounting workstation', severity: 'High',
+      teach: 'A scheduled task is a common persistence spot. Removing it closes a logon-triggered re-entry — but confirm the task is not a legitimate one first.',
+      exploitable: true, compromise: { impact: 'The task re-launches the attacker’s access at every logon and gives a workstation foothold to pivot from.', penalty: 40 },
+      fix: {
+        accept: [[/unregister-scheduledtask|schtasks \/delete/, /systemcheck/]],
+        output: ['Scheduled task "SystemCheck" removed — the logon-triggered persistence is gone.'],
+        why: 'Unregister-ScheduledTask -TaskName SystemCheck removes the planted task. Verify the legitimate tasks (GoogleUpdate, Defrag) are untouched.',
+      },
+      traps: [
+        { id: 'wrong-task', match: [[/unregister-scheduledtask|schtasks \/delete/, /googleupdate|defrag/]], output: ['That removes a legitimate Windows maintenance task, not the planted one.'], why: 'The planted task is SystemCheck. Removing GoogleUpdate/Defrag breaks normal maintenance and leaves the persistence in place.' },
+      ],
+    },
   ],
 
   // Written business injects — the IR / captain seat drafts a deliverable. Each is graded against a rubric (the
@@ -323,7 +366,7 @@ export const CCDC_LAB = {
   // These stay as written tasks (real CCDC injects are written); the core defending is done at the terminals.
   injects: [
     {
-      id: 'inv-memo', title: 'Inject 1 — Asset inventory memo', from: 'Operations Manager', points: 25,
+      id: 'inv-memo', title: 'Inject 1 — Asset inventory memo', from: 'Operations Manager', points: 25, releaseAt: 0,
       prompt: 'Management has no idea what is on the network. Draft an asset inventory (host, IP, OS, role, service) they can hand the auditor by noon.',
       model: 'A table: each host with its IP, OS, role and the service it provides. An auditor can act on it and it is your own map for the round.',
       rubric: [
@@ -334,7 +377,7 @@ export const CCDC_LAB = {
       ],
     },
     {
-      id: 'new-user', title: 'Inject 2 — New hire account (least privilege)', from: 'HR', points: 25,
+      id: 'new-user', title: 'Inject 2 — New hire account (least privilege)', from: 'HR', points: 25, releaseAt: 120,
       prompt: 'A new accounting clerk starts today. Describe exactly how you create their account with the access they need and nothing more.',
       model: 'A standard domain user added only to the Accounting group that owns the shared folder they need — not a Domain Admin, not local admin everywhere.',
       rubric: [
@@ -345,7 +388,7 @@ export const CCDC_LAB = {
       ],
     },
     {
-      id: 'vendor-ftp', title: 'Inject 3 — Vendor file-transfer request', from: 'Vendor (Northgate Logistics)', points: 25,
+      id: 'vendor-ftp', title: 'Inject 3 — Vendor file-transfer request', from: 'Vendor (Northgate Logistics)', points: 25, releaseAt: 300,
       prompt: 'A partner asks you to "open FTP, port 21, to the internet" so they can drop manifest files. Write your response.',
       model: 'Offer SFTP (port 22) to a scoped, dedicated account instead of plaintext FTP open to the world — the secure "yes, but".',
       rubric: [
@@ -357,7 +400,7 @@ export const CCDC_LAB = {
       ],
     },
     {
-      id: 'incident-report', title: 'Inject 4 — Incident report', from: 'CEO', points: 25,
+      id: 'incident-report', title: 'Inject 4 — Incident report', from: 'CEO', points: 25, releaseAt: 420,
       prompt: 'You found a web shell on the web server. Write the incident report the CEO asked for.',
       model: 'Structured: what was found, when, affected systems, actions taken, and a recommendation. Facts and remediation, not blame.',
       rubric: [
@@ -369,7 +412,7 @@ export const CCDC_LAB = {
       ],
     },
     {
-      id: 'pcr', title: 'Inject 5 — Change request for the scored account', from: 'White team (judges)', points: 25,
+      id: 'pcr', title: 'Inject 5 — Change request for the scored account', from: 'White team (judges)', points: 25, releaseAt: 0,
       prompt: 'You must rotate the ccdc-scorecheck password. Submit the required change request so scoring is not interrupted.',
       model: 'A PCR naming the host, account, change, time window, rollback plan, and the new credential handed to the scoring team.',
       rubric: [
@@ -382,5 +425,7 @@ export const CCDC_LAB = {
     },
   ],
 };
+
+withRecon(CCDC_LAB);
 
 export default CCDC_LAB;

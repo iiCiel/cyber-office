@@ -110,7 +110,8 @@ export function makeDirectory(spec) {
     { sam: 'Guest', display: 'Guest', ou: 'Users', desc: 'Built-in account for guest access to the computer/domain', enabled: false, neverExpires: true, noPwd: true, pwdLastSet: '2016-03-04', created: '2016-03-04', builtin: 501, memberOf: [] },
     { sam: 'krbtgt', display: 'krbtgt', ou: 'Users', desc: 'Key Distribution Center Service Account', enabled: false, adminCount: 1, pwdLastSet: spec.krbtgtPwdLastSet || '2019-06-20', created: '2016-03-04', builtin: 502, memberOf: [] },
     ...(spec.users || []),
-  ].map((u) => {
+  ].map((u) => mkUser(u));
+  function mkUser(u) {
     const display = u.display || [u.first, u.last].filter(Boolean).join(' ') || u.sam;
     let uac = UAC.NORMAL_ACCOUNT;
     if (u.enabled === false) uac |= UAC.ACCOUNTDISABLE;
@@ -151,7 +152,7 @@ export function makeDirectory(spec) {
       workstations: u.workstations || '',
       primaryGroupId: 513,
     };
-  });
+  }
 
   const computers = (spec.computers || []).map((c) => {
     const role = c.role || (/^(DC|AD)/i.test(c.name) ? 'Domain Controller' : /^(WS|LT|PC)/i.test(c.name) ? 'Workstation' : 'Server');
@@ -257,6 +258,54 @@ export function makeDirectory(spec) {
     groupMembers,
     effectiveGroups,
     privileged: () => groupMembers('Domain Admins', { recursive: true }) || [],
+    // Mutations for hands-on labs (CCDC): create / delete a user, change group membership. Keeps both
+    // directions of the membership (u.memberOf and g.members) in sync, like the builder above.
+    addUser(spec2) {
+      const u = mkUser(spec2);
+      users.push(u);
+      byKey.set(memberKey(u), u);
+      for (const gname of u.memberOf) {
+        const g = groupByName.get(gname.toLowerCase());
+        if (g && !g.members.some((m) => String(m).toLowerCase() === memberKey(u))) g.members.push(u.sam);
+      }
+      this.all.push(u);
+      return u;
+    },
+    removeUser(sam) {
+      const u = byKey.get(String(sam).toLowerCase());
+      if (!u || u.type !== 'user') return false;
+      for (const g of groups) g.members = g.members.filter((m) => String(m).toLowerCase() !== memberKey(u));
+      users.splice(users.indexOf(u), 1);
+      byKey.delete(memberKey(u));
+      const i = this.all.indexOf(u);
+      if (i >= 0) this.all.splice(i, 1);
+      return true;
+    },
+    addMember(groupName, sam) {
+      const g = groupByName.get(String(groupName).toLowerCase());
+      const o = byKey.get(String(sam).toLowerCase());
+      if (!g || !o) return false;
+      if (!g.members.some((m) => String(m).toLowerCase() === memberKey(o))) g.members.push(o.sam);
+      if (!o.memberOf.some((n) => n.toLowerCase() === g.name.toLowerCase())) o.memberOf.push(g.name);
+      return true;
+    },
+    removeMember(groupName, sam) {
+      const g = groupByName.get(String(groupName).toLowerCase());
+      const o = byKey.get(String(sam).toLowerCase());
+      if (!g || !o) return false;
+      const had = g.members.some((m) => String(m).toLowerCase() === memberKey(o));
+      g.members = g.members.filter((m) => String(m).toLowerCase() !== memberKey(o));
+      o.memberOf = o.memberOf.filter((n) => n.toLowerCase() !== g.name.toLowerCase());
+      return had;
+    },
+    setEnabled(sam, on) {
+      const o = byKey.get(String(sam).toLowerCase());
+      if (!o) return false;
+      o.enabled = !!on;
+      o.uac = on ? o.uac & ~UAC.ACCOUNTDISABLE : o.uac | UAC.ACCOUNTDISABLE;
+      return true;
+    },
+    group: (name) => groupByName.get(String(name).toLowerCase()) || null,
     sidOf: (name) => sidOf(name, domainSid),
   };
 }
