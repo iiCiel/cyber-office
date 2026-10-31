@@ -6,6 +6,7 @@
 // addresses, invented hosts, canned output, nothing executed.
 
 import { makeDirectory } from '../game/directory.js';
+import { withRecon } from '../game/labCommands.js';
 
 // --- the Active Directory model on dc01 --------------------------------------------------------------------
 const DC_DIR = makeDirectory({
@@ -391,5 +392,7 @@ export const CCDC_LAB_2 = {
     },
   ],
 };
+
+withRecon(CCDC_LAB_2);
 
 export default CCDC_LAB_2;

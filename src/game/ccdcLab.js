@@ -17,6 +17,7 @@
 import { run as runBash } from './shell.js';
 import { runPwsh } from './pwsh.js';
 import { evalFirewall, applyFirewallCommand, firewallHelp } from './ccdcFirewall.js';
+import { applyEdit, isEdit } from './ccdcEdit.js';
 import { rng, freshSeed } from './shuffle.js';
 
 export const SERVICE_STATE = { UP: 'up', DOWN: 'down' };
@@ -101,6 +102,9 @@ export function newGame(scenario, opts = {}) {
       cwd: d.cwd || (d.kind === 'pwsh' ? 'C:\\Users\\Administrator' : `/home/${d.user || 'analyst'}`),
       history: [],
       firewall: d.kind === 'firewall' ? { rules: (d.firewall?.rules || []).map((r) => ({ ...r })), default: d.firewall?.default || 'pass' } : null,
+      // A per-game, mutable copy of the box's filesystem so edits (sed -i, echo >>, rm, …) actually change it and
+      // `cat` reflects the change. Starts as a deep copy of the scenario's read-only fs.
+      fs: d.kind === 'bash' && d.ctx?.fs ? JSON.parse(JSON.stringify(d.ctx.fs)) : null,
     };
   }
 
@@ -163,6 +167,15 @@ export function runLine(state, deviceId, rawLine) {
   const lower = line.toLowerCase();
   const findings = state.findingList.filter((f) => f.host === deviceId);
 
+  // A file-editing command (sed -i / echo >> / rm / tee / truncate / nano…) on a Linux box actually changes the
+  // box's own filesystem, so a later `cat` shows the edited result. Apply the change first, then still let the
+  // trap/fix logic below recognise the command (e.g. removing a planted file is both an edit AND the fix).
+  let editLines = null;
+  if (dev.kind === 'bash' && ds.fs && isEdit(line)) {
+    const er = applyEdit(ds.fs, line);
+    if (er.handled) editLines = er.lines;
+  }
+
   // 0) Rotating the scored account's password? The command is legitimate, but until a PCR is filed the scoring
   //    engine can no longer authenticate — flag it so the live engine fails that service until the PCR lands.
   const pcr = state.scenario.pcr;
@@ -210,8 +223,11 @@ export function runLine(state, deviceId, rawLine) {
     }
   }
 
-  // 3) Everything else: the real inspection engine for this box.
-  const ctx = { ...dev.ctx, cwd: ds.cwd };
+  // 2.5) A file edit that wasn't itself a trap or a fix (e.g. editing a config by hand): report what it did.
+  if (editLines) return { lines: editLines, effects: {} };
+
+  // 3) Everything else: the real inspection engine for this box (reading the box's current, possibly edited, fs).
+  const ctx = { ...dev.ctx, cwd: ds.cwd, fs: ds.fs || dev.ctx?.fs };
   const res = dev.kind === 'pwsh' ? runPwsh(line, ctx) : runBash(line, ctx);
   if (res.cwd) ds.cwd = res.cwd;
   const text = res.out == null ? '' : String(res.out).replace(/\n$/, '');

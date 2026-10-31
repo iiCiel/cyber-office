@@ -10,6 +10,7 @@
 // The `why` lines are the coaching shown in guided mode and always in the debrief.
 
 import { makeDirectory } from '../game/directory.js';
+import { withRecon } from '../game/labCommands.js';
 
 // --- the Active Directory model on dc01 (contains the planted rogue Domain Admin) -------------------------
 const DC_DIR = makeDirectory({
@@ -30,14 +31,10 @@ const DC_DIR = makeDirectory({
   ],
 });
 
-// A couple of inspection-only shell commands per Linux box, so investigating (not just fixing) feels real.
-const bashExtras = (overrides = {}) => ({
-  ufw: (args) => (args[0] === 'status' || !args.length
-    ? 'Status: active\nTo                         Action      From\n--                         ------      ----\n(no rules — default allow inbound)\n'
-    : `ufw: added rule (simulated): ${args.join(' ')}\n`),
-  systemctl: (args) => `${args[1] || 'service'} — active (running) [simulated]\n`,
-  ...overrides,
-});
+// Box-specific inspection commands. The generic inventory commands (ss, systemctl, journalctl, iptables, ufw,
+// last, …) come from labCommands.js via withRecon(); only the per-box specials (wp, crontab, mysql, postconf)
+// are declared here.
+const bashExtras = (overrides = {}) => ({ ...overrides });
 
 export const CCDC_LAB = {
   id: 'cedarline-lab-2026',
@@ -116,6 +113,21 @@ export const CCDC_LAB = {
           ],
         },
       },
+    },
+    {
+      id: 'ws01', name: 'Accounting workstation', host: 'ws01', ip: '10.10.10.50', os: 'Windows 10', role: 'windows', kind: 'pwsh',
+      prompt: 'PS C:\\Users\\accounting>', user: 'accounting', cwd: 'C:\\Users\\accounting',
+      brief: 'The accounting teller PC. A prior intruder registered a scheduled task that re-launches their tooling at every logon. Find it with Get-ScheduledTask and remove it — leave the legitimate Windows tasks (GoogleUpdate, Defrag) alone.',
+      checklist: [
+        'Get-ScheduledTask',
+        'Unregister-ScheduledTask -TaskName SystemCheck -Confirm:$false',
+      ],
+      recon: { tasks: [
+        { TaskPath: '\\', TaskName: 'SystemCheck', State: 'Ready' },
+        { TaskPath: '\\Microsoft\\Windows\\Defrag\\', TaskName: 'ScheduledDefrag', State: 'Ready' },
+        { TaskPath: '\\', TaskName: 'GoogleUpdateTaskMachine', State: 'Ready' },
+      ] },
+      ctx: { dir: DC_DIR, user: 'accounting', host: 'WS01', fs: {}, cwd: 'C:\\Users\\accounting', events: () => [], commands: {} },
     },
     {
       id: 'web01', name: 'Web server', host: 'web01', ip: '10.10.10.20', os: 'Ubuntu 20.04 (Apache + WordPress)', role: 'webdb', kind: 'bash',
@@ -334,6 +346,19 @@ export const CCDC_LAB = {
         { id: 'reboot', match: [/restart-computer/, [/shutdown/, /\/r|-r/]], drops: ['dc01'], note: 'The DC rebooted mid-round; DNS was down for the whole restart.', output: ['Restarting DC01... DNS will be unavailable until it comes back.'], why: 'A reboot of the DC takes DNS (a scored service) offline for minutes. Disable the protocol with the no-reboot setting instead.' },
       ],
     },
+    {
+      id: 'ws-schtask', host: 'ws01', title: 'Malicious scheduled task on the accounting workstation', severity: 'High',
+      teach: 'A scheduled task is a common persistence spot. Removing it closes a logon-triggered re-entry — but confirm the task is not a legitimate one first.',
+      exploitable: true, compromise: { impact: 'The task re-launches the attacker’s access at every logon and gives a workstation foothold to pivot from.', penalty: 40 },
+      fix: {
+        accept: [[/unregister-scheduledtask|schtasks \/delete/, /systemcheck/]],
+        output: ['Scheduled task "SystemCheck" removed — the logon-triggered persistence is gone.'],
+        why: 'Unregister-ScheduledTask -TaskName SystemCheck removes the planted task. Verify the legitimate tasks (GoogleUpdate, Defrag) are untouched.',
+      },
+      traps: [
+        { id: 'wrong-task', match: [[/unregister-scheduledtask|schtasks \/delete/, /googleupdate|defrag/]], output: ['That removes a legitimate Windows maintenance task, not the planted one.'], why: 'The planted task is SystemCheck. Removing GoogleUpdate/Defrag breaks normal maintenance and leaves the persistence in place.' },
+      ],
+    },
   ],
 
   // Written business injects — the IR / captain seat drafts a deliverable. Each is graded against a rubric (the
@@ -400,5 +425,7 @@ export const CCDC_LAB = {
     },
   ],
 };
+
+withRecon(CCDC_LAB);
 
 export default CCDC_LAB;

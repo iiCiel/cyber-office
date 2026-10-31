@@ -306,6 +306,8 @@ test('fixing everything leaves no compromises and a strong score', () => {
   runLine(s, 'dc01', 'Disable-ADAccount svc-backup2');
   runLine(s, 'dc01', "Remove-ADGroupMember -Identity 'Domain Admins' -Members svc-backup2 -Confirm:$false");
   runLine(s, 'dc01', 'Set-SmbServerConfiguration -EnableSMB1Protocol $false -Force');
+  // ws01
+  runLine(s, 'ws01', 'Unregister-ScheduledTask -TaskName SystemCheck -Confirm:$false');
   // firewall (allow then deny)
   runLine(s, 'edge-fw', 'del 1');
   for (const r of SCOPED) runLine(s, 'edge-fw', r);
@@ -339,7 +341,7 @@ test('role seats partition the devices and findings', () => {
   assert.equal(net.findingList[0].id, 'firewall-anyany');
 
   const win = newGame(CCDC_LAB, { seed: 1, role: ROLES.WINDOWS });
-  assert.deepEqual(win.findingList.map((f) => f.id).sort(), ['rogue-da', 'smbv1-dc']);
+  assert.deepEqual(win.findingList.map((f) => f.id).sort(), ['rogue-da', 'smbv1-dc', 'ws-schtask']);
   assert.equal(injectsForRole(CCDC_LAB, ROLES.WINDOWS).length, 0, 'technical seats do not carry injects');
   assert.equal(injectsForRole(CCDC_LAB, ROLES.IR).length, CCDC_LAB.injects.length);
 });

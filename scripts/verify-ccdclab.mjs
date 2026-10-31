@@ -133,7 +133,14 @@ const termText = (page) => page.locator('.eg-out').innerText();
   check('firewall: 3306 open "from any" is NOT hardened, and the editor says why', await fixedCount(page) === 7 && /scope it with "from scoring"/.test(await termText(page)), `${await fixedCount(page)} fixed`);
   await typeCmd(page, 'pass tcp to db01 port 3306 from scoring');
   await typeCmd(page, 'del 7');
-  check('all eight findings hardened by typed commands', await fixedCount(page) === 8, `${await fixedCount(page)} fixed`);
+  check('firewall hardened (8 of 9 findings)', await fixedCount(page) === 8, `${await fixedCount(page)} fixed`);
+
+  // --- ws01 Windows workstation: remove the planted scheduled task ---
+  await pickDevice(page, 'Accounting workstation');
+  await typeCmd(page, 'Get-ScheduledTask');
+  check('ws01: Get-ScheduledTask lists the planted SystemCheck task', /SystemCheck/.test(await termText(page)));
+  await typeCmd(page, 'Unregister-ScheduledTask -TaskName SystemCheck -Confirm:$false');
+  check('all nine findings hardened by typed commands', await fixedCount(page) === 9, `${await fixedCount(page)} fixed`);
 
   // --- injects: blank is refused in the UI, then real answers earn full rubric points ---
   await page.locator('.cc-inject[data-inject="pcr"] .cc-inj-submit').click();
@@ -177,9 +184,9 @@ const termText = (page) => page.locator('.eg-out').innerText();
 
 // --- EVERY seat starts through the UI with zero page errors and a usable screen ---
 const SEATS = [
-  { label: 'Whole team', tabs: 5, ir: false },
+  { label: 'Whole team', tabs: 6, ir: false },
   { label: 'Firewall / Network', tabs: 1, ir: false },
-  { label: 'Windows / Active Directory', tabs: 1, ir: false },
+  { label: 'Windows / Active Directory', tabs: 2, ir: false },
   { label: 'Linux / Services', tabs: 1, ir: false },
   { label: 'Web / Database', tabs: 2, ir: false },
   { label: 'Incident Response', tabs: 0, ir: true },
@@ -193,7 +200,7 @@ for (const seat of SEATS) {
   await page.waitForTimeout(300);
   const tabs = await page.locator('.cc-devtab').count();
   if (seat.ir) {
-    const ok = tabs === 0 && await page.locator('.cc-captain').count() === 1 && await page.locator('.cc-inject').count() === 5 && await page.locator('.cc-assets tbody tr').count() === 5;
+    const ok = tabs === 0 && await page.locator('.cc-captain').count() === 1 && await page.locator('.cc-inject').count() === 5 && await page.locator('.cc-assets tbody tr').count() === 6;
     await page.screenshot({ path: `${out}/04-ir-seat-desktop.png`, fullPage: false });
     check(`seat "${seat.label}": injects-only captain desk (asset board + 5 injects, no terminal)`, ok, `${tabs} tabs`);
     // Write one inject from the desk, then end the round and check the debrief renders.
@@ -247,7 +254,7 @@ for (const seat of SEATS) {
   const s = await svc(page);
   const f = await fixedCount(page);
   const sla = await page.evaluate(() => Object.values(window.__game.scene.getScene('CcdcLab').state.services).reduce((n, x) => n + x.drops, 0));
-  check(`ONLY clicking checklist items (${clicked}) reaches 8/8 hardened with all services UP and 0 SLA hits`, f === 8 && Object.values(s).every((v) => v === 'up') && sla === 0, `${f}/8 fixed, ${JSON.stringify(s)}, sla ${sla}`);
+  check(`ONLY clicking checklist items (${clicked}) reaches 9/9 hardened with all services UP and 0 SLA hits`, f === 9 && Object.values(s).every((v) => v === 'up') && sla === 0, `${f}/9 fixed, ${JSON.stringify(s)}, sla ${sla}`);
   check('checklist pass: no console/page errors', errors.length === 0, errors.slice(0, 3).join(' | '));
   await page.close();
 }
