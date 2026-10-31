@@ -136,6 +136,8 @@ export class CcdcLabScene extends Phaser.Scene {
       this.histPos[d.id] = 0;
     }
     this.activeDev = this.state.deviceList[0]?.id || null;
+    this.injDraft = {};
+    this.injErr = {};
     this.deadline = this.state.timeLimitSec ? Date.now() + this.state.timeLimitSec * 1000 : 0;
     this.lastClockText = '';
     this.phase = 'play';
@@ -146,22 +148,26 @@ export class CcdcLabScene extends Phaser.Scene {
   renderPlay() {
     const p = progress(this.state);
     const devices = this.state.deviceList;
-    const dev = devices.find((d) => d.id === this.activeDev) || devices[0];
+    const dev = devices.find((d) => d.id === this.activeDev) || devices[0] || null;
     const injects = this.state.injectList;
+    // The IR / captain seat owns no box: it gets an injects-first workspace with the team's asset board instead
+    // of a device grid (there is no terminal to render).
+    const deskOnly = !dev;
 
     this.root.append(h('div', { class: 'cc-wrap wide' },
       this.header(this.guided ? 'Defend · guided' : 'Defend · competition',
         h('div', { class: 'cc-head-right' }, this.deadline ? this.clockEl() : null, this.serviceBar())),
       h('div', { class: 'cc-progress' },
-        h('span', {}, `Findings hardened: ${p.fixed}/${p.findingsTotal}`),
+        p.findingsTotal ? h('span', {}, `Findings hardened: ${p.fixed}/${p.findingsTotal}`) : null,
         injects.length ? h('span', {}, `Injects submitted: ${p.injectsDone}/${p.injectsTotal}`) : null,
-        h('span', {}, `Services up: ${p.servicesUp}/${p.servicesTotal}`)),
-      h('div', { class: 'cc-devtabs', role: 'tablist' }, devices.map((d) => {
+        p.servicesTotal ? h('span', {}, `Services up: ${p.servicesUp}/${p.servicesTotal}`) : null),
+      deskOnly ? this.captainBoard() : null,
+      deskOnly ? null : h('div', { class: 'cc-devtabs', role: 'tablist' }, devices.map((d) => {
         const openOnBox = this.state.findingList.filter((f) => f.host === d.id && this.state.findings[f.id].status !== 'fixed').length;
         return h('button', { type: 'button', role: 'tab', class: `cc-devtab k-${d.kind}${d.id === dev.id ? ' on' : ''}`, 'aria-selected': d.id === dev.id ? 'true' : 'false', onclick: () => { this.activeDev = d.id; this.render(); } },
           h('b', {}, d.name), h('span', { class: 'cc-devtab-host' }, d.host), openOnBox ? h('span', { class: 'cc-devtab-open' }, `${openOnBox} to fix`) : h('span', { class: 'cc-devtab-done' }, '✓'));
       })),
-      this.devicePanel(dev),
+      deskOnly ? null : this.devicePanel(dev),
       injects.length ? this.injectsPanel(injects) : null,
       h('div', { class: 'cc-foot' },
         h('button', { type: 'button', class: 'cc-go cc-endround', onclick: () => this.endRound() }, 'End the round — run the red team →'),
@@ -169,7 +175,21 @@ export class CcdcLabScene extends Phaser.Scene {
 
     const screen = this.root.querySelector('.eg-out');
     if (screen) screen.scrollTop = screen.scrollHeight;
-    if (this.phase === 'play') setTimeout(() => this.root.querySelector('.eg-input')?.focus(), 0);
+    if (this.phase === 'play' && !deskOnly) setTimeout(() => this.root.querySelector('.eg-input')?.focus(), 0);
+  }
+
+  // The captain's desk: what the IR / captain seat actually works from — the team's asset list (the raw material
+  // for the inventory inject) and the scored services the whole team is defending.
+  captainBoard() {
+    const sc = this.scenario;
+    return h('div', { class: 'cc-panel cc-captain' },
+      h('h2', { class: 'cc-sec-title' }, 'Captain’s desk — no terminal for this seat'),
+      h('p', { class: 'cc-sec-note' }, 'You coordinate and write. Your teammates hold the boxes; you own the injects below. Use this asset board to answer them — the judges grade what you write, item by item.'),
+      h('div', { class: 'cc-asset-scroll' }, h('table', { class: 'cc-assets' },
+        h('thead', {}, h('tr', {}, ['Host', 'IP', 'OS', 'Seat'].map((t) => h('th', {}, t)))),
+        h('tbody', {}, sc.devices.map((d) => h('tr', {},
+          h('td', {}, `${d.name} (${d.host})`), h('td', {}, d.ip), h('td', {}, d.os), h('td', {}, d.role)))))),
+      h('p', { class: 'cc-sec-note' }, `Scored services: ${sc.services.map((x) => `${x.name} on ${x.host}`).join(' · ')}.`));
   }
 
   devicePanel(dev) {
@@ -186,7 +206,8 @@ export class CcdcLabScene extends Phaser.Scene {
       this.guided ? h('div', { class: 'cc-checklist-box' },
         h('div', { class: 'cc-label' }, 'First-15-minutes checklist (click to load a command)'),
         h('ul', { class: 'cc-check' }, (dev.checklist || []).map((c) => h('li', {},
-          h('button', { type: 'button', class: 'cc-check-cmd', onclick: () => { input.value = c.split('  ')[0]; input.focus(); } }, c))))) : h('div', { class: 'cc-checklist-box' }, h('p', { class: 'cc-sec-note' }, 'Competition mode: no checklist. Investigate with real commands, then harden. Type "help".')));
+          // Every checklist item is a real, runnable command: clicking loads exactly that line.
+          h('button', { type: 'button', class: 'cc-check-cmd', onclick: () => { input.value = c; input.focus(); } }, c))))) : h('div', { class: 'cc-checklist-box' }, h('p', { class: 'cc-sec-note' }, 'Competition mode: no checklist. Investigate with real commands, then harden. Type "help".')));
 
     return h('div', { class: 'cc-dev-grid' }, h('div', { class: 'cc-term-wrap' }, h('div', { class: 'cc-kicker' }, `${dev.name} · ${dev.kind === 'pwsh' ? 'PowerShell' : dev.kind === 'firewall' ? 'firewall rule editor' : 'bash'} (simulated)`), term), side);
   }
@@ -235,14 +256,39 @@ export class CcdcLabScene extends Phaser.Scene {
 
   injectCard(i) {
     const rec = this.state.injects[i.id];
-    const ta = h('textarea', { class: 'cc-inj-ta', rows: '3', 'aria-label': i.title, placeholder: 'Write your deliverable…', disabled: rec.done ? '' : undefined }, rec.answer || '');
+    this.injDraft = this.injDraft || {};
+    const ta = h('textarea', { class: 'cc-inj-ta', rows: '4', 'aria-label': i.title, placeholder: 'Write your deliverable…', oninput: (e) => { this.injDraft[i.id] = e.target.value; } }, this.injDraft[i.id] || '');
+    const err = this.injErr?.[i.id];
+    const g = rec.grade;
     return h('li', { class: `cc-inject${rec.done ? ' answered' : ''}`, 'data-inject': i.id },
       h('div', { class: 'cc-inj-head' }, h('span', { class: 'cc-inj-pts' }, `${i.points} pts`), h('span', { class: 'cc-inj-from' }, i.from)),
       h('h3', { class: 'cc-inj-title' }, i.title),
       h('p', { class: 'cc-inj-prompt' }, i.prompt),
       rec.done
-        ? h('div', {}, h('p', { class: 'cc-flash ok' }, '✓ Submitted to the white team.'), this.guided ? h('p', { class: 'cc-inj-model' }, h('b', {}, 'A strong answer: '), i.model) : null)
-        : h('div', {}, ta, h('button', { type: 'button', class: 'cc-inj-submit', onclick: () => { answerInject(this.state, i.id, ta.value); this.sound2?.play('select'); this.render(); } }, 'Submit deliverable')));
+        ? h('div', {},
+          h('p', { class: 'cc-flash ok' }, '✓ Submitted to the white team.'),
+          // Guided mode shows the judge's rubric result straight away; competition mode waits for the debrief.
+          this.guided && g ? this.rubricResult(g) : null,
+          this.guided ? h('p', { class: 'cc-inj-model' }, h('b', {}, 'A strong answer: '), i.model) : null)
+        : h('div', {}, ta,
+          err ? h('p', { class: 'cc-flash bad', role: 'alert' }, err) : null,
+          h('button', { type: 'button', class: 'cc-inj-submit', onclick: () => this.submitInject(i.id, ta.value) }, 'Submit deliverable')));
+  }
+
+  submitInject(id, text) {
+    const r = answerInject(this.state, id, text);
+    this.injErr = this.injErr || {};
+    if (!r.ok) { this.injErr[id] = r.error; this.sound2?.play('error'); this.render(); return; }
+    delete this.injErr[id];
+    this.sound2?.play('select');
+    this.render();
+  }
+
+  rubricResult(g) {
+    return h('div', { class: 'cc-rubric' },
+      h('p', { class: 'cc-rubric-score' }, h('b', {}, `Judge: ${g.pts}/${g.max} pts`), ` — ${g.hits.length}/${g.hits.length + g.missing.length} rubric items`),
+      g.hits.length ? h('ul', { class: 'cc-rubric-list ok' }, g.hits.map((t) => h('li', {}, `✓ ${t}`))) : null,
+      g.missing.length ? h('ul', { class: 'cc-rubric-list bad' }, g.missing.map((t) => h('li', {}, `✗ missing: ${t}`))) : null);
   }
 
   // ---- competition clock ---------------------------------------------------
@@ -294,17 +340,27 @@ export class CcdcLabScene extends Phaser.Scene {
           this.tallyRow('Compromises', g.compromisePenalty ? `−${g.compromisePenalty}` : '0', `${g.compromises.length} breach${g.compromises.length === 1 ? '' : 'es'}`, g.compromisePenalty ? 'bad' : 'ok'),
           h('div', { class: 'cc-tally-row total' }, h('span', {}, 'Total'), h('b', {}, `${g.raw}`), h('span', {}, `of ${g.max} · ${g.pct}%`))),
         h('p', { class: 'cc-verdict' }, this.verdict(g))),
-      h('div', { class: 'cc-panel' },
+      Object.keys(this.state.services).length ? h('div', { class: 'cc-panel' },
         h('h2', {}, 'Scored services at the buzzer'),
         h('ul', { class: 'cc-svc-review' }, Object.values(this.state.services).map((s) =>
           h('li', { class: s.state },
             h('span', { class: `cc-dot ${s.state}`, 'aria-hidden': 'true' }), h('b', {}, s.name),
             h('span', { class: 'cc-svc-verdict' }, s.state === 'up' ? `UP — +${s.points} kept` : `DOWN — ${s.points} lost`),
-            s.drops ? h('span', { class: 'cc-svc-sla' }, `${s.drops} outage${s.drops === 1 ? '' : 's'} · −${s.drops * (this.scenario.slaPenalty || 0)} SLA`) : null)))),
+            s.drops ? h('span', { class: 'cc-svc-sla' }, `${s.drops} outage${s.drops === 1 ? '' : 's'} · −${s.drops * (this.scenario.slaPenalty || 0)} SLA`) : null)))) : null,
       g.compromises.length ? h('div', { class: 'cc-panel cc-breaches' },
         h('h2', {}, 'What the red team got in through'),
         h('ul', {}, g.compromises.map((c) => h('li', {}, h('b', {}, c.title), h('p', {}, c.impact), h('span', { class: 'cc-pen' }, `−${c.penalty}`))))) : null,
-      h('div', { class: 'cc-panel' },
+      g.injectResults.length ? h('div', { class: 'cc-panel cc-inj-review' },
+        h('h2', {}, 'Injects, as the judges graded them'),
+        h('ul', { class: 'cc-review' }, g.injectResults.map((r) => {
+          const inj = this.state.injectList.find((x) => x.id === r.id);
+          return h('li', { class: r.points === r.max ? 'ok' : r.points ? 'warn' : 'bad', 'data-inject-review': r.id },
+            h('div', { class: 'cc-rev-head' }, h('b', {}, r.title), h('span', { class: 'cc-rev-status' }, r.answered ? `${r.points}/${r.max} pts` : 'not submitted · 0 pts')),
+            r.answered && r.missing.length ? h('p', {}, h('b', {}, 'Missing: '), r.missing.join('; ')) : null,
+            r.answered && !r.missing.length ? h('p', {}, 'Every rubric item covered.') : null,
+            h('p', { class: 'cc-fix' }, h('b', {}, 'A strong answer: '), inj.model));
+        }))) : null,
+      this.state.findingList.length ? h('div', { class: 'cc-panel' },
         h('h2', {}, 'Every finding, reviewed'),
         h('ul', { class: 'cc-review' }, this.state.findingList.map((f) => {
           const fixed = this.state.findings[f.id].status === 'fixed';
@@ -314,7 +370,7 @@ export class CcdcLabScene extends Phaser.Scene {
               h('span', { class: `cc-rev-status ${fixed ? 'ok' : 'bad'}` }, fixed ? '✓ hardened' : breached ? '✗ breached' : '✗ left open')),
             h('p', {}, h('b', {}, 'Coach: '), f.teach),
             h('p', { class: 'cc-fix' }, h('b', {}, 'The fix: '), f.fix.why));
-        }))),
+        }))) : null,
       h('div', { class: 'cc-foot' },
         h('button', { type: 'button', class: 'cc-again', onclick: () => this.replay() }, '↻ Run the round again'),
         h('button', { type: 'button', class: 'cc-quit', onclick: () => this.exit() }, 'Done'))));
