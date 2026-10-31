@@ -62,6 +62,7 @@ export class TitleScene extends Phaser.Scene {
     const fresh = CASES.find((c) => c.caseFile.fresh);
     items.push({ label: 'Case Files', key: 'F', sub: fresh ? `New: ${fresh.caseFile.company}, ${fresh.caseFile.when}` : `${CASES.length} real breaches and labs`, name: 'cases-button', run: () => this.toCases() });
     items.push({ label: 'Red team engagement', key: 'R', sub: '5 pentests: external, web SQLi, phishing, AWS cloud, AD', name: 'engage-button', run: () => this.toEngage() });
+    items.push({ label: 'Competitions', key: 'T', sub: 'Train for CCDC (blue team) and CPTC (pentest report)', name: 'comp-button', run: () => this.toComp() });
     items.push({ label: '', key: 'D', name: 'title-difficulty', difficulty: true, run: () => this.cycle() });
     this.buildMenu(x, 290, items);
 
@@ -88,6 +89,7 @@ export class TitleScene extends Phaser.Scene {
       if (k === 'f' || k === 'F') return this.toCases();
       if (k === 'd' || k === 'D') return this.cycle();
       if (k === 'r' || k === 'R') return this.toEngage();
+      if (k === 't' || k === 'T') return this.toComp();
       if (save && (k === 'c' || k === 'C')) return this.go(true);
       if (save && (k === 'n' || k === 'N')) return this.go(false);
     });
@@ -193,6 +195,13 @@ export class TitleScene extends Phaser.Scene {
     this.leaving = true;
     this.game.registry.get('sound')?.play('select');
     this.scene.start('Engage', { returnTo: 'Title' });
+  }
+
+  toComp() {
+    if (this.leaving) return;
+    this.leaving = true;
+    this.game.registry.get('sound')?.play('select');
+    this.scene.start('Competitions', { returnTo: 'Title' });
   }
 
   toCases() {
