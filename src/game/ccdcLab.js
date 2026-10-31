@@ -33,7 +33,7 @@ export const ROLE_INFO = [
   { id: 'all', name: 'Whole team', short: 'All seats', blurb: 'Every device and finding at once — the full company. Best once you know each seat.' },
   { id: 'network', name: 'Firewall / Network', short: 'Network', blurb: 'The edge firewall and the path every scored service crosses. One wrong rule drops the whole team.' },
   { id: 'windows', name: 'Windows / Active Directory', short: 'Windows + AD', blurb: 'The domain controller: rogue admins, legacy protocols, DNS that must stay up.' },
-  { id: 'linux', name: 'Linux / Services', short: 'Linux', blurb: 'The mail server and left-behind backdoors on the Linux boxes.' },
+  { id: 'linux', name: 'Linux / Services', short: 'Linux', blurb: 'The mail server: an open relay and an attacker’s planted SSH key (root login backdoor).' },
   { id: 'webdb', name: 'Web / Database', short: 'Web + DB', blurb: 'The web app and the database behind it: default logins, an exposed DB.' },
   { id: 'ir', name: 'Incident Response / Injects (Captain)', short: 'IR + Captain', blurb: 'The written injects and coordination. Business tasks are worth real points.' },
 ];
@@ -105,7 +105,7 @@ export function newGame(scenario, opts = {}) {
   }
 
   const injectState = {};
-  for (const i of injects) injectState[i.id] = { answer: null, done: false };
+  for (const i of injects) injectState[i.id] = { answer: null, done: false, grade: null };
 
   return {
     scenario, seed, mode, role,
@@ -140,6 +140,8 @@ function restoreService(state, svcId, findingId) {
 
 const matchesAll = (patterns, line) => asList(patterns).every((p) => (p instanceof RegExp ? p.test(line) : line.toLowerCase().includes(String(p).toLowerCase())));
 const matchesAny = (groups, line) => asList(groups).some((g) => matchesAll(g, line));
+// A step may list `reject` patterns: lines that look like the fix but do the wrong thing (deny instead of allow).
+const rejected = (step, line) => asList(step.reject).some((p) => (p instanceof RegExp ? p.test(line) : line.includes(String(p).toLowerCase())));
 
 /**
  * Run one line on a device. Returns { lines:[{cls,text}], effects:{ fixed?, trapId?, dropped:[], restored:[],
@@ -161,27 +163,8 @@ export function runLine(state, deviceId, rawLine) {
   const lower = line.toLowerCase();
   const findings = state.findingList.filter((f) => f.host === deviceId);
 
-  // 1) A correct hardening command for an open finding on this box? A fix is either a single `accept` command
-  //    or a set of `steps` (real hardening is often multi-command; the finding only clears once all are done).
-  for (const f of findings) {
-    const rec = state.findings[f.id];
-    if (rec.status === 'fixed') continue;
-    if (f.fix.steps) {
-      const step = f.fix.steps.find((s) => !rec.steps[s.id] && matchesAll(s.accept, lower));
-      if (step) {
-        rec.steps[step.id] = true;
-        const lines = (step.output || [`✓ ${step.label}`]).map((text) => ({ cls: 'ok', text }));
-        const remaining = f.fix.steps.filter((s) => !rec.steps[s.id]);
-        if (!remaining.length) return finishFix(state, f, lines);
-        lines.push({ cls: 'note', text: `Step done (${f.fix.steps.length - remaining.length}/${f.fix.steps.length}). Still to do: ${remaining.map((s) => s.todo || s.label).join('; ')}` });
-        return { lines, effects: { stepId: step.id } };
-      }
-    } else if (matchesAny(f.fix.accept, lower)) {
-      return finishFix(state, f, (f.fix.output || ['Done.']).map((text) => ({ cls: 'ok', text })));
-    }
-  }
-
-  // 2) A plausible-but-wrong trap command? (Can drop a scored service.)
+  // 1) A plausible-but-wrong trap command? (Can drop a scored service.) Traps are checked BEFORE fixes so a
+  //    harmful command (e.g. denying 3306 for everyone) can never be mistaken for the scoped fix.
   for (const f of findings) {
     const rec = state.findings[f.id];
     for (const t of f.traps) {
@@ -194,6 +177,31 @@ export function runLine(state, deviceId, rawLine) {
         if (dropped.length) lines.push({ cls: 'bad', text: `!! Scored service DOWN: ${dropped.join(', ')} — ${t.note || 'your change broke it.'}` });
         return { lines, effects: { trapId: t.id, dropped, note: t.note, why: t.why } };
       }
+    }
+  }
+
+  // 2) A correct hardening command for an open finding on this box? A fix is either a single `accept` command
+  //    or a set of `steps` (real hardening is often multi-command; the finding only clears once all are done).
+  for (const f of findings) {
+    const rec = state.findings[f.id];
+    if (rec.status === 'fixed') {
+      // Re-running a fix on a hardened box: acknowledge it instead of sending it to the inspection engine.
+      const again = f.fix.steps ? f.fix.steps.some((st) => matchesAll(st.accept, lower) && !rejected(st, lower)) : matchesAny(f.fix.accept, lower);
+      if (again) return { lines: [{ cls: 'note', text: `(already hardened: ${f.title})` }], effects: {} };
+      continue;
+    }
+    if (f.fix.steps) {
+      const step = f.fix.steps.find((s) => !rec.steps[s.id] && matchesAll(s.accept, lower) && !rejected(s, lower));
+      if (step) {
+        rec.steps[step.id] = true;
+        const lines = (step.output || [`✓ ${step.label}`]).map((text) => ({ cls: 'ok', text }));
+        const remaining = f.fix.steps.filter((s) => !rec.steps[s.id]);
+        if (!remaining.length) return finishFix(state, f, lines);
+        lines.push({ cls: 'note', text: `Step done (${f.fix.steps.length - remaining.length}/${f.fix.steps.length}). Still to do: ${remaining.map((s) => s.todo || s.label).join('; ')}` });
+        return { lines, effects: { stepId: step.id } };
+      }
+    } else if (matchesAny(f.fix.accept, lower)) {
+      return finishFix(state, f, (f.fix.output || ['Done.']).map((text) => ({ cls: 'ok', text })));
     }
   }
 
@@ -224,12 +232,13 @@ function runFirewallLine(state, dev, ds, line) {
   const effects = { dropped: [], restored: [] };
   for (const f of state.findingList.filter((ff) => ff.host === dev.id)) {
     const rec = state.findings[f.id];
-    const verdict = evalFirewall(ds.firewall, f.fw, state.serviceList);
+    const verdict = evalFirewall(ds.firewall, f.fw);
     if (verdict.fixed) {
       for (const s of f.fw.scored) if (restoreService(state, s, f.id)) effects.restored.push(s);
       if (rec.status !== 'fixed') { rec.status = 'fixed'; effects.fixed = f.id; effects.why = f.fix.why; lines.push({ cls: 'fix', text: `✓ Hardened: ${f.title}` }); }
     } else {
       if (rec.status === 'fixed') rec.status = 'open';
+      if (ds.firewall.default === 'block' && verdict.open && !verdict.down.length) lines.push({ cls: 'warn', text: `Not hardened yet: ${verdict.open}.` });
       for (const s of verdict.down) if (dropService(state, s, f.id, verdict.note)) effects.dropped.push(s);
       for (const s of f.fw.scored) if (!verdict.down.includes(s)) if (restoreService(state, s, f.id)) effects.restored.push(s);
     }
@@ -239,14 +248,44 @@ function runFirewallLine(state, dev, ds, line) {
 }
 
 // --- injects (written business tasks the IR/captain seat answers) -----------
+// Each inject carries a rubric: the items a white-team judge looks for. A submission is graded per item with
+// partial credit, so a blank box or filler earns nothing and the debrief names what was missing.
+
+export const INJECT_MIN_CHARS = 40;
+
+function countMatches(re, text) {
+  const g = new RegExp(re.source, re.flags.includes('g') ? re.flags : `${re.flags}g`);
+  return new Set((text.match(g) || []).map((m) => m.toLowerCase())).size;
+}
+
+/** Grade one written deliverable against an inject rubric. Returns { pts, max, hits:[label], missing:[label] }. */
+export function gradeInject(inject, text) {
+  const t = String(text || '');
+  const rubric = inject.rubric || [];
+  const hits = [];
+  const missing = [];
+  for (const item of rubric) {
+    const ok = item.min ? countMatches(item.re, t) >= item.min : item.re.test(t);
+    (ok ? hits : missing).push(item.label);
+  }
+  const max = inject.points || 0;
+  const pts = rubric.length ? Math.round((hits.length / rubric.length) * max) : 0;
+  return { pts, max, hits, missing };
+}
 
 export function answerInject(state, injectId, text) {
   const i = state.injectList.find((x) => x.id === injectId);
-  if (!i) return { ok: false };
+  if (!i) return { ok: false, error: 'No such inject.' };
   const rec = state.injects[injectId];
-  rec.answer = text;
+  if (rec.done) return { ok: false, error: 'Already submitted.' };
+  const body = String(text || '').trim();
+  if (body.length < INJECT_MIN_CHARS) {
+    return { ok: false, error: `Too short to submit — the white team needs a real deliverable (at least ${INJECT_MIN_CHARS} characters).` };
+  }
+  rec.answer = body;
   rec.done = true;
-  return { ok: true };
+  rec.grade = gradeInject(i, body);
+  return { ok: true, grade: rec.grade };
 }
 
 // --- red team ---------------------------------------------------------------
@@ -286,8 +325,8 @@ export function score(state) {
 
   const injectResults = state.injectList.map((i) => {
     const rec = state.injects[i.id];
-    const pts = rec.done ? i.points : 0; // injects are free-written; full marks for a submitted deliverable
-    return { id: i.id, title: i.title, answered: rec.done, points: pts, max: i.points };
+    const g = rec.done ? rec.grade || gradeInject(i, rec.answer) : { pts: 0, hits: [], missing: (i.rubric || []).map((r) => r.label) };
+    return { id: i.id, title: i.title, answered: rec.done, points: g.pts, max: i.points, hits: g.hits, missing: g.missing };
   });
   const injectPts = injectResults.reduce((n, r) => n + r.points, 0);
   const injectMax = state.injectList.reduce((n, i) => n + (i.points || 0), 0);
