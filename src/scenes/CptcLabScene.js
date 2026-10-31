@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { VIEW_W, VIEW_H } from '../config.js';
 import { h, clear, placeOnCanvas } from '../ui/dom.js';
 import { CPTC_LAB } from '../data/cptcLabScenario.js';
+import { CPTC_SCENARIOS } from '../data/cptcScenarios.js';
 import {
   newReport, runEnum, discoveredFindings, rate, setExecSummary, toReport, expire, score, progress, recordBest,
   severityFor, LEVELS, MODES, lockFinding, gradeText,
@@ -18,7 +19,8 @@ export class CptcLabScene extends Phaser.Scene {
 
   init(data) {
     this.returnTo = data?.returnTo || 'Title';
-    this.scenario = data?.scenario || CPTC_LAB;
+    this.scenarios = CPTC_SCENARIOS;
+    this.scenario = data?.scenario || this.scenarios[0] || CPTC_LAB;
   }
 
   create() {
@@ -85,6 +87,12 @@ export class CptcLabScene extends Phaser.Scene {
   renderBrief() {
     this.root.append(h('div', { class: 'cx-wrap' },
       this.header('CPTC · Red team · the pentest + the report'),
+      this.scenarios.length > 1 ? h('div', { class: 'cx-panel' },
+        h('h2', {}, 'Pick a client'),
+        h('p', { class: 'cx-lede' }, 'Each client is a different target with its own scope, hosts and findings.'),
+        h('div', { class: 'cc-mode-row' }, this.scenarios.map((sc) =>
+          h('button', { type: 'button', class: `cc-mode-btn${this.scenario.id === sc.id ? ' on' : ''}`, 'aria-pressed': this.scenario.id === sc.id ? 'true' : 'false', onclick: () => { this.scenario = sc; this.render(); } },
+            h('b', {}, sc.client), h('span', {}, sc.engagement))))) : null,
       h('div', { class: 'cx-panel' },
         h('h1', {}, this.scenario.client),
         h('p', { class: 'cx-lede' }, this.scenario.engagement),

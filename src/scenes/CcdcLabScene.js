@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { VIEW_W, VIEW_H } from '../config.js';
 import { h, clear, placeOnCanvas } from '../ui/dom.js';
 import { CCDC_LAB } from '../data/ccdcLabScenario.js';
+import { CCDC_SCENARIOS } from '../data/ccdcScenarios.js';
 import {
   newGame, runLine, answerInject, runRedTeam, expire, score, progress, recordBest,
   rolesFor, devicesForRole, injectsForRole, ROLES, MODES,
@@ -21,7 +22,8 @@ export class CcdcLabScene extends Phaser.Scene {
 
   init(data) {
     this.returnTo = data?.returnTo || 'Title';
-    this.scenario = data?.scenario || CCDC_LAB;
+    this.scenarios = CCDC_SCENARIOS;
+    this.scenario = data?.scenario || this.scenarios[0] || CCDC_LAB;
   }
 
   create() {
@@ -89,6 +91,14 @@ export class CcdcLabScene extends Phaser.Scene {
     const seats = rolesFor(this.scenario);
     this.root.append(h('div', { class: 'cc-wrap' },
       this.header('CCDC · Blue team · hands-on defence'),
+      this.scenarios.length > 1 ? h('div', { class: 'cc-panel cc-mode' },
+        h('h2', {}, 'Pick a company'),
+        h('p', { class: 'cc-sec-note' }, 'Each company is a different network with its own devices, findings and injects.'),
+        h('div', { class: 'cc-roles' }, this.scenarios.map((sc) =>
+          h('button', { type: 'button', class: `cc-role-btn${this.scenario.id === sc.id ? ' on' : ''}`, 'aria-pressed': this.scenario.id === sc.id ? 'true' : 'false', onclick: () => { this.scenario = sc; this.role = ROLES.ALL; this.render(); } },
+            h('b', {}, sc.company),
+            h('span', { class: 'cc-role-boxes' }, `${sc.devices.length} devices · ${sc.findings.length} findings`),
+            h('span', {}, sc.tagline))))) : null,
       h('div', { class: 'cc-panel cc-intro' },
         h('h1', {}, this.scenario.company),
         h('p', { class: 'cc-lede' }, this.scenario.tagline),
