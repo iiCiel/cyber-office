@@ -56,7 +56,9 @@ for (const [tag, viewport] of [['1366', { width: 1366, height: 800 }], ['390', {
   // ---- the round moves on its own: rival scores, red-team waves, injects over time ----
   const snap = () => scene(page, `return { clock: sc.state.engine.clock,
     waves: sc.state.engine.events.filter(e => e.cls === 'red').length, injects: Object.values(sc.state.engine.injectTimers).filter(t => t.released).length };`);
-  const scores = async () => page.evaluate(async () => { const sc = window.__game.scene.getScene('CcdcLab'); const mod = await import('/cyber-office/src/game/ccdcTeams.js'); return mod.standings(sc.state, sc.elapsed()).filter((r) => !r.you).map((r) => Math.round(r.score)); });
+  // Rival scores as the scoring-engine page shows them (works on the built site too, no source imports).
+  const scores = async () => { await openWin(page, 'score'); await page.waitForTimeout(1100);
+    return page.evaluate(() => { const row = [...document.querySelectorAll('.jb-win[data-win="score"] tr')].find((tr) => /Current Score/.test(tr.textContent)); return row ? [...row.querySelectorAll('td')].map((td) => td.textContent.trim()) : []; }); };
   const a = await snap(); const sa = await scores();
   await scene(page, 'sc.startedAt -= 330000;');
   await page.waitForTimeout(1500);
