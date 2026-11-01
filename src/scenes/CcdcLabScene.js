@@ -4,19 +4,32 @@ import { h, clear, placeOnCanvas } from '../ui/dom.js';
 import { CCDC_LAB } from '../data/ccdcLabScenario.js';
 import { CCDC_SCENARIOS } from '../data/ccdcScenarios.js';
 import {
-  newGame, runLine, answerInject, runRedTeam, expire, score, progress, recordBest,
+  newGame, runLine, answerInject, runRedTeam, expire, score, recordBest,
   rolesFor, devicesForRole, injectsForRole, ROLES, MODES,
 } from '../game/ccdcLab.js';
-import {
-  attachEngine, tickTo, scoreboard, notePasswordRotated, notePcrFiled,
-} from '../game/ccdcEngine.js';
+import { attachEngine, tickTo, notePasswordRotated, notePcrFiled } from '../game/ccdcEngine.js';
+import { createSiem } from '../game/siemGen.js';
+import { STORIES as SIEM_STORIES } from '../data/siemStories.js';
+import { liveTeamScore, standings, roster } from '../game/ccdcTeams.js';
+import { JumpBox } from '../ui/ccdc/JumpBox.js';
+import { PuttyApp } from '../ui/ccdc/PuttyApp.js';
+import { SiemApp } from '../ui/ccdc/SiemApp.js';
+import { ScoreboardApp } from '../ui/ccdc/ScoreboardApp.js';
+import { InjectsApp } from '../ui/ccdc/InjectsApp.js';
+import { ChatApp } from '../ui/ccdc/ChatApp.js';
+import { PfSenseApp, pfConsoleBanner } from '../ui/ccdc/PfSenseApp.js';
+import { WinDesktop } from '../ui/ccdc/WinDesktop.js';
+import { PlaybookApp } from '../ui/ccdc/PlaybookApp.js';
 import '../ui/screen.css';
 import '../ui/competitions.css';
+import '../ui/ccdc/ccdcdoc.css';
+import '../ui/ccdc/pfsense.css';
 
-// CCDC hands-on blue-team scene. The player picks a role seat, then moves between the boxes that seat owns —
-// each with its OWN working terminal (bash / PowerShell / firewall rule editor) — and TYPES the admin commands
-// to inspect and harden them. Scored services update live from what they type. No multiple-choice: the only
-// "choices" are the real commands they enter.
+// CCDC as a full simulation. The player logs in to their team's jump box (a Windows 10 workstation) and works
+// the round the way a real team does: PuTTY into the Linux boxes, Remote Desktop into the Windows boxes, the
+// pfSense webConfigurator for the firewall, Splunk over millions of seeded log lines to find how the attacker got
+// in, the scoring engine's scoreboard against the other teams, the inject portal, and the team chat. Every admin
+// action — typed or clicked — goes through the same graded lab engine (runLine).
 export class CcdcLabScene extends Phaser.Scene {
   constructor() { super('CcdcLab'); }
 
@@ -27,19 +40,13 @@ export class CcdcLabScene extends Phaser.Scene {
   }
 
   create() {
-    this.cameras.main.setBackgroundColor('#06100c');
+    this.cameras.main.setBackgroundColor('#000000');
     this.sound2 = this.game.registry.get('sound');
     this.guided = true;
     this.role = ROLES.ALL;
     this.phase = 'brief';
     this.deadline = 0;
-    this.lastClockText = '';
-    this.out = {}; // per-device terminal output buffer: { devId: [{cls,text}] }
-    this.cmdHist = {}; // per-device command history
-    this.histPos = {};
-    this.activeDev = null;
-
-    this.root = h('div', { class: 'screen open ccdc-screen', id: 'ccdclab' });
+    this.root = h('div', { class: 'screen open ccdc-screen ccx', id: 'ccdclab' });
     document.body.append(this.root);
     document.body.classList.add('portrait-ok');
     this.render();
@@ -53,14 +60,16 @@ export class CcdcLabScene extends Phaser.Scene {
     this.events.once('shutdown', () => {
       window.removeEventListener('resize', layout);
       this.scale.off('resize', layout);
+      this.jb?.destroy();
       this.root.remove();
       document.body.classList.remove('portrait-ok');
     });
-    this.input.keyboard.on('keydown-ESC', () => this.exit());
+    // Esc only leaves from the brief/debrief: in the jump box Esc belongs to the apps (menus, dialogs).
+    this.input.keyboard.on('keydown-ESC', () => { if (this.phase !== 'play') this.exit(); });
   }
 
   update() {
-    this.tickClock();
+    this.tick();
     if (!this.layout) return;
     const r = this.game.canvas.getBoundingClientRect();
     const key = `${r.left},${r.top},${r.width},${r.height}`;
@@ -70,401 +79,371 @@ export class CcdcLabScene extends Phaser.Scene {
   exit() { this.deadline = 0; this.sound2?.play('click'); this.scene.start(this.returnTo); }
 
   render() {
+    this.jb?.destroy();
+    this.jb = null;
     clear(this.root);
-    if (this.phase !== this.renderedPhase) { this.root.scrollTop = 0; window.scrollTo(0, 0); }
-    this.renderedPhase = this.phase;
+    this.root.scrollTop = 0;
+    this.root.classList.toggle('ccx-playing', this.phase === 'play');
     if (this.phase === 'brief') this.renderBrief();
     else if (this.phase === 'play') this.renderPlay();
     else this.renderDebrief();
   }
 
-  header(kicker, right) {
-    return h('header', { class: 'cc-head' },
-      h('div', {}, h('div', { class: 'cc-kicker' }, kicker), h('div', { class: 'cc-org' }, this.scenario.company)),
-      right || null);
-  }
-
-  clockLabel() { return `${Math.round((this.scenario.clockSeconds || 0) / 60)}-minute`; }
-
-  // ---- brief: pick a role seat + mode --------------------------------------
+  // ---- brief: the team packet ------------------------------------------------------------------------------
+  // Real CCDC teams get a "team packet" PDF the morning of: the scenario, the topology table, the scored
+  // services and the rules. This is that packet, open in a PDF viewer, with the seat/mode form at the end.
   renderBrief() {
-    const seats = rolesFor(this.scenario);
-    this.root.append(h('div', { class: 'cc-wrap' },
-      this.header('CCDC · Blue team · hands-on defence'),
-      this.scenarios.length > 1 ? h('div', { class: 'cc-panel cc-mode' },
-        h('h2', {}, 'Pick a company'),
-        h('p', { class: 'cc-sec-note' }, 'Each company is a different network with its own devices, findings and injects.'),
-        h('div', { class: 'cc-roles' }, this.scenarios.map((sc) =>
-          h('button', { type: 'button', class: `cc-role-btn${this.scenario.id === sc.id ? ' on' : ''}`, 'aria-pressed': this.scenario.id === sc.id ? 'true' : 'false', onclick: () => { this.scenario = sc; this.role = ROLES.ALL; this.render(); } },
-            h('b', {}, sc.company),
-            h('span', { class: 'cc-role-boxes' }, `${sc.devices.length} devices · ${sc.findings.length} findings`),
-            h('span', {}, sc.tagline))))) : null,
-      h('div', { class: 'cc-panel cc-intro' },
-        h('h1', {}, this.scenario.company),
-        h('p', { class: 'cc-lede' }, this.scenario.tagline),
-        h('p', { class: 'cc-lede' }, 'This is hands-on: you open each box’s own terminal and TYPE the commands to inspect and harden it — bash on the Linux boxes, PowerShell on the domain controller, a pfSense-style rule editor on the firewall. Keep the four scored services UP. A red team probes anything you leave open.'),
-        h('div', { class: 'cc-scored' },
-          h('h2', {}, 'Scored services — keep these UP'),
-          h('ul', { class: 'cc-scored-list' }, this.scenario.services.map((s) =>
-            h('li', {}, h('span', { class: 'cc-svc-proto' }, s.proto.toUpperCase()), h('span', { class: 'cc-svc-name' }, s.name), h('span', { class: 'cc-svc-host' }, `${s.host} · ${s.ip}`)))),
-          h('p', { class: 'cc-score-formula' }, 'Score  =  service uptime  +  injects  −  compromises  −  SLA'))),
-      h('div', { class: 'cc-panel cc-mode' },
-        h('h2', {}, 'Pick your seat'),
-        h('p', { class: 'cc-sec-note' }, 'Real CCDC is a team with specialised roles. Drill one seat, or play the whole team at once.'),
-        h('div', { class: 'cc-roles' }, seats.map((r) =>
-          h('button', { type: 'button', class: `cc-role-btn${this.role === r.id ? ' on' : ''}`, 'aria-pressed': this.role === r.id ? 'true' : 'false', onclick: () => { this.role = r.id; this.render(); } },
-            h('b', {}, r.name),
-            h('span', { class: 'cc-role-boxes' }, this.seatBoxes(r.id)),
-            h('span', {}, r.blurb))))),
-      h('div', { class: 'cc-panel cc-mode' },
-        h('h2', {}, 'How you want to play'),
-        h('div', { class: 'cc-mode-row' },
-          h('button', { type: 'button', class: `cc-mode-btn${this.guided ? ' on' : ''}`, onclick: () => { this.guided = true; this.render(); } },
-            h('b', {}, 'Guided'), h('span', {}, 'The checklist and coaching for every box are shown. Learn the playbook.')),
-          h('button', { type: 'button', class: `cc-mode-btn${this.guided ? '' : ' on'}`, onclick: () => { this.guided = false; this.render(); } },
-            h('b', {}, `Competition · ${this.clockLabel()} clock`), h('span', {}, 'A live countdown. At 0:00 the round ends and the red team runs.')))),
-      h('div', { class: 'cc-foot' },
-        h('button', { type: 'button', class: 'cc-go', onclick: () => this.startRound() }, 'Sit down at the keyboard →'),
-        h('button', { type: 'button', class: 'cc-quit', onclick: () => this.exit() }, 'Back'))));
+    const sc = this.scenario;
+    const seats = rolesFor(sc);
+    const radio = (name, checked, onchange, label, sub) => h('label', { class: `ccx-radio${checked ? ' on' : ''}` },
+      h('input', { type: 'radio', name, checked: checked || null, onchange }), h('span', {}, h('b', {}, label), sub ? h('small', {}, sub) : null));
+    this.root.append(h('div', { class: 'ccx-pdf' },
+      h('div', { class: 'ccx-pdfbar' },
+        h('span', { class: 'ccx-pdf-name' }, `${sc.id}_team-packet.pdf`),
+        h('span', { class: 'ccx-pdf-page' }, '1 / 1'),
+        h('span', { class: 'ccx-pdf-zoom' }, '100%'),
+        h('button', { type: 'button', class: 'ccx-pdf-btn', onclick: () => this.exit() }, 'Close')),
+      h('div', { class: 'ccx-page ccx-doc' },
+        h('div', { class: 'ccx-doc-head' },
+          h('div', {}, h('div', { class: 'ccx-doc-org' }, 'Collegiate Cyber Defense Competition — Practice Round'), h('h1', {}, 'Blue Team Packet')),
+          h('table', { class: 'ccx-doc-meta' }, h('tbody', {},
+            h('tr', {}, h('th', {}, 'Team'), h('td', {}, this.tn())),
+            h('tr', {}, h('th', {}, 'Round'), h('td', {}, `${Math.round((sc.clockSeconds || 900) / 60)} min`)),
+            h('tr', {}, h('th', {}, 'Classification'), h('td', {}, 'Competitor')))))),
+      h('div', { class: 'ccx-page ccx-doc' },
+        h('h2', {}, '1. Scenario'),
+        this.scenarios.length > 1 ? h('div', { class: 'ccx-form-row' }, h('span', { class: 'ccx-form-label' }, 'Company:'),
+          this.scenarios.map((s) => radio('ccx-co', s.id === sc.id, () => { this.scenario = s; this.role = ROLES.ALL; this.render(); }, s.company, `${s.devices.length} hosts · ${s.findings.length} findings`))) : null,
+        h('p', {}, h('b', {}, sc.company), ` — ${sc.tagline}`),
+        h('p', {}, 'Your team has just been hired as the IT staff. The previous administrators left in a hurry and the network has been neglected. Keep the business services running, answer the business tasks (injects) that management sends, and defend the network from the Red Team. Assume the network is already compromised.'),
+        h('h2', {}, '2. Network inventory'),
+        h('table', { class: 'ccx-tbl' },
+          h('thead', {}, h('tr', {}, ['Hostname', 'IP address', 'Operating system', 'Access', 'Seat'].map((t) => h('th', {}, t)))),
+          h('tbody', {}, sc.devices.map((d) => h('tr', {},
+            h('td', {}, d.host), h('td', { class: 'mono' }, d.ip), h('td', {}, d.os),
+            h('td', {}, d.kind === 'pwsh' ? 'RDP (3389)' : d.kind === 'firewall' ? `https://${d.ip}/ · SSH` : 'SSH (22)'), h('td', {}, d.role))))),
+        h('h2', {}, '3. Scored services'),
+        h('p', {}, 'The scoring engine (198.51.100.9) checks each service every 30 seconds. Three failed checks in a row is an SLA violation. Do not change the IP addresses of scored hosts.'),
+        h('table', { class: 'ccx-tbl' },
+          h('thead', {}, h('tr', {}, ['Service', 'Host', 'Port(s)', 'Check', 'Points'].map((t) => h('th', {}, t)))),
+          h('tbody', {}, sc.services.map((s) => h('tr', {},
+            h('td', {}, s.name), h('td', { class: 'mono' }, `${s.host} (${s.ip})`), h('td', { class: 'mono' }, `${s.proto}/${s.ports.join(',')}`), h('td', {}, s.check || ''), h('td', { class: 'num' }, s.points))))),
+        h('h2', {}, '4. Rules of the round'),
+        h('ol', {},
+          h('li', {}, 'Score = service uptime + inject points − SLA violations − Red Team compromises. You are ranked against the other teams live on the scoring engine.'),
+          h('li', {}, 'The Red Team attacks in waves throughout the round. A foothold left open at the next wave becomes a confirmed compromise.'),
+          h('li', {}, 'Injects arrive through the inject portal with deadlines. Late deliverables score zero.'),
+          h('li', {}, 'Changing the password of a scored account without a Password Change Request breaks scoring for that service.'),
+          h('li', {}, 'All team logs are forwarded to Splunk. Use it to find out how the attacker got in.')),
+        h('h2', {}, '5. Your seat and round type'),
+        h('div', { class: 'ccx-form-row ccx-seats' }, h('span', { class: 'ccx-form-label' }, 'Seat:'),
+          seats.map((r) => radio('ccx-seat', this.role === r.id, () => { this.role = r.id; this.render(); }, r.name, this.seatBoxes(r.id)))),
+        h('div', { class: 'ccx-form-row' }, h('span', { class: 'ccx-form-label' }, 'Round:'),
+          radio('ccx-mode', this.guided, () => { this.guided = true; this.render(); }, 'Practice', 'No buzzer. A playbook with every step is on the desktop. Injects have no deadline.'),
+          radio('ccx-mode', !this.guided, () => { this.guided = false; this.render(); }, `Competition · ${Math.round((sc.clockSeconds || 900) / 60)}:00 clock`, 'Live clock, injects with deadlines, no playbook. At 0:00 the round ends.')),
+        h('div', { class: 'ccx-doc-actions' },
+          h('button', { type: 'button', class: 'ccx-btn primary', onclick: () => this.startRound() }, `Log in to TEAM${this.tn()}-WS01`),
+          h('button', { type: 'button', class: 'ccx-btn', onclick: () => this.exit() }, 'Back')))));
   }
+
+  // The team number comes from the scoring engine's seeded roster, so the packet, the jump box and the scoreboard agree.
+  tn() { if (this.seed == null) this.seed = Math.floor(Math.random() * 1e9); return String(roster({ seed: this.seed }).find((t) => t.you).no).padStart(2, '0'); }
 
   seatBoxes(roleId) {
-    const ds = devicesForRole(this.scenario, roleId).map((d) => d.name);
+    const ds = devicesForRole(this.scenario, roleId).map((d) => d.host);
     const inj = injectsForRole(this.scenario, roleId).length;
-    const bits = [...ds];
-    if (inj) bits.push(`${inj} injects`);
-    return bits.join(' · ');
+    return [...ds, inj ? `${inj} injects` : null].filter(Boolean).join(', ');
   }
 
-  // ---- round lifecycle -----------------------------------------------------
+  // ---- round lifecycle -------------------------------------------------------------------------------------
   startRound() {
     this.sound2?.play('select');
-    this.state = newGame(this.scenario, { mode: this.guided ? MODES.GUIDED : MODES.COMPETITION, role: this.role });
-    // Competition mode runs the live scoring engine: periodic service checks, SLA, red-team waves, timed injects.
-    if (!this.guided) attachEngine(this.state);
-    this.lastEventCount = 0;
-    this.out = {};
-    this.cmdHist = {};
-    this.histPos = {};
-    for (const d of this.state.deviceList) {
-      this.out[d.id] = [{ cls: 'sys', text: `Connected to ${d.name} (${d.host} · ${d.ip}) — ${d.os}. Simulated; nothing is executed.` }, { cls: 'sys', text: 'Type "help", or click a checklist step on the right to put it on the command line.' }];
-      this.cmdHist[d.id] = [];
-      this.histPos[d.id] = 0;
+    const sc = this.scenario;
+    this.state = newGame(sc, { seed: this.seed, mode: this.guided ? MODES.GUIDED : MODES.COMPETITION, role: this.role });
+    // Both round types run the live scoring engine (the scoreboard and the other teams need a clock). Practice
+    // has no buzzer and no inject deadlines; ending the round fast-forwards the remaining checks and red-team
+    // waves against the boxes as they are, exactly like competition mode.
+    attachEngine(this.state);
+    if (this.guided) {
+      this.state.timeLimitSec = sc.clockSeconds || 900;
+      for (const t of Object.values(this.state.engine.injectTimers)) { t.released = true; t.releaseAt = 0; t.dueAt = Infinity; }
     }
-    this.activeDev = this.state.deviceList[0]?.id || null;
-    this.injDraft = {};
-    this.injErr = {};
-    this.deadline = this.state.timeLimitSec ? Date.now() + this.state.timeLimitSec * 1000 : 0;
-    this.lastClockText = '';
+    this.siem = createSiem(sc, { seed: this.state.seed });
+    this.story = { hunt: this.siem.hunt || SIEM_STORIES[sc.id]?.hunt || [] };
+    this.huntAnswers = {};
+    this.sessions = {};
+    for (const d of this.state.deviceList) this.sessions[d.id] = { buffer: [], history: [] };
+    this.startedAt = Date.now();
+    this.deadline = this.guided ? 0 : Date.now() + this.state.timeLimitSec * 1000;
+    this.seenEvents = 0;
+    this.lastSec = -1;
     this.phase = 'play';
     this.render();
   }
 
-  // ---- play workspace ------------------------------------------------------
-  renderPlay() {
-    const p = progress(this.state);
-    const devices = this.state.deviceList;
-    const dev = devices.find((d) => d.id === this.activeDev) || devices[0] || null;
-    const injects = this.state.injectList;
-    // The IR / captain seat owns no box: it gets an injects-first workspace with the team's asset board instead
-    // of a device grid (there is no terminal to render).
-    const deskOnly = !dev;
-
-    this.root.append(h('div', { class: 'cc-wrap wide' },
-      this.header(this.guided ? 'Defend · guided' : 'Defend · competition',
-        h('div', { class: 'cc-head-right' }, this.deadline ? this.clockEl() : null, this.serviceBar())),
-      h('div', { class: 'cc-progress' },
-        p.findingsTotal ? h('span', {}, `Findings hardened: ${p.fixed}/${p.findingsTotal}`) : null,
-        injects.length ? h('span', {}, `Injects submitted: ${p.injectsDone}/${p.injectsTotal}`) : null,
-        p.servicesTotal ? h('span', {}, `Services up: ${p.servicesUp}/${p.servicesTotal}`) : null),
-      this.state.engine ? this.liveBoard() : null,
-      deskOnly ? this.captainBoard() : null,
-      deskOnly ? null : h('div', { class: 'cc-devtabs', role: 'tablist' }, devices.map((d) => {
-        const openOnBox = this.state.findingList.filter((f) => f.host === d.id && this.state.findings[f.id].status !== 'fixed').length;
-        return h('button', { type: 'button', role: 'tab', class: `cc-devtab k-${d.kind}${d.id === dev.id ? ' on' : ''}`, 'aria-selected': d.id === dev.id ? 'true' : 'false', onclick: () => { this.activeDev = d.id; this.render(); } },
-          h('b', {}, d.name), h('span', { class: 'cc-devtab-host' }, d.host), openOnBox ? h('span', { class: 'cc-devtab-open' }, `${openOnBox} to fix`) : h('span', { class: 'cc-devtab-done' }, '✓'));
-      })),
-      deskOnly ? null : this.devicePanel(dev),
-      injects.length ? this.injectsPanel(injects) : null,
-      h('div', { class: 'cc-foot' },
-        h('button', { type: 'button', class: 'cc-go cc-endround', onclick: () => this.endRound() }, 'End the round — run the red team →'),
-        h('button', { type: 'button', class: 'cc-quit', onclick: () => this.exit() }, 'Quit'))));
-
-    const screen = this.root.querySelector('.eg-out');
-    if (screen) screen.scrollTop = screen.scrollHeight;
-    if (this.phase === 'play' && !deskOnly) setTimeout(() => this.root.querySelector('.eg-input')?.focus(), 0);
+  elapsed() {
+    if (!this.state) return 0;
+    const sec = Math.floor((Date.now() - this.startedAt) / 1000);
+    return this.guided ? Math.min(sec, Math.max(0, this.state.timeLimitSec - 1)) : Math.min(sec, this.state.timeLimitSec);
   }
 
-  // Live scoring board + event feed — the competition HUD. Shows the scoring engine's per-service uptime %, the
-  // SLA count it has accrued, red-team activity, and a running feed of waves / SLA hits / inject releases.
-  liveBoard() {
-    const sb = scoreboard(this.state);
-    if (!sb) return null;
-    const feed = sb.events.slice(-6).reverse();
-    return h('div', { class: 'cc-panel cc-live' },
-      h('div', { class: 'cc-live-grid' },
-        h('div', { class: 'cc-live-stats' },
-          h('div', { class: 'cc-live-stat' }, h('b', {}, sb.uptimePoints), h('span', {}, 'uptime points')),
-          h('div', { class: `cc-live-stat${sb.slaViolations ? ' bad' : ''}` }, h('b', {}, sb.slaViolations), h('span', {}, 'SLA violations')),
-          h('div', { class: `cc-live-stat${sb.probes ? ' warn' : ''}` }, h('b', {}, sb.probes), h('span', {}, 'red-team footholds')),
-          h('div', { class: `cc-live-stat${sb.compromised ? ' bad' : ''}` }, h('b', {}, sb.compromised), h('span', {}, 'compromised')),
-          sb.pcr && sb.pcr.breaking ? h('div', { class: 'cc-live-stat bad' }, h('b', {}, 'PCR'), h('span', {}, 'file it! scoring broken')) : null),
-        h('div', { class: 'cc-live-uptime' }, sb.rows.map((r) =>
-          h('div', { class: `cc-up-row ${r.up ? 'up' : 'down'}` },
-            h('span', { class: 'cc-up-name' }, r.name.replace(/ \(.*\)$/, '')),
-            h('span', { class: 'cc-up-bar', 'aria-hidden': 'true' }, h('i', { style: `width:${r.uptime}%` })),
-            h('span', { class: 'cc-up-pct' }, `${r.uptime}%`),
-            r.violations ? h('span', { class: 'cc-up-sla' }, `${r.violations}×SLA`) : null)))),
-      h('div', { class: 'cc-feed', role: 'log', 'aria-label': 'Live competition feed' },
-        feed.length ? feed.map((e) => h('div', { class: `cc-feed-line ${e.cls}` }, h('span', { class: 'cc-feed-t' }, this.fmtClock2(e.at)), e.text))
-          : h('div', { class: 'cc-feed-line note' }, 'Scoring engine running. Checks every 30s. Red team probes on a timer — harden fast.')));
+  // One graded line on a device, from any window (PuTTY, PowerShell, ADUC click, pfSense form, playbook).
+  run(devId, line) {
+    let res;
+    try { res = runLine(this.state, devId, line); } catch (err) { res = { lines: [{ cls: 'err', text: `${err?.message || 'error'}` }], effects: {} }; }
+    const e = res.effects || {};
+    if (this.guided && e.why) res.lines = [...res.lines, { cls: 'note', text: `Coach: ${e.why}` }];
+    if (e.pcrRotated) notePasswordRotated(this.state);
+    if ((e.dropped && e.dropped.length) || e.trapId) this.jb?.toast({ app: 'Scoring Engine', title: 'Service check failing', text: `${(e.dropped || []).join(', ') || 'a service'} stopped answering after that change.`, cls: 'bad', open: 'score' });
+    this.sound2?.play(e.fixed ? 'select' : (e.dropped && e.dropped.length) || e.trapId ? 'error' : 'click');
+    return res;
   }
 
-  fmtClock2(sec) { return `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`; }
-
-  // The captain's desk: what the IR / captain seat actually works from — the team's asset list (the raw material
-  // for the inventory inject) and the scored services the whole team is defending.
-  captainBoard() {
+  windows() {
+    const st = this.state;
     const sc = this.scenario;
-    return h('div', { class: 'cc-panel cc-captain' },
-      h('h2', { class: 'cc-sec-title' }, 'Captain’s desk — no terminal for this seat'),
-      h('p', { class: 'cc-sec-note' }, 'You coordinate and write. Your teammates hold the boxes; you own the injects below. Use this asset board to answer them — the judges grade what you write, item by item.'),
-      h('div', { class: 'cc-asset-scroll' }, h('table', { class: 'cc-assets' },
-        h('thead', {}, h('tr', {}, ['Host', 'IP', 'OS', 'Seat'].map((t) => h('th', {}, t)))),
-        h('tbody', {}, sc.devices.map((d) => h('tr', {},
-          h('td', {}, `${d.name} (${d.host})`), h('td', { class: 'nw' }, d.ip), h('td', {}, d.os), h('td', { class: 'nw' }, d.role)))))),
-      h('p', { class: 'cc-sec-note' }, `Scored services: ${sc.services.map((x) => `${x.name} on ${x.host}`).join(' · ')}.`));
+    const wins = [];
+    const fw = st.deviceList.find((d) => d.kind === 'firewall');
+    wins.push({ id: 'score', kind: 'browser', icon: 'score', pinned: true, desktop: 'Scoring Engine', title: 'Scoring Engine', short: 'Scoreboard', tabLabel: 'Overview · Scoring Engine', url: 'https://scoring.ccdc.local/overview',
+      create: () => new ScoreboardApp({ state: st, clock: () => this.elapsed() }) });
+    if (st.injectList.length) {
+      wins.push({ id: 'injects', kind: 'browser', icon: 'inject', pinned: true, desktop: 'Inject Portal', title: 'Inject Portal', short: 'Injects', tabLabel: `Injects · Team ${this.tn()}`, url: `https://injects.ccdc.local/team/${this.tn()}`,
+        badge: () => (this.jb?.app('injects')?.unreadCount?.() ?? this.unreleasedUnread()),
+        create: () => new InjectsApp({ state: st, guided: this.guided, clock: () => this.elapsed(), onSubmit: (id, text) => this.submitInject(id, text) }) });
+    }
+    wins.push({ id: 'siem', kind: 'browser', icon: 'splunk', pinned: true, desktop: 'Splunk', title: 'Splunk', short: 'Splunk', tabLabel: 'Search | Splunk 9.2.1', url: `https://siem.${sc.id.split('-')[0]}.local:8000/en-US/app/search/search`,
+      create: () => new SiemApp({ siem: this.siem, hunt: this.story?.hunt || [], clock: () => this.elapsed(), onHuntAnswer: (qid, text) => this.huntAnswer(qid, text) }) });
+    if (fw) {
+      wins.push({ id: 'pf', kind: 'browser', icon: 'pf', pinned: true, desktop: 'pfSense', title: `${fw.host} - pfSense`, short: 'pfSense', tabLabel: `${fw.host}.localdomain - Firewall: Rules: WAN`, url: `https://${fw.ip}/firewall_rules.php?if=wan`,
+        create: () => new PfSenseApp({ state: st, dev: fw, clock: () => this.elapsed(), run: (l) => this.run(fw.id, l) }) });
+      wins.push({ id: `ssh-${fw.id}`, kind: 'putty', icon: 'putty', title: `${fw.ip} - PuTTY`, short: `${fw.host} (SSH)`,
+        create: () => new PuttyApp({ dev: fw, session: this.sessions[fw.id], banner: pfConsoleBanner(fw), run: (l) => this.run(fw.id, l) }) });
+    }
+    for (const d of st.deviceList) {
+      if (d.kind === 'bash') {
+        wins.push({ id: `ssh-${d.id}`, kind: 'putty', icon: 'putty', pinned: true, title: `${d.user || 'analyst'}@${d.host}: ~`, short: d.host,
+          create: () => new PuttyApp({ dev: d, session: this.sessions[d.id], run: (l) => this.run(d.id, l) }) });
+      } else if (d.kind === 'pwsh') {
+        wins.push({ id: `rdp-${d.id}`, kind: 'rdp', icon: 'rdp', pinned: true, title: `${d.host} - ${d.ip} - Remote Desktop Connection`, short: d.host,
+          create: () => new WinDesktop({ state: st, dev: d, clock: () => this.elapsed(), termBuffer: this.sessions[d.id].buffer, termHistory: this.sessions[d.id].history, run: (l) => this.run(d.id, l) }) });
+      }
+    }
+    wins.push({ id: 'chat', kind: 'app', icon: 'chat', pinned: true, title: `Discord — #general — CCDC Team ${this.tn()}`, short: 'Discord',
+      badge: () => this.jb?.app('chat')?.unreadCount?.() || 0,
+      create: () => new ChatApp({ state: st, clock: () => this.elapsed() }) });
+    if (this.guided) {
+      wins.push({ id: 'playbook', kind: 'app', icon: 'folder', pinned: true, desktop: 'playbook.txt', title: 'playbook.txt - Notepad', short: 'Playbook',
+        create: () => new PlaybookApp({ state: st, onPick: (dev, line) => this.loadCommand(dev, line) }) });
+    }
+    return wins;
   }
 
-  devicePanel(dev) {
-    const out = this.out[dev.id] || [];
-    const input = h('input', { class: 'eg-input', type: 'text', 'aria-label': `Command for ${dev.name}`, spellcheck: 'false', autocomplete: 'off', autocapitalize: 'off', onkeydown: (e) => this.termKey(e, dev.id) });
-    const screen = h('div', { class: 'eg-out', role: 'log', 'aria-live': 'polite', 'aria-label': `${dev.name} terminal output` },
-      out.map((l) => h('div', { class: `eg-line ${l.cls || ''}` }, l.text)));
-    const term = h('div', { class: 'eg-term', onclick: (e) => { if (!e.target.closest('button')) input.focus(); } },
-      screen,
-      h('div', { class: 'eg-cmdline' }, h('span', { class: 'eg-prompt' }, dev.prompt || `${dev.user || 'analyst'}@${dev.host}:~$`), input));
+  unreleasedUnread() { return 0; }
 
-    const side = h('aside', { class: 'cc-dev-side' },
-      h('div', { class: 'cc-dev-brief' }, h('b', {}, `${dev.name} — ${dev.os}`), h('p', {}, dev.brief)),
-      this.guided ? h('div', { class: 'cc-checklist-box' },
-        h('div', { class: 'cc-label' }, 'First-15-minutes checklist (click to load a command)'),
-        h('ul', { class: 'cc-check' }, (dev.checklist || []).map((c) => h('li', {},
-          // Every checklist item is a real, runnable command: clicking loads exactly that line.
-          h('button', { type: 'button', class: 'cc-check-cmd', onclick: () => { input.value = c; input.focus(); } }, c))))) : h('div', { class: 'cc-checklist-box' }, h('p', { class: 'cc-sec-note' }, 'Competition mode: no checklist. Investigate with real commands, then harden. Type "help".')));
-
-    return h('div', { class: 'cc-dev-grid' }, h('div', { class: 'cc-term-wrap' }, h('div', { class: 'cc-kicker' }, `${dev.name} · ${dev.kind === 'pwsh' ? 'PowerShell' : dev.kind === 'firewall' ? 'firewall rule editor' : 'bash'} (simulated)`), term), side);
+  // Playbook click: open the device's own window and put the command on its command line.
+  loadCommand(dev, line) {
+    if (dev.kind === 'bash' || dev.kind === 'firewall') {
+      const s = this.sessions[dev.id];
+      if (dev.kind === 'firewall') s.shell = true;
+      const app = this.jb.open(`ssh-${dev.id}`);
+      if (dev.kind === 'firewall') { app.inMenu = false; }
+      app.setInput?.(line);
+    } else {
+      const app = this.jb.open(`rdp-${dev.id}`);
+      const w = app.openApp?.('ps');
+      setTimeout(() => w?.app?.tv?.setInput(line), 0);
+    }
   }
 
-  termKey(e, devId) {
-    e.stopPropagation();
-    const input = e.currentTarget;
-    const hist = this.cmdHist[devId];
-    if (e.key === 'Enter') { e.preventDefault(); this.exec(devId, input.value); }
-    else if (e.key === 'ArrowUp' && hist.length) { e.preventDefault(); this.histPos[devId] = Math.max(0, this.histPos[devId] - 1); input.value = hist[this.histPos[devId]] || ''; }
-    else if (e.key === 'ArrowDown' && hist.length) { e.preventDefault(); this.histPos[devId] = Math.min(hist.length, this.histPos[devId] + 1); input.value = hist[this.histPos[devId]] || ''; }
-    else if (e.key === 'Escape') input.blur();
+  renderPlay() {
+    this.jb = new JumpBox({
+      hostname: `TEAM${this.tn()}-WS01 (Administrator)`,
+      windows: this.windows(),
+      tray: () => this.trayInfo(),
+      onEnd: () => this.endRound(),
+      onQuit: () => this.exit(),
+    });
+    this.root.append(this.jb.el);
+    // Start where a real team starts: the scoreboard open, the first box behind it.
+    const first = this.state.deviceList[0];
+    if (first) this.jb.open(first.kind === 'pwsh' ? `rdp-${first.id}` : first.kind === 'firewall' ? 'pf' : `ssh-${first.id}`);
+    this.jb.open('score');
+    if (this.guided) this.jb.open('playbook');
+    this.jb.toast({ app: 'Discord', title: 'Captain', text: this.guided ? 'Practice round. Playbook is on the desktop. Scoreboard is live.' : 'Clock is running. Check the scoreboard, then get on your boxes.', open: 'chat' });
   }
 
-  exec(devId, text) {
-    const dev = this.state.deviceList.find((d) => d.id === devId);
-    const prompt = dev.prompt || `${dev.user || 'analyst'}@${dev.host}:~$`;
-    const buf = this.out[devId];
-    if (text.trim()) { this.cmdHist[devId].push(text.trim()); this.histPos[devId] = this.cmdHist[devId].length; }
-    const res = runLine(this.state, devId, text);
-    if (res.effects.clear) { this.out[devId] = []; this.render(); return; }
-    buf.push({ cls: 'cmd', text: `${prompt} ${text}` });
-    for (const l of res.lines) buf.push(l);
-    // Guided mode: after a fix or a trap, show the coaching line so grading is learnable.
-    if (this.guided && res.effects.why) buf.push({ cls: 'note', text: `Coach: ${res.effects.why}` });
-    const e = res.effects;
-    if (e.pcrRotated && this.state.engine) notePasswordRotated(this.state);
-    this.sound2?.play(e.fixed ? 'select' : (e.dropped && e.dropped.length) || e.trapId ? 'error' : e.stepId ? 'select' : 'click');
-    this.render();
+  trayInfo() {
+    const st = this.state;
+    if (!st?.engine) return {};
+    let rank = '';
+    let pts = '';
+    try {
+      const rows = standings(st, this.elapsed());
+      const me = rows.find((r) => r.you);
+      rank = me ? `${me.rank}/${rows.length}` : '';
+      pts = Math.round(liveTeamScore(st)).toLocaleString('en-US');
+    } catch { /* teams sim optional */ }
+    const left = this.guided ? null : Math.max(0, this.deadline - Date.now());
+    const fmt = (ms) => { const t = Math.ceil(ms / 1000); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
+    return { rank, score: pts, time: this.guided ? 'Practice' : 'Time left', clock: this.guided ? fmt(this.elapsed() * 1000) : fmt(left), low: !this.guided && left <= 120000 };
   }
 
-  serviceBar() {
-    const services = Object.values(this.state.services);
-    return h('div', { class: 'cc-svcbar', 'aria-label': 'Scored service status' }, services.map((s) =>
-      h('span', { class: `cc-svc-pill ${s.state}` },
-        h('i', { class: 'cc-dot', 'aria-hidden': 'true' }), h('b', {}, s.name.replace(/ \(.*\)$/, '')),
-        h('span', { class: 'cc-svc-state' }, s.state === 'up' ? 'UP' : 'DOWN'))));
+  tick() {
+    if (this.phase !== 'play' || !this.state) return;
+    const sec = this.elapsed();
+    if (sec === this.lastSec) return;
+    this.lastSec = sec;
+    tickTo(this.state, sec);
+    this.siem?.liveAt?.(sec);
+    this.drainEvents();
+    if (!this.guided && Date.now() >= this.deadline) { this.deadline = 0; expire(this.state); this.timedOut = true; this.finishRound(); return; }
+    this.jb?.refresh();
   }
 
-  // ---- injects (free-written deliverables) ---------------------------------
-  injectsPanel(injects) {
-    const eng = this.state.engine;
-    // Competition mode: injects arrive over time (like the real portal). Only show what has been released; the
-    // rest appear with a "pending" note so the player knows more is coming.
-    const released = eng ? injects.filter((i) => eng.injectTimers[i.id].released) : injects;
-    const pending = eng ? injects.length - released.length : 0;
-    return h('div', { class: 'cc-panel' },
-      h('h2', { class: 'cc-sec-title' }, 'Management injects (IR / captain)'),
-      h('p', { class: 'cc-sec-note' }, eng
-        ? 'Injects arrive from the white team over the round, each with a deadline. A late deliverable scores zero.'
-        : 'Written business tasks from the white team. Draft each deliverable and submit it — worth real points.'),
-      h('ul', { class: 'cc-injects' }, released.map((i) => this.injectCard(i))),
-      pending ? h('p', { class: 'cc-sec-note cc-inj-pending' }, `${pending} more inject${pending === 1 ? '' : 's'} still to arrive this round.`) : null);
-  }
-
-  injectDeadline(i) {
-    const eng = this.state.engine;
-    if (!eng) return null;
-    const t = eng.injectTimers[i.id];
-    if (this.state.injects[i.id].done) return null;
-    const left = Math.round(t.dueAt - eng.clock);
-    if (t.overdue || left < 0) return h('span', { class: 'cc-inj-due bad' }, 'OVERDUE · scores 0');
-    return h('span', { class: `cc-inj-due${left <= 60 ? ' bad' : ''}` }, `due in ${this.fmtClock2(left)}`);
-  }
-
-  injectCard(i) {
-    const rec = this.state.injects[i.id];
-    this.injDraft = this.injDraft || {};
-    const ta = h('textarea', { class: 'cc-inj-ta', rows: '4', 'aria-label': i.title, placeholder: 'Write your deliverable…', oninput: (e) => { this.injDraft[i.id] = e.target.value; } }, this.injDraft[i.id] || '');
-    const err = this.injErr?.[i.id];
-    const g = rec.grade;
-    return h('li', { class: `cc-inject${rec.done ? ' answered' : ''}`, 'data-inject': i.id },
-      h('div', { class: 'cc-inj-head' }, h('span', { class: 'cc-inj-pts' }, `${i.points} pts`), h('span', { class: 'cc-inj-from' }, i.from), this.injectDeadline(i)),
-      h('h3', { class: 'cc-inj-title' }, i.title),
-      h('p', { class: 'cc-inj-prompt' }, i.prompt),
-      rec.done
-        ? h('div', {},
-          h('p', { class: 'cc-flash ok' }, '✓ Submitted to the white team.'),
-          // Guided mode shows the judge's rubric result straight away; competition mode waits for the debrief.
-          this.guided && g ? this.rubricResult(g) : null,
-          this.guided ? h('p', { class: 'cc-inj-model' }, h('b', {}, 'A strong answer: '), i.model) : null)
-        : h('div', {}, ta,
-          err ? h('p', { class: 'cc-flash bad', role: 'alert' }, err) : null,
-          h('button', { type: 'button', class: 'cc-inj-submit', onclick: () => this.submitInject(i.id, ta.value) }, 'Submit deliverable')));
+  // New engine events become what a real team would notice: toasts, Splunk lines for red-team activity.
+  drainEvents() {
+    const evs = this.state.engine.events;
+    for (; this.seenEvents < evs.length; this.seenEvents++) {
+      const e = evs[this.seenEvents];
+      if (e.cls === 'inject') this.jb?.toast({ app: 'Inject Portal', title: 'New inject released', text: e.text, open: 'injects' });
+      else if (e.cls === 'bad' && /SLA/.test(e.text)) this.jb?.toast({ app: 'Scoring Engine', title: 'SLA violation', text: e.text, cls: 'bad', open: 'score' });
+      else if (e.cls === 'bad' && /Compromise/.test(e.text)) this.jb?.toast({ app: 'Discord', title: 'Linux lead', text: 'Something is very wrong on one of our boxes — check Splunk.', cls: 'bad', open: 'siem' });
+      else if (e.cls === 'red') this.jb?.toast({ app: 'Splunk', title: 'Alert: spike in authentication failures', text: 'Inbound attack traffic is rising. Search the last 15 minutes.', cls: 'warn', open: 'siem' });
+    }
+    // Feed every probe/compromise into the SIEM so the red team's work is findable in the logs.
+    const probes = this.state.engine.probes;
+    this.fedProbes = this.fedProbes || {};
+    for (const [fid, outcome] of Object.entries(probes)) {
+      if (this.fedProbes[fid] === outcome) continue;
+      this.fedProbes[fid] = outcome;
+      try { this.siem?.onWave?.(fid, this.state.engine.clock, outcome); } catch (err) { console.error(err); }
+    }
   }
 
   submitInject(id, text) {
     const r = answerInject(this.state, id, text);
-    this.injErr = this.injErr || {};
-    if (!r.ok) { this.injErr[id] = r.error; this.sound2?.play('error'); this.render(); return; }
-    delete this.injErr[id];
-    if (r.isPcr && this.state.engine) notePcrFiled(this.state);
-    this.sound2?.play('select');
-    this.render();
+    if (r.ok && r.isPcr) notePcrFiled(this.state);
+    this.sound2?.play(r.ok ? 'select' : 'error');
+    return { ...r, grade: this.state.injects[id]?.grade, late: this.state.injects[id]?.late };
   }
 
-  rubricResult(g) {
-    return h('div', { class: 'cc-rubric' },
-      h('p', { class: 'cc-rubric-score' }, h('b', {}, `Judge: ${g.pts}/${g.max} pts`), ` — ${g.hits.length}/${g.hits.length + g.missing.length} rubric items`),
-      g.hits.length ? h('ul', { class: 'cc-rubric-list ok' }, g.hits.map((t) => h('li', {}, `✓ ${t}`))) : null,
-      g.missing.length ? h('ul', { class: 'cc-rubric-list bad' }, g.missing.map((t) => h('li', {}, `✗ missing: ${t}`))) : null);
+  huntAnswer(qid, text) {
+    const q = (this.story?.hunt || []).find((x) => x.id === qid);
+    if (!q) return { ok: false, msg: 'Unknown question.' };
+    const ok = (Array.isArray(q.accept) ? q.accept : [q.accept]).some((re) => re.test(String(text || '').trim()));
+    this.huntAnswers[qid] = { text, ok };
+    this.sound2?.play(ok ? 'select' : 'error');
+    return { ok, msg: ok ? 'Correct — logged to your incident timeline.' : 'Not what the logs show. Keep digging.' };
   }
 
-  // ---- competition clock ---------------------------------------------------
-  remainingMs() { return this.deadline ? Math.max(0, this.deadline - Date.now()) : 0; }
-  fmtClock(ms) { const t = Math.ceil(ms / 1000); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; }
-
-  clockEl() {
-    const ms = this.remainingMs();
-    return h('div', { class: `cc-clock${ms <= 120000 ? ' low' : ''}`, role: 'timer', 'aria-label': 'Time left in the round' },
-      h('span', { class: 'cc-clock-label' }, 'Time left'), h('b', { class: 'cc-clock-val' }, this.fmtClock(ms)));
-  }
-
-  tickClock() {
-    if (!this.deadline || this.phase !== 'play') return;
-    const ms = this.remainingMs();
-    // Drive the live scoring engine from the elapsed clock (service checks, SLA, red-team waves, inject timers).
-    if (this.state?.engine) {
-      const elapsed = Math.floor((this.state.timeLimitSec * 1000 - ms) / 1000);
-      tickTo(this.state, elapsed);
-      // A new live event (red-team wave, SLA hit, inject released) → re-render the HUD and feed.
-      if (this.state.engine.events.length !== this.lastEventCount) { this.lastEventCount = this.state.engine.events.length; this.render(); }
-    }
-    if (ms <= 0) { this.deadline = 0; expire(this.state); this.timedOut = true; this.finishRound(); return; }
-    const text = this.fmtClock(ms);
-    if (text === this.lastClockText) return;
-    this.lastClockText = text;
-    const el = this.root?.querySelector('.cc-clock');
-    if (el) { el.querySelector('.cc-clock-val').textContent = text; el.classList.toggle('low', ms <= 120000); }
+  huntScore() {
+    const qs = this.story?.hunt || [];
+    const per = 10;
+    const got = qs.filter((q) => this.huntAnswers?.[q.id]?.ok).length;
+    return { got, total: qs.length, pts: got * per, max: qs.length * per };
   }
 
   endRound() { this.deadline = 0; runRedTeam(this.state); this.finishRound(); }
 
   finishRound() {
     this.grade = score(this.state);
+    this.hunt = this.huntScore();
+    try { this.finalStandings = standings(this.state, this.state.timeLimitSec); } catch { this.finalStandings = null; }
     recordBest(this.scenario.id, this.grade);
     this.sound2?.play(this.grade.letter === 'A' || this.grade.letter === 'B' ? 'select' : 'error');
     this.phase = 'debrief';
     this.render();
   }
 
-  // ---- debrief -------------------------------------------------------------
+  // ---- debrief: the after-action report -------------------------------------------------------------------
   renderDebrief() {
     const g = this.grade;
+    const st = this.state;
     const compromised = new Set(g.compromises.map((c) => c.id));
-    this.root.append(h('div', { class: 'cc-wrap' },
-      h('header', { class: 'cc-head' },
-        h('div', {}, h('div', { class: 'cc-kicker' }, `Round over · ${this.scenario.company}`), h('div', { class: 'cc-org' }, 'Red team has run')),
-        h('div', { class: `cc-grade g${g.letter}` }, g.letter)),
-      h('div', { class: 'cc-panel cc-scorecard' },
-        h('h1', {}, 'Scorecard'),
-        this.timedOut ? h('p', { class: 'cc-timeout' }, '⏱ Time ran out. Whatever was still open when the clock hit 0:00 is what the red team walked through.') : null,
-        h('div', { class: 'cc-tally' },
-          g.serviceMax ? this.tallyRow('Service uptime', `+${g.servicePts}`, `of ${g.serviceMax}`, 'ok') : null,
-          g.injectMax ? this.tallyRow('Injects', `+${g.injectPts}`, `of ${g.injectMax} · graded item by item`, g.injectPts >= g.injectMax * 0.8 ? 'ok' : 'bad') : null,
-          g.serviceMax ? this.tallyRow('SLA violations', g.slaPenalty ? `−${g.slaPenalty}` : '0', `${g.slaCount} outage${g.slaCount === 1 ? '' : 's'} you caused`, g.slaPenalty ? 'bad' : 'ok') : null,
-          g.findingsTotal ? this.tallyRow('Compromises', g.compromisePenalty ? `−${g.compromisePenalty}` : '0', `${g.compromises.length} breach${g.compromises.length === 1 ? '' : 'es'}`, g.compromisePenalty ? 'bad' : 'ok') : null,
-          h('div', { class: 'cc-tally-row total' }, h('span', {}, 'Total'), h('b', {}, `${g.raw}`), h('span', {}, `of ${g.max} · ${g.pct}%`))),
-        h('p', { class: 'cc-verdict' }, this.verdict(g))),
-      Object.keys(this.state.services).length ? h('div', { class: 'cc-panel' },
-        h('h2', {}, 'Scored services at the buzzer'),
-        h('ul', { class: 'cc-svc-review' }, Object.values(this.state.services).map((s) =>
-          h('li', { class: s.state },
-            h('span', { class: `cc-dot ${s.state}`, 'aria-hidden': 'true' }), h('b', {}, s.name),
-            h('span', { class: 'cc-svc-verdict' }, s.state === 'up' ? `UP — +${s.points} kept` : `DOWN — ${s.points} lost`),
-            s.drops ? h('span', { class: 'cc-svc-sla' }, `${s.drops} outage${s.drops === 1 ? '' : 's'} · −${s.drops * (this.scenario.slaPenalty || 0)} SLA`) : null)))) : null,
-      g.compromises.length ? h('div', { class: 'cc-panel cc-breaches' },
-        h('h2', {}, 'What the red team got in through'),
-        h('ul', {}, g.compromises.map((c) => h('li', {}, h('b', {}, c.title), h('p', {}, c.impact), h('span', { class: 'cc-pen' }, `−${c.penalty}`))))) : null,
-      g.injectResults.length ? h('div', { class: 'cc-panel cc-inj-review' },
-        h('h2', {}, 'Injects, as the judges graded them'),
-        h('ul', { class: 'cc-review' }, g.injectResults.map((r) => {
-          const inj = this.state.injectList.find((x) => x.id === r.id);
-          return h('li', { class: r.points === r.max ? 'ok' : r.points ? 'warn' : 'bad', 'data-inject-review': r.id },
-            h('div', { class: 'cc-rev-head' }, h('b', {}, r.title), h('span', { class: 'cc-rev-status' }, r.answered ? `${r.points}/${r.max} pts` : 'not submitted · 0 pts')),
-            r.answered && r.missing.length ? h('p', {}, h('b', {}, 'Missing: '), r.missing.join('; ')) : null,
-            r.answered && !r.missing.length ? h('p', {}, 'Every rubric item covered.') : null,
-            h('p', { class: 'cc-fix' }, h('b', {}, 'A strong answer: '), inj.model));
-        }))) : null,
-      this.state.findingList.length ? h('div', { class: 'cc-panel' },
-        h('h2', {}, 'Every finding, reviewed'),
-        h('ul', { class: 'cc-review' }, this.state.findingList.map((f) => {
-          const fixed = this.state.findings[f.id].status === 'fixed';
-          const breached = compromised.has(f.id);
-          return h('li', { class: fixed ? 'ok' : breached ? 'bad' : 'warn' },
-            h('div', { class: 'cc-rev-head' }, h('span', { class: `cc-sev s-${f.severity.toLowerCase()}` }, f.severity), h('b', {}, `${f.host}: ${f.title}`),
-              h('span', { class: `cc-rev-status ${fixed ? 'ok' : 'bad'}` }, fixed ? '✓ hardened' : breached ? '✗ breached' : '✗ left open')),
-            h('p', {}, h('b', {}, 'Coach: '), f.teach),
-            h('p', { class: 'cc-fix' }, h('b', {}, 'The fix: '), f.fix.why));
-        }))) : null,
-      this.state.engine && this.state.engine.events.length ? h('div', { class: 'cc-panel cc-timeline' },
-        h('h2', {}, 'Round timeline (how the scoring engine and red team saw it)'),
-        h('ul', { class: 'cc-tl' }, this.state.engine.events.map((e) =>
-          h('li', { class: e.cls }, h('span', { class: 'cc-tl-t' }, this.fmtClock2(e.at)), h('span', {}, e.text))))) : null,
-      h('div', { class: 'cc-foot' },
-        h('button', { type: 'button', class: 'cc-again', onclick: () => this.replay() }, '↻ Run the round again'),
-        h('button', { type: 'button', class: 'cc-quit', onclick: () => this.exit() }, 'Done'))));
+    const me = this.finalStandings?.find((r) => r.you);
+    const row = (cells, cls) => h('tr', { class: cls || '' }, cells.map((c) => h('td', {}, c)));
+    this.root.append(h('div', { class: 'ccx-pdf' },
+      h('div', { class: 'ccx-pdfbar' },
+        h('span', { class: 'ccx-pdf-name' }, `team${this.tn()}_after-action_${this.scenario.id}.pdf`),
+        h('span', { class: 'ccx-pdf-zoom' }, '100%'),
+        h('button', { type: 'button', class: 'ccx-pdf-btn', onclick: () => this.exit() }, 'Close')),
+      h('div', { class: 'ccx-page ccx-doc ccx-aar' },
+        h('div', { class: 'ccx-doc-head' },
+          h('div', {}, h('div', { class: 'ccx-doc-org' }, `${this.scenario.company} · Team ${this.tn()} · White Team scoring`), h('h1', {}, 'After-Action Report')),
+          h('div', { class: `ccx-grade g${g.letter}` }, g.letter)),
+        this.timedOut ? h('p', { class: 'ccx-note' }, 'Time expired. Whatever was still open at 0:00 is what the Red Team walked through.') : null,
+        me ? h('p', { class: 'ccx-rank' }, `Final standing: ${me.rank} of ${this.finalStandings.length} teams.`) : null,
+        h('h2', {}, '1. Score summary'),
+        h('table', { class: 'ccx-tbl ccx-tally' },
+          h('thead', {}, h('tr', {}, ['Category', 'Points', 'Detail'].map((t) => h('th', {}, t)))),
+          h('tbody', {},
+            g.serviceMax ? row(['Service uptime', `+${g.servicePts}`, `of ${g.serviceMax}, earned check by check`]) : null,
+            g.injectMax ? row(['Injects', `+${g.injectPts}`, `of ${g.injectMax}, graded against the rubric`]) : null,
+            g.serviceMax ? row(['SLA violations', g.slaPenalty ? `−${g.slaPenalty}` : '0', `${g.slaCount} SLA violation(s): 3 missed checks in a row each`], g.slaPenalty ? 'bad' : '') : null,
+            g.findingsTotal ? row(['Red Team compromises', g.compromisePenalty ? `−${g.compromisePenalty}` : '0', `${g.compromises.length} breach(es)`], g.compromisePenalty ? 'bad' : '') : null,
+            this.hunt.total ? row(['Threat hunt (Splunk)', `${this.hunt.got}/${this.hunt.total}`, `questions answered from the logs (${this.hunt.pts}/${this.hunt.max} bonus, not in the letter grade)`]) : null,
+            h('tr', { class: 'total' }, h('td', {}, 'Total'), h('td', {}, String(g.raw)), h('td', {}, `of ${g.max} · ${g.pct}%`)))),
+        h('p', {}, this.verdict(g)),
+        this.finalStandings ? h('div', {}, h('h2', {}, '2. Final standings'),
+          h('table', { class: 'ccx-tbl' },
+            h('thead', {}, h('tr', {}, ['Rank', 'Team', 'Score', 'Uptime', 'SLA'].map((t) => h('th', {}, t)))),
+            h('tbody', {}, this.finalStandings.map((r) => h('tr', { class: r.you ? 'you' : '' },
+              h('td', { class: 'num' }, r.rank), h('td', {}, r.team), h('td', { class: 'num' }, Math.round(r.score).toLocaleString('en-US')), h('td', { class: 'num' }, `${r.uptimePct ?? ''}%`), h('td', { class: 'num' }, r.sla ?? '')))))) : null,
+        Object.keys(st.services).length ? h('div', {}, h('h2', {}, '3. Scored services'),
+          h('table', { class: 'ccx-tbl' },
+            h('thead', {}, h('tr', {}, ['Service', 'At the buzzer', 'Uptime', 'Points'].map((t) => h('th', {}, t)))),
+            h('tbody', {}, Object.values(st.services).map((s) => {
+              const b = g.serviceBreakdown?.find((x) => x.id === s.id);
+              const c = st.engine?.checks?.[s.id];
+              const tot = c ? c.ok + c.fail : 0;
+              return h('tr', { class: s.state === 'up' ? '' : 'bad' }, h('td', {}, s.name), h('td', {}, s.state === 'up' ? 'UP' : 'DOWN'),
+                h('td', { class: 'num' }, tot ? `${Math.round((c.ok / tot) * 100)}%` : '—'), h('td', { class: 'num' }, b ? `${b.earned} / ${b.max}` : ''));
+            })))) : null,
+        g.compromises.length ? h('div', {}, h('h2', {}, '4. Red Team compromises'),
+          h('table', { class: 'ccx-tbl' },
+            h('thead', {}, h('tr', {}, ['Finding', 'Impact', 'Penalty'].map((t) => h('th', {}, t)))),
+            h('tbody', {}, g.compromises.map((c) => h('tr', { class: 'bad' }, h('td', {}, c.title), h('td', {}, c.impact + (c.halved ? ' (halved: covered by an on-time incident report)' : '')), h('td', { class: 'num' }, `−${c.charged ?? c.penalty}`)))))) : null,
+        g.injectResults.length ? h('div', {}, h('h2', {}, '5. Injects as the judges graded them'),
+          g.injectResults.map((r) => {
+            const inj = st.injectList.find((x) => x.id === r.id);
+            return h('div', { class: 'ccx-inj', 'data-inject-review': r.id },
+              h('h3', {}, `${r.title} — ${r.late ? `late · 0/${r.max} pts` : r.answered ? `${r.points}/${r.max} pts` : 'not submitted · 0 pts'}`),
+              r.late ? h('p', { class: 'cc-inj-late' }, 'Submitted after the deadline — a late deliverable scores 0, however good it is.') : null,
+              r.answered && r.missing.length ? h('p', {}, h('b', {}, 'Missing: '), r.missing.join('; ')) : null,
+              h('p', { class: 'ccx-model' }, h('b', {}, 'A strong answer: '), inj.model));
+          })) : null,
+        this.story?.hunt?.length ? h('div', {}, h('h2', {}, '6. How the attacker got in (from the logs)'),
+          h('table', { class: 'ccx-tbl' },
+            h('thead', {}, h('tr', {}, ['Question', 'Your answer', 'Explanation'].map((t) => h('th', {}, t)))),
+            h('tbody', {}, this.story.hunt.map((q) => {
+              const a = this.huntAnswers[q.id];
+              return h('tr', { class: a?.ok ? '' : 'bad' }, h('td', {}, q.q || q.question), h('td', { class: 'mono' }, a ? `${a.text} ${a.ok ? '✓' : '✗'}` : '—'), h('td', {}, q.explain || ''));
+            })))) : null,
+        st.findingList.length ? h('div', {}, h('h2', {}, '7. Every finding, reviewed'),
+          h('table', { class: 'ccx-tbl ccx-findings' },
+            h('thead', {}, h('tr', {}, ['Sev', 'Host', 'Finding', 'Result', 'The fix'].map((t) => h('th', {}, t)))),
+            h('tbody', {}, st.findingList.map((f) => {
+              const fixed = st.findings[f.id].status === 'fixed';
+              const breached = compromised.has(f.id);
+              return h('tr', { class: fixed ? '' : 'bad' }, h('td', {}, h('span', { class: `cc-sev s-${f.severity.toLowerCase()}` }, f.severity)), h('td', { class: 'mono' }, f.host), h('td', {}, f.title, h('div', { class: 'ccx-small' }, f.teach)),
+                h('td', {}, fixed ? 'Hardened' : breached ? 'Breached' : 'Left open'), h('td', {}, f.fix.why));
+            })))) : null,
+        st.engine?.events?.length ? h('div', {}, h('h2', {}, '8. Round timeline'),
+          h('table', { class: 'ccx-tbl ccx-timeline' }, h('tbody', {}, st.engine.events.map((e) => h('tr', { class: e.cls }, h('td', { class: 'mono' }, this.fmt(e.at)), h('td', {}, e.text)))))) : null,
+        h('div', { class: 'ccx-doc-actions' },
+          h('button', { type: 'button', class: 'ccx-btn primary', onclick: () => this.replay() }, 'Run the round again'),
+          h('button', { type: 'button', class: 'ccx-btn', onclick: () => this.exit() }, 'Done')))));
   }
 
-  tallyRow(label, value, sub, tone) {
-    return h('div', { class: `cc-tally-row ${tone}` }, h('span', {}, label), h('b', {}, value), h('span', { class: 'cc-tally-sub' }, sub));
-  }
+  fmt(sec) { return `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`; }
 
   verdict(g) {
-    if (!g.findingsTotal) {
-      if (g.pct >= 90) return 'Captain-grade write-ups: every inject hit what the judges look for.';
-      return 'Injects are graded item by item. Read what each one was missing below, then write them again.';
-    }
-    if (g.pct >= 90) return 'Competition-ready. You hardened the boxes at the keyboard and kept the services serving — a winning round.';
-    if (g.pct >= 75) return 'Strong round. Re-check the finding you left open or the service you dropped; those are the points to the top of the scoreboard.';
-    if (g.pct >= 60) return 'A real first attempt. The red team got in somewhere, or you knocked a service over. Read the reviews and run it again.';
-    return 'Rough round — exactly why you practise. Work the checklist in order, and watch the scored-service bar before every risky command.';
+    if (!g.findingsTotal) return g.pct >= 90 ? 'Captain-grade write-ups: every inject hit what the judges look for.' : 'Injects are graded item by item. Read what each one was missing below, then write them again.';
+    if (g.pct >= 90) return 'Competition-ready. You hardened the boxes and kept the services serving.';
+    if (g.pct >= 75) return 'Strong round. The finding you left open or the service you dropped is the gap to first place.';
+    if (g.pct >= 60) return 'A real first attempt. The Red Team got in somewhere, or a service went down. Read the review and run it again.';
+    return 'Rough round — exactly why teams practise. Work the boxes in order and watch the scoreboard after every risky change.';
   }
 
-  replay() { this.sound2?.play('click'); this.phase = 'brief'; this.render(); }
+  replay() { this.sound2?.play('click'); this.phase = 'brief'; this.state = null; this.seed = null; this.render(); }
 }

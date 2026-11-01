@@ -66,6 +66,12 @@ export function notePasswordRotated(state) {
   const eng = state.engine;
   if (!eng?.pcr || eng.pcr.rotated) return;
   eng.pcr.rotated = true;
+  // PCR filed FIRST (the right order in a real round): the white team already holds the new credential, so the
+  // rotation is pre-approved and scoring never breaks.
+  if (eng.pcr.filed) {
+    log(eng, 'ok', `Scored account ${eng.pcr.account} rotated under the PCR you already filed — the scoring engine has the new credential; ${eng.pcr.service} keeps passing.`);
+    return;
+  }
   eng.pcr.breaking = true;
   log(eng, 'warn', `Scored account ${eng.pcr.account} rotated. The scoring engine can no longer authenticate — file the PCR (inject) or ${eng.pcr.service} checks will fail.`);
 }
@@ -165,6 +171,21 @@ function runWave(state, wave) {
       }
     }
   }
+}
+
+/**
+ * The buzzer: the red team fires one last wave (anything it already has a foothold in and you never closed is
+ * confirmed), then returns every confirmed compromise. This is what the end-of-round scorer charges — so fixing
+ * a box between waves really does keep it off the list.
+ */
+export function finalSweep(state) {
+  const eng = state.engine;
+  if (!eng) return [];
+  if (!eng.finalFired) {
+    eng.finalFired = true;
+    runWave(state, { n: 'final', label: 'final sweep at the buzzer' });
+  }
+  return liveCompromises(state);
 }
 
 /** Findings the red team has confirmed as compromised during the round (used by the end-of-round scorer). */

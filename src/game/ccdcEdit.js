@@ -15,7 +15,38 @@
 //
 // Pure logic over a plain { '/path': 'contents' } map; unit tested. Nothing is executed.
 
-import { tokenize } from './shell.js';
+import { tokenize, splitPipes, run as runShell } from './shell.js';
+
+// Resolve a path against the terminal's current directory (so `cd /etc/ssh; sed -i … sshd_config` works).
+function resolvePath(cwd, p) {
+  if (!p) return p;
+  const parts = (p.startsWith('/') ? p : `${cwd || '/'}/${p}`).split('/');
+  const stack = [];
+  for (const part of parts) {
+    if (!part || part === '.') continue;
+    if (part === '..') stack.pop();
+    else stack.push(part);
+  }
+  return `/${stack.join('/')}`;
+}
+
+// tokenize() throws on an unmatched quote; a real shell prints an error instead. Never let it escape.
+function safeTokens(line) {
+  try { return { toks: tokenize(line) }; } catch { return { error: "bash: unexpected EOF while looking for matching quote" }; }
+}
+
+// The output of the left side of a pipe: echo/printf are evaluated here; anything else runs on the inspection shell.
+function pipeInput(left, ctx) {
+  const t = safeTokens(left);
+  if (t.error) return { error: t.error };
+  const [c, ...rest] = t.toks;
+  if (c === 'echo') return { data: `${rest.filter((x) => x !== '-e' && x !== '-n').map(unq).join(' ')}\n` };
+  if (c === 'printf') return { data: unq(rest[0] || '') };
+  if (!ctx) return { data: '' };
+  const r = runShell(left, ctx);
+  if (r.error) return { error: String(r.out || '').replace(/\n$/, '') };
+  return { data: r.out == null ? '' : String(r.out) };
+}
 
 const isDir = (fs, p) => fs[p] === undefined && Object.keys(fs).some((k) => k.startsWith(`${p}/`));
 
@@ -66,17 +97,30 @@ function applySed(script, text) {
  * If `rawLine` is a file-editing command, apply it to `fs` (mutating it) and return { handled:true, lines, error? }.
  * Otherwise returns { handled:false } so the caller falls through to the read-only inspection engine.
  */
-export function applyEdit(fs, rawLine, { stdin } = {}) {
-  const line = String(rawLine || '').trim();
-  const toks = tokenize(line);
-  const cmd = toks[0];
+export function applyEdit(fs, rawLine, { stdin, cwd, ctx } = {}) {
+  let line = String(rawLine || '').trim();
   const out = (text, error = false) => ({ handled: true, lines: text ? [{ cls: error ? 'err' : 'ok', text }] : [], error });
+  const P = (p) => resolvePath(cwd || ctx?.cwd || '/', p);
+
+  // `LEFT | tee [-a] FILE`: run the left side for stdin, then tee it into the file.
+  const pipes = splitPipes(line);
+  if (pipes.length > 1 && /^tee\b/.test(pipes[pipes.length - 1])) {
+    const pin = pipeInput(pipes.slice(0, -1).join(' | '), ctx);
+    if (pin.error) return out(pin.error, true);
+    stdin = pin.data;
+    line = pipes[pipes.length - 1];
+  }
+
+  const tk = safeTokens(line);
+  if (tk.error) return out(tk.error, true);
+  const toks = tk.toks;
+  const cmd = toks[0];
 
   // --- rm --------------------------------------------------------------------
   if (cmd === 'rm') {
     const flags = toks.slice(1).filter((t) => t.startsWith('-')).join('');
     const recursive = /r/i.test(flags);
-    const targets = toks.slice(1).filter((t) => !t.startsWith('-'));
+    const targets = toks.slice(1).filter((t) => !t.startsWith('-')).map(P);
     if (!targets.length) return out('rm: missing operand', true);
     const removed = [];
     for (const t of targets) {
@@ -93,7 +137,7 @@ export function applyEdit(fs, rawLine, { stdin } = {}) {
     const args = toks.slice(1).filter((t) => t !== '-e');
     const nonflag = args.filter((t) => !t.startsWith('-'));
     const script = nonflag[0];
-    const file = nonflag[1];
+    const file = nonflag[1] && P(nonflag[1]);
     if (!script || !file) return out("sed: usage: sed -i 's/old/new/' <file>", true);
     if (fs[file] === undefined) return out(`sed: can't read ${file}: No such file or directory`, true);
     const r = applySed(unq(script), fs[file]);
@@ -105,16 +149,20 @@ export function applyEdit(fs, rawLine, { stdin } = {}) {
   // --- tee -------------------------------------------------------------------
   if (cmd === 'tee') {
     const append = toks.includes('-a');
-    const file = toks.slice(1).find((t) => !t.startsWith('-'));
-    if (!file) return out('tee: missing file operand', true);
-    const data = stdin != null ? String(stdin) : '';
+    const f0 = toks.slice(1).find((t) => !t.startsWith('-'));
+    if (!f0) return out('tee: missing file operand', true);
+    const file = P(f0);
+    // A bare `tee FILE` would sit waiting on the keyboard; here it would silently empty the file. Refuse it.
+    if (stdin == null) return out(`tee: no input — pipe something into it, e.g.  echo 'line' | tee -a ${f0}`, true);
+    const data = String(stdin);
     fs[file] = append ? (fs[file] || '') + data : data;
     return out(data.replace(/\n$/, ''));
   }
 
   // --- truncate / : > file ---------------------------------------------------
   if (cmd === 'truncate') {
-    const file = toks.slice(1).find((t) => !t.startsWith('-') && !/^\d+$/.test(t));
+    const f0 = toks.slice(1).find((t) => !t.startsWith('-') && !/^\d+$/.test(t));
+    const file = f0 && P(f0);
     if (file && fs[file] !== undefined) { fs[file] = ''; return out(''); }
     return out(`truncate: cannot open '${file}' for writing`, true);
   }
@@ -122,7 +170,10 @@ export function applyEdit(fs, rawLine, { stdin } = {}) {
   // --- echo / printf / `:` with a redirect -----------------------------------
   const redir = splitRedirect(line);
   if (redir) {
-    const btoks = tokenize(redir.body.trim());
+    const bt = safeTokens(redir.body.trim());
+    if (bt.error) return out(bt.error, true);
+    const btoks = bt.toks;
+    redir.file = P(redir.file);
     const bcmd = btoks[0];
     let data = '';
     if (bcmd === 'echo') data = `${btoks.slice(1).map(unq).join(' ')}\n`;
@@ -145,11 +196,16 @@ export function applyEdit(fs, rawLine, { stdin } = {}) {
 /** Is this line one `applyEdit` would handle? (lets callers decide whether to clone/mutate.) */
 export function isEdit(rawLine) {
   const line = String(rawLine || '').trim();
-  const toks = tokenize(line);
+  // `… | tee [-a] file` writes a file.
+  const pipes = splitPipes(line);
+  if (pipes.length > 1 && /^tee\b/.test(pipes[pipes.length - 1])) return true;
+  let toks;
+  // Unbalanced quotes: still route editing commands to applyEdit so it prints the shell error (and never throws).
+  try { toks = tokenize(line); } catch { return /^(rm|tee|truncate|sed\s+-i|echo|printf|:)(?=\s|$)/.test(line); }
   const cmd = toks[0];
   if (['rm', 'tee', 'truncate'].includes(cmd)) return true;
   if (cmd === 'sed' && toks.some((t) => t === '-i' || t.startsWith('-i'))) return true;
   if (['nano', 'vi', 'vim', 'emacs'].includes(cmd)) return true;
-  if (/\s(>>|>)\s*\S+\s*$/.test(line) && /^(echo|printf|:)\b/.test(line)) return true;
+  if (/\s(>>|>)\s*\S+\s*$/.test(line) && /^(echo|printf|:)(?=\s|$)/.test(line)) return true;
   return false;
 }

@@ -117,10 +117,11 @@ export const CCDC_LAB = {
     {
       id: 'ws01', name: 'Accounting workstation', host: 'ws01', ip: '10.10.10.50', os: 'Windows 10', role: 'windows', kind: 'pwsh',
       prompt: 'PS C:\\Users\\accounting>', user: 'accounting', cwd: 'C:\\Users\\accounting',
-      brief: 'The accounting teller PC. A prior intruder registered a scheduled task that re-launches their tooling at every logon. Find it with Get-ScheduledTask and remove it — leave the legitimate Windows tasks (GoogleUpdate, Defrag) alone.',
+      brief: 'The accounting workstation. A prior intruder registered a scheduled task that re-launches their tooling at every logon. Find it with Get-ScheduledTask and remove it — leave the legitimate Windows tasks (GoogleUpdate, Defrag) alone.',
       checklist: [
         'Get-ScheduledTask',
         'Unregister-ScheduledTask -TaskName SystemCheck -Confirm:$false',
+        'Get-ScheduledTask',
       ],
       recon: { tasks: [
         { TaskPath: '\\', TaskName: 'SystemCheck', State: 'Ready' },
@@ -132,6 +133,7 @@ export const CCDC_LAB = {
     {
       id: 'web01', name: 'Web server', host: 'web01', ip: '10.10.10.20', os: 'Ubuntu 20.04 (Apache + WordPress)', role: 'webdb', kind: 'bash',
       prompt: 'analyst@web01:~$', user: 'analyst', cwd: '/home/analyst',
+      live: { units: ['apache2'] },
       brief: 'WordPress admin accepts admin/admin, and a prior intruder left a PHP file in the uploads folder that a root cron job re-runs every 10 minutes. Investigate, then clean up.',
       checklist: [
         'cat /var/www/html/wp-config.php',
@@ -171,6 +173,7 @@ export const CCDC_LAB = {
     {
       id: 'db01', name: 'Database server', host: 'db01', ip: '10.10.10.40', os: 'Ubuntu 20.04 (MySQL 8)', role: 'webdb', kind: 'bash',
       prompt: 'analyst@db01:~$', user: 'analyst', cwd: '/home/analyst',
+      live: { units: ['mysql'] },
       brief: 'MySQL root password is "root" and it listens on 0.0.0.0 (every interface). Two legitimate clients need it: web01 on the LAN (10.10.10.20) and the scoring engine (198.51.100.9, through the edge firewall). Set a strong root password and ALLOW 3306 only from those sources — do NOT just deny 3306, or you cut off both of them.',
       checklist: [
         'grep bind-address /etc/mysql/mysql.conf.d/mysqld.cnf',
@@ -194,6 +197,7 @@ export const CCDC_LAB = {
     {
       id: 'mail01', name: 'Mail server', host: 'mail01', ip: '10.10.10.30', os: 'Ubuntu 20.04 (Postfix + Dovecot)', role: 'linux', kind: 'bash',
       prompt: 'analyst@mail01:~$', user: 'analyst', cwd: '/home/analyst',
+      live: { units: ['postfix', 'dovecot'] },
       brief: 'Two problems. Postfix is an open relay (mynetworks = 0.0.0.0/0 relays for the entire internet): scope it to the LAN — do NOT just close port 25, or scored mail stops too. And a prior intruder left an SSH key in root\u2019s authorized_keys with root login allowed: remove the key, turn off root login, and reload sshd.',
       checklist: [
         'grep mynetworks /etc/postfix/main.cf',

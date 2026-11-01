@@ -1,0 +1,49 @@
+/* Discord-style team channel (dark theme colours from Discord: #313338 chat, #2b2d31 sidebar, #1e1f22 darkest). */
+.ch { width: 100%; height: 100%; display: flex; background: #313338; color: #dbdee1; font: 14px/1.375 'gg sans', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; text-align: left; overflow: hidden; }
+.ch *, .ch *::before, .ch *::after { box-sizing: border-box; }
+.ch-side { flex: none; width: 200px; background: #2b2d31; display: flex; flex-direction: column; min-height: 0; }
+.ch-server { padding: 12px 14px; font-weight: 700; color: #f2f3f5; border-bottom: 1px solid #1e1f22; }
+.ch-chtitle { padding: 14px 14px 4px; font-size: 11px; font-weight: 700; letter-spacing: .02em; color: #949ba4; }
+.ch-chlist { display: flex; flex-direction: column; gap: 1px; padding: 0 8px; flex: 1; overflow-y: auto; }
+.ch-chan { display: flex; align-items: center; gap: 6px; background: transparent; border: 0; color: #949ba4; font: inherit; font-weight: 500; text-align: left; padding: 5px 8px; border-radius: 4px; cursor: pointer; }
+.ch-chan:hover { background: #35373c; color: #dbdee1; }
+.ch-chan.active { background: #404249; color: #fff; }
+.ch-chan.ch-unread { color: #fff; font-weight: 700; }
+.ch-hash { color: #80848e; font-size: 18px; line-height: 1; }
+.ch-hashlg { margin-right: 6px; }
+.ch-badge { margin-left: auto; background: #f23f42; color: #fff; font-size: 11px; font-weight: 700; padding: 0 5px; border-radius: 8px; min-width: 16px; text-align: center; }
+.ch-me { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: #232428; }
+.ch-mename { font-weight: 600; font-size: 13px; }
+.ch-main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.ch-head { flex: none; display: flex; align-items: center; gap: 4px; padding: 10px 16px; border-bottom: 1px solid #1f2023; box-shadow: 0 1px 0 rgba(0,0,0,.2); color: #f2f3f5; }
+.ch-topic { margin-left: 10px; padding-left: 10px; border-left: 1px solid #4e5058; color: #949ba4; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ch-msgs { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 10px 0; }
+.ch-msgs::-webkit-scrollbar { width: 10px; } .ch-msgs::-webkit-scrollbar-thumb { background: #1a1b1e; border-radius: 5px; }
+.ch-msg { position: relative; display: flex; gap: 14px; padding: 2px 16px 2px 16px; margin-top: 14px; }
+.ch-msg:hover { background: #2e3035; }
+.ch-cont { margin-top: 0; padding-left: 70px; }
+.ch-cont .ch-ts { position: absolute; left: 16px; width: 40px; text-align: right; font-size: 10px; color: #949ba4; line-height: 22px; visibility: hidden; }
+.ch-cont:hover .ch-ts { visibility: visible; }
+.ch-avatar { flex: none; width: 40px; height: 40px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 17px; }
+.ch-me .ch-avatar { width: 30px; height: 30px; font-size: 14px; }
+.ch-body { min-width: 0; }
+.ch-line { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.ch-user { font-weight: 500; font-size: 16px; }
+.ch-role { font-size: 11px; color: #b5bac1; background: #1e1f22; padding: 0 5px; border-radius: 3px; }
+.ch-time { font-size: 12px; color: #949ba4; }
+.ch-text { color: #dbdee1; font-size: 15px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.ch-empty { padding: 20px 16px; color: #949ba4; }
+.ch-inputwrap { flex: none; padding: 0 16px 16px; }
+.ch-input { width: 100%; background: #383a40; border: 0; border-radius: 8px; color: #dbdee1; font: inherit; font-size: 15px; padding: 11px 14px; outline: 0; }
+.ch-input::placeholder { color: #6d6f78; }
+@media (max-width: 700px) {
+  .ch { flex-direction: column; }
+  .ch-side { width: 100%; flex-direction: row; align-items: center; overflow-x: auto; }
+  .ch-server, .ch-chtitle, .ch-me { display: none; }
+  .ch-chlist { flex-direction: row; padding: 6px 8px; flex: none; overflow: visible; }
+  .ch-chan { white-space: nowrap; }
+  .ch-topic { display: none; }
+  .ch-msg { gap: 10px; padding: 2px 10px; }
+  .ch-cont { padding-left: 60px; }
+  .ch-avatar { width: 36px; height: 36px; }
+}

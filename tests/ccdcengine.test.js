@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CCDC_LAB } from '../src/data/ccdcLabScenario.js';
-import { newGame, runLine, answerInject, score, MODES } from '../src/game/ccdcLab.js';
+import { newGame, runLine, answerInject, score, expire, MODES } from '../src/game/ccdcLab.js';
 import {
   attachEngine, tickTo, scoreboard, notePasswordRotated, notePcrFiled, liveCompromises, CHECK_INTERVAL, SLA_FAILS,
 } from '../src/game/ccdcEngine.js';
@@ -71,18 +71,20 @@ test('PCR: rotating the scored account breaks the DB check until the PCR is file
   assert.equal(before, true, 'DB check recovers once the PCR is filed');
 });
 
-test('a full-marks incident report halves the matching compromise penalty', () => {
+test('a full-marks incident report halves the matching compromise penalty (exactly)', () => {
   const s = fresh();
   answerInject(s, 'incident-report', GOOD_INJECTS['incident-report']);
-  // leave web-shell open and let the waves compromise it
+  // leave web-shell open: wave 1 probes it, wave 2 confirms it, then the buzzer
   tickTo(s, 180); tickTo(s, 450); tickTo(s, 720);
+  expire(s);
   const g = score(s);
   const wb = g.compromises.find((c) => c.id === 'web-shell');
-  if (wb) {
-    // penalty applied at half (45 -> 23) — check the total reflects mitigation vs raw sum
-    const rawSum = g.compromises.reduce((n, c) => n + c.penalty, 0);
-    assert.ok(g.compromisePenalty < rawSum, 'reported compromise reduces the penalty below the raw sum');
-  }
+  assert.ok(wb, 'web-shell was compromised by the waves');
+  const full = CCDC_LAB.findings.find((f) => f.id === 'web-shell').compromise.penalty;
+  assert.equal(wb.halved, true);
+  assert.equal(wb.charged, Math.round(full * 0.5), 'web-shell charged exactly half');
+  const others = g.compromises.filter((c) => c.id !== 'web-shell').reduce((n, c) => n + c.penalty, 0);
+  assert.equal(g.compromisePenalty, others + Math.round(full * 0.5));
 });
 
 test('score() uses engine SLA violations when the engine is attached', () => {

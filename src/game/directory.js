@@ -243,6 +243,7 @@ export function makeDirectory(spec) {
   };
 
   return {
+    spec, // kept so a hands-on lab can build a fresh, per-game copy it is allowed to change
     domain,
     netbios,
     dn: domainDn,

@@ -19,6 +19,9 @@ import { runPwsh } from './pwsh.js';
 import { evalFirewall, applyFirewallCommand, firewallHelp } from './ccdcFirewall.js';
 import { applyEdit, isEdit } from './ccdcEdit.js';
 import { rng, freshSeed } from './shuffle.js';
+import { finalSweep, tickTo } from './ccdcEngine.js';
+import { initHostState, applyHostChange, applyAdChange } from './hostState.js';
+import { makeDirectory } from './directory.js';
 
 export const SERVICE_STATE = { UP: 'up', DOWN: 'down' };
 export const MODES = { GUIDED: 'guided', COMPETITION: 'competition' };
@@ -105,6 +108,9 @@ export function newGame(scenario, opts = {}) {
       // A per-game, mutable copy of the box's filesystem so edits (sed -i, echo >>, rm, …) actually change it and
       // `cat` reflects the change. Starts as a deep copy of the scenario's read-only fs.
       fs: d.kind === 'bash' && d.ctx?.fs ? JSON.parse(JSON.stringify(d.ctx.fs)) : null,
+      // Live host state (running services, local users, scheduled tasks, units, host-firewall rules) that status
+      // commands read, so verifying a change shows the CURRENT state, not the starting one.
+      live: d.kind === 'firewall' ? null : initHostState(d),
     };
   }
 
@@ -172,8 +178,20 @@ export function runLine(state, deviceId, rawLine) {
   // trap/fix logic below recognise the command (e.g. removing a planted file is both an edit AND the fix).
   let editLines = null;
   if (dev.kind === 'bash' && ds.fs && isEdit(line)) {
-    const er = applyEdit(ds.fs, line);
+    const er = applyEdit(ds.fs, line, { cwd: ds.cwd, ctx: { ...dev.ctx, cwd: ds.cwd, fs: ds.fs, live: ds.live } });
     if (er.handled) editLines = er.lines;
+    // A malformed edit (bad quoting, missing file, bare tee) changed nothing: report the shell error and stop —
+    // it must never count as a fix.
+    if (er.handled && er.error) return { lines: editLines, effects: {} };
+  }
+  // State-changing admin commands (Stop-Service, Remove-LocalUser, systemctl stop, ufw allow, …) update the box's
+  // live state whether or not they are the graded fix, so status commands afterwards reflect reality.
+  if (ds.live) applyHostChange(ds.live, line, dev.kind);
+  // Domain controller: AD changes land in this game's own copy of the directory (built on first use), so
+  // Get-ADUser / Get-ADGroupMember afterwards show the current truth and replays start clean.
+  if (dev.kind === 'pwsh' && dev.ctx?.dir?.spec) {
+    if (!ds.dir) ds.dir = makeDirectory(JSON.parse(JSON.stringify(dev.ctx.dir.spec)));
+    applyAdChange(ds.dir, line);
   }
 
   // 0) Rotating the scored account's password? The command is legitimate, but until a PCR is filed the scoring
@@ -211,8 +229,25 @@ export function runLine(state, deviceId, rawLine) {
     if (f.fix.steps) {
       const step = f.fix.steps.find((s) => !rec.steps[s.id] && matchesAll(s.accept, lower) && !rejected(s, lower));
       if (step) {
+        // A step may also require the box's EDITED file to really be in the right state (not just a matching
+        // command line): e.g. pg_hba.conf has no trust line left and still admits the scoring engine.
+        const check = step.verify ? step.verify(ds.fs || {}) : { ok: true };
+        if (!check.ok) {
+          const lines = [...(editLines || []), { cls: 'warn', text: check.why || 'That command ran, but the file is not in a hardened state yet.' }];
+          if (check.trap) {
+            const dropped = [];
+            for (const s of asList(check.trap.drops)) if (dropService(state, s, f.id, check.trap.note)) dropped.push(s);
+            if (dropped.length) lines.push({ cls: 'bad', text: `!! Scored service DOWN: ${dropped.join(', ')} — ${check.trap.note}` });
+            return { lines, effects: { trapId: check.trap.id, dropped, note: check.trap.note, why: check.trap.why } };
+          }
+          return { lines, effects: {} };
+        }
         rec.steps[step.id] = true;
+        // A verified step can bring back a service an earlier bad edit of the same file took down.
+        const restoredNow = [];
+        for (const s of asList(step.restores)) if (restoreService(state, s, f.id)) restoredNow.push(s);
         const lines = (step.output || [`✓ ${step.label}`]).map((text) => ({ cls: 'ok', text }));
+        if (restoredNow.length) lines.push({ cls: 'ok', text: `Scored service back UP: ${restoredNow.join(', ')}.` });
         const remaining = f.fix.steps.filter((s) => !rec.steps[s.id]);
         if (!remaining.length) return finishFix(state, f, lines);
         lines.push({ cls: 'note', text: `Step done (${f.fix.steps.length - remaining.length}/${f.fix.steps.length}). Still to do: ${remaining.map((s) => s.todo || s.label).join('; ')}` });
@@ -227,7 +262,7 @@ export function runLine(state, deviceId, rawLine) {
   if (editLines) return { lines: editLines, effects: {} };
 
   // 3) Everything else: the real inspection engine for this box (reading the box's current, possibly edited, fs).
-  const ctx = { ...dev.ctx, cwd: ds.cwd, fs: ds.fs || dev.ctx?.fs };
+  const ctx = { ...dev.ctx, cwd: ds.cwd, fs: ds.fs || dev.ctx?.fs, live: ds.live, dir: ds.dir || dev.ctx?.dir };
   const res = dev.kind === 'pwsh' ? runPwsh(line, ctx) : runBash(line, ctx);
   if (res.cwd) ds.cwd = res.cwd;
   const text = res.out == null ? '' : String(res.out).replace(/\n$/, '');
@@ -306,9 +341,14 @@ export function answerInject(state, injectId, text) {
   }
   rec.answer = body;
   rec.done = true;
-  rec.grade = gradeInject(i, body);
+  // Deadlines are real: with the live engine attached, a deliverable submitted after its due time scores zero
+  // (the rubric is still shown so the player can learn from it).
+  const t = state.engine?.injectTimers?.[injectId];
+  rec.late = !!(t && (t.overdue || state.engine.clock > t.dueAt));
+  const g = gradeInject(i, body);
+  rec.grade = rec.late ? { ...g, pts: 0, earned: g.pts, late: true } : g;
   const isPcr = state.scenario.pcr && state.scenario.pcr.injectId === injectId;
-  return { ok: true, grade: rec.grade, isPcr };
+  return { ok: true, grade: rec.grade, isPcr, late: rec.late };
 }
 
 // --- red team ---------------------------------------------------------------
@@ -316,6 +356,20 @@ export function answerInject(state, injectId, text) {
 export function runRedTeam(state) {
   if (state.redTeamRun) return state.compromises;
   state.compromises = [];
+  // Live engine attached: the red team already worked through the round in waves. The buzzer fires one final
+  // wave, and the compromises are exactly what the waves confirmed — not a blanket penalty on every open finding.
+  if (state.engine) {
+    // Ending early fast-forwards to the buzzer with the boxes as they are now: the remaining scored checks and
+    // red-team waves still happen (otherwise quitting at 0:01 would bank a perfect round).
+    if (state.timeLimitSec && state.engine.clock < state.timeLimitSec) tickTo(state, state.timeLimitSec);
+    state.compromises = finalSweep(state);
+    for (const c of state.compromises) {
+      const f = state.findingList.find((x) => x.id === c.id);
+      for (const s of asList(f?.compromise?.drops)) dropService(state, s, `redteam:${c.id}`, 'Compromised by the red team.');
+    }
+    state.redTeamRun = true;
+    return state.compromises;
+  }
   for (const f of state.findingList) {
     if (!f.exploitable) continue;
     if (state.findings[f.id].status === 'fixed') continue;
@@ -339,7 +393,17 @@ export function score(state) {
   const sc = state.scenario;
   const services = Object.values(state.services);
   const up = services.filter((s) => s.state === SERVICE_STATE.UP);
-  const servicePts = up.reduce((n, s) => n + (s.points || 0), 0);
+  // With the live engine attached, service points are earned check by check over the round (uptime), exactly
+  // like a real scoring engine: points × passed checks / total checks. Without it, the end state decides.
+  const eng = state.engine;
+  const svcEarned = (s) => {
+    const c = eng?.checks?.[s.id];
+    const total = c ? c.ok + c.fail : 0;
+    if (!eng || !total) return s.state === SERVICE_STATE.UP ? s.points || 0 : 0;
+    return Math.round(((s.points || 0) * c.ok) / total);
+  };
+  const serviceBreakdown = services.map((s) => ({ id: s.id, earned: svcEarned(s), max: s.points || 0 }));
+  const servicePts = serviceBreakdown.reduce((n, s) => n + s.earned, 0);
   const serviceMax = state.serviceList.reduce((n, s) => n + (s.points || 0), 0);
 
   // SLA: with the live engine attached, use the violations the scoring engine actually accrued over the round
@@ -351,7 +415,8 @@ export function score(state) {
   const injectResults = state.injectList.map((i) => {
     const rec = state.injects[i.id];
     const g = rec.done ? rec.grade || gradeInject(i, rec.answer) : { pts: 0, hits: [], missing: (i.rubric || []).map((r) => r.label) };
-    return { id: i.id, title: i.title, answered: rec.done, points: g.pts, max: i.points, hits: g.hits, missing: g.missing };
+    const late = !!rec.late;
+    return { id: i.id, title: i.title, answered: rec.done, late, points: late ? 0 : g.pts, max: i.points, hits: g.hits, missing: g.missing };
   });
   const injectPts = injectResults.reduce((n, r) => n + r.points, 0);
   const injectMax = state.injectList.reduce((n, i) => n + (i.points || 0), 0);
@@ -363,12 +428,16 @@ export function score(state) {
     const injId = f?.reportableBy;
     if (!injId) return false;
     const rec = state.injects[injId];
-    if (!rec?.done) return false;
+    if (!rec?.done || rec.late) return false;
     const inj = state.injectList.find((x) => x.id === injId);
     const g = rec.grade || gradeInject(inj, rec.answer);
     return g.pts >= g.max;
   };
-  const compromisePenalty = state.compromises.reduce((n, c) => n + Math.round(c.penalty * (reportedFull(c.id) ? 0.5 : 1)), 0);
+  const charged = state.compromises.map((c) => {
+    const halved = reportedFull(c.id);
+    return { ...c, halved, charged: Math.round(c.penalty * (halved ? 0.5 : 1)) };
+  });
+  const compromisePenalty = charged.reduce((n, c) => n + c.charged, 0);
 
   const fixed = state.findingList.filter((f) => state.findings[f.id].status === 'fixed').length;
   const raw = servicePts + injectPts - slaPenalty - compromisePenalty;
@@ -377,7 +446,7 @@ export function score(state) {
 
   return {
     servicePts, serviceMax, injectPts, injectMax, slaPenalty, slaCount, compromisePenalty,
-    compromises: state.compromises, injectResults, fixed, findingsTotal: state.findingList.length,
+    compromises: charged, injectResults, serviceBreakdown, uptimeScored: !!eng, fixed, findingsTotal: state.findingList.length,
     raw, max, pct, letter: letterFor(pct),
   };
 }
