@@ -1,6 +1,6 @@
 # Project: Cyber Office
 
-> Project file from the Command Center, Oct 31, 2026, 7:34 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
+> Project file from the Command Center, Oct 31, 2026, 8:10 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
 
 ## Goal
 A pixel-art browser game where you live a real day as a junior security analyst: walk the office, read real-looking email, dig through logs, deal with coworkers, and watch your choices play out. Not a quiz and not a wall of text. Built in public as a portfolio piece for internship applications.
@@ -14,27 +14,47 @@ A pixel-art browser game where you live a real day as a junior security analyst:
 D:\Projects\cyber-office
 
 ## Notes (what is done, in progress, next, issues)
-STATUS (Oct 31, fix-up run): PR #4 MERGED (a8a30e2) and verified LIVE at https://iiciel.github.io/cyber-office/ (verify-ccdcengine 14/14, verify-ccdclab 50/50, verify-scenario2 OK, verify-cptclab 21/21 vs live URL). This run: branch fix/engine-scoring-review -> PR #5 OPEN https://github.com/iiCiel/cyber-office/pull/5 (commits 021cb5f, cb94630). PR #5 browser checks are LOCAL (npx vite --port 5194 --strictPort) until merged. MUSIC REMOVED, do not re-add. Research digest: docs/competition-research.md. CPTC keeps its own small engine (Soliman OK'd).
+STATUS (Oct 31, full-sim run): PR #6 OPEN https://github.com/iiCiel/cyber-office/pull/6 (branch feat/ccdc-full-sim, commit e3d3af4). It is built on fix/engine-scoring-review, so it INCLUDES PR #5; merging #6 ships both. All checks are LOCAL (npx vite --port 5194 --strictPort) until merged. MUSIC REMOVED, do not re-add.
 
-FIXES IN PR #5 (supervisor review of PR #4):
-- Late injects score 0: answerInject sets rec.late from engine.injectTimers (overdue or clock>dueAt), grade.pts=0 (grade.earned keeps the rubric score); score().injectResults[].late; card shows .cc-inj-late "Submitted late — 0 pts"; debrief "late · 0/N pts". A late report does not halve a compromise.
-- Engine-driven scoring: with the engine attached, runRedTeam fast-forwards (tickTo timeLimitSec), then calls finalSweep() (one last wave, then liveCompromises), so only wave-confirmed compromises are charged. Service points = points*ok/(ok+fail) (score().serviceBreakdown, uptimeScored). score().compromises[] has halved/charged.
-- PCR: notePasswordRotated does not break scoring if pcr.filed.
-- ccdcEdit.js: safeTokens (unmatched quote -> "bash: unexpected EOF…"), resolvePath against cwd, `LEFT | tee [-a] F` (pipeInput), bare tee refused; isEdit never throws.
-- Fix steps can have verify(fs) -> {ok, why, trap} and restores[]. HP pg_hba step uses verifyHba (exported from ccdcLabScenario2.js): no 0.0.0.0/0 trust, a LAN scram/md5 line, and hp-scorecheck from 198.51.100.9 still allowed; otherwise a trap that drops db (hba-no-scoring / hba-wiped). The HP db01 checklist appends the scorer line BEFORE the sed.
-- NEW src/game/hostState.js: per-device live state (winServices, localUsers, localAdmins, tasks, units, ufw) in devState[id].live. initHostState(dev) reads the device's `live:{}` / recon.tasks; applyHostChange runs on every line; labCommands Get-Service/Get-LocalUser/Get-LocalGroupMember/Get-ScheduledTask/systemctl status|is-active/ufw status read ctx.live.
-- CcdcLabScene.refreshLive(): every second it swaps .cc-live, .cc-svcbar, .cc-progress and the inject countdowns in place. The inject panel (.cc-injpanel) is rebuilt only when a new inject releases (focus/caret restored). exec() wraps runLine in try.
-- Copy: Cedarline ws01 brief now says "The accounting workstation."
-- Tests: tests/ccdcfixups.test.js; ccdcengine.test.js has the exact-halving test with expire(). npm test 448/448.
-- Browser proof: scripts/verify-fixups.mjs (24/24 locally at 1366+390). Screenshots in docs/proof/engine-fixups/ (late-inject-card/debrief, spooler-stopped, both widths).
+WHAT PR #6 DOES
+- CCDC scene (src/scenes/CcdcLabScene.js) rewritten:
+  - Brief = team packet PDF (.ccx-pdf/.ccx-doc). Play = JumpBox (src/ui/ccdc/JumpBox.js): Win10 taskbar, window manager, Chrome/PuTTY/RDP frames, toasts. Debrief = after-action report PDF (.ccx-aar).
+  - Team number is seeded from ccdcTeams roster (this.tn()).
+  - Practice mode also attaches the engine (no deadline; injects all released, dueAt=Infinity; timeLimitSec set so End fast-forwards).
+- Apps in src/ui/ccdc/:
+  - TermView.js: themes putty/pwsh/kali/fbsd
+  - PuttyApp.js: Ubuntu banner; pfSense console menu, 8 = shell
+  - PfSenseApp.js + src/game/pfsenseMap.js: GUI actions -> rule-editor run() commands
+  - WinDesktop.js + winApps*.js + src/game/winGuiMap.js: ADUC/services/tasks -> PowerShell run(); app ids ps/sm/aduc/services/tasks/events/lusr/explorer
+  - SiemApp.js + src/game/siemGen.js (createSiem: get(i), count, liveAt, onWave, hunt) + siemSearch.js (startSearch, chunked SPL) + src/data/siemStories.js (STORIES; 6 hunt q's per company)
+  - ScoreboardApp.js, InjectsApp.js, ChatApp.js + src/game/ccdcTeams.js (roster, standings(state,sec), liveTeamScore, rankOf)
+  - PlaybookApp.js (Notepad, practice only)
+- The scene calls siem.onWave for every probe/compromise. huntScore is shown in the AAR as a bonus, not in the letter grade.
+- Engine fix: per-game AD directory. makeDirectory now keeps .spec; runLine builds ds.dir and applyAdChange (hostState.js) applies Disable/Enable-ADAccount, Add/Remove-ADGroupMember, Remove-ADUser; the pwsh ctx uses ds.dir. Tests: tests/ccdcad.test.js.
+- CPTC (src/scenes/CptcLabScene.js + src/ui/cptc/*): ROE letter, Kali Xfce desktop, QTerminal (runEnum), Mousepad notes, report document. cptclab.js grading unchanged.
+- Research: docs/reference-ui.md -> docs/reference-ui/{jumpbox,scoreboard,ccdc-day,pfsense,windows,siem,cptc}.md. Splunk docs (403) and Netgate screenshots (404) were blocked, so some hex values are from memory (flagged in those files).
+- Proof: docs/proof/{ccdc-sim,siem,pfsense,windows,scoreboard,cptc}/.
+- Tests: npm test 499/499.
+- Browser checks: scripts/verify-ccdcsim.mjs 38/38 (1366+390, plus a practice/Harbor Point pass) and scripts/verify-cptclab.mjs 24/24, both run from the main tree. Per-app checks use dev-only preview/*.html: scripts/verify-pfsense.mjs, verify-windows.mjs, shot-siem.mjs, shoot-scoreboard.mjs.
+- REMOVED old UI scripts: verify-ccdclab/ccdcengine/scenario2/fixups.mjs. Engine coverage stays in the unit tests.
 
-NOT DONE: growing the general lab library (supervisor item 9). Still open, skipped twice.
+NEXT
+(1) After the merge: node scripts/verify-ccdcsim.mjs https://iiciel.github.io/cyber-office/ and node scripts/verify-cptclab.mjs https://iiciel.github.io/cyber-office/ ; then call it live.
+(2) Make the siem.onWave lines specific to each finding (currently one generic template per host role).
+(3) ADUC opens on the Users container only; consider expanding the tree on open.
+(4) Grow the general lab library (still open, skipped 3 times).
+(5) 3rd CCDC + 3rd CPTC scenario, each with a SIEM story.
+(6) More step.verify fixes (sshd_config PermitRootLogin no, postfix main.cf).
+(7) Optionally delete the old MCQ files (src/game/ccdc.js|cptc.js, CcdcScene/CptcScene).
 
-NEXT: (1) after PR #5 merges: node scripts/verify-fixups.mjs https://iiciel.github.io/cyber-office/ plus the 4 verify scripts, then call it live. (2) grow the general lab library (terminal-style). (3) more fixes that verify edited file state (sshd_config PermitRootLogin no, postfix main.cf), using step.verify. (4) simulated multi-team scoreboard/rank. (5) 3rd CCDC + 3rd CPTC scenario; per-wave canned red-team output. (6) optionally delete old MCQ files (src/game/ccdc.js|cptc.js, old scenarios, CcdcScene/CptcScene).
-AUTHOR GOTCHAS: a multi-step fix's step.accept is a FLAT AND-list of regexes; use alternation inside one regex for OR. Keep host-sim modules small and neutrally worded. Python/node -e heredoc edits mangle \n and \b in JS; use the Edit tool for regex/escape lines.
-ISSUES (pre-existing): debrief re-renders on keystroke; no focus trap; CRLF/LF mix (git warns on commit).
+AUTHOR GOTCHAS: a multi-step fix's step.accept is a FLAT AND-list of regexes. Use the Edit tool for regex/escape lines; sed and inline node quoting broke twice this run. JumpBox calls app.focus() with no args (WinDesktop.focus handles the no-arg call). The `.jb button {color:inherit}` rule beats single-class colours, so prefix with `.jb`. No python/pkill on this machine; stop vite via TaskStop or taskkill /PID.
+ISSUES (pre-existing): no focus trap; CRLF/LF mix (git warns); bundle is 3.1 MB (consider code-splitting the competition scenes).
 
 ## Recent runs (newest first)
+### Oct 31, 2026: done
+- He asked: Soliman played the live CCDC mode and said it "just looks terrible, looks so AI made", and that it is not the real thing. Take ALL the time and usage you need; he asked for your full effort last time and did not get it. Start from main (git checkout main && git pull, new branch). STEP 1, LOOK AT THE
+- Did: Merge PR #6 to ship the rebuilt CCDC and CPTC. They now look like the real tools: https://github.com/iiCiel/cyber-office/pull/6 1. Done: CCDC is now your team's Windows jump box. PuTTY into the Linux boxes, a real-looking pfSense web GUI, Remote Desktop into Windows Server (Server Manager, AD Users and Computers, Services, Task Scheduler, Event Viewer, PowerShell), a Discord-style team chat and an inject portal. 2. Done: Splunk with about 2.3 million generated log lines. The break-in is buried in the noise, and one search finds the brute-force IP in about 1 second. Answer the 6 hunt questions about how they got in. 3. Done: a live scoreboard against 9–11 rival teams. Their scores move every check and drop when the red team hits, and your rank sits in the taskbar. 4. Done: CPTC is now a Kali desktop with a real-looking pentest report. 5. Needs you: merge PR #6. It includes PR #5, and nothing is live until it's merged. Next: open https://github.com/iiCiel/cyber-office/pull/6, skim the screenshots in docs/proof/ccdc-sim, and press Merge. Details: branch feat/ccdc-full-sim, commit e3d3af4. npm test 499/499. Browser checks run locally from the main tree: verify-ccdcsim 38/38 (1366 + 39…
+- Where it stood: CCDC and CPTC are rebuilt to look like the real tools and verified locally in PR #6 (which includes PR #5). The live site still has the old UI until Soliman merges.
 ### Oct 31, 2026: done, supervisor grade B
 - He asked: Fix-up run started by the supervisor. It checked the last run's work itself and found 9 problems: 1. Inject deadlines are not enforced: a late inject still scores full rubric points while the UI says 'OVERDUE · scores 0'. The notes claim 'overdue=0'. (seen: ccdcEngine.js:104 only sets t.overdue; ans
 - Did: Merge PR #5 to ship the fixes: https://github.com/iiCiel/cyber-office/pull/5. 8 of the 9 problems are fixed. 1 is not done. 1. Done: a late inject now scores 0. Its card says "Submitted late — 0 pts" and the debrief says "late · 0/25 pts". Screenshots at 1366 and 390 px. 2. Done: the live engine now really decides the score. Only boxes the red-team waves actually broke into cost points. Service points come from uptime. Ending the round early no longer gives a free perfect score. 3. Done: Get-Service Spooler now shows Stopped/Disabled after the fix. Get-LocalUser, Get-ScheduledTask, systemctl status and ufw status also show the current state. File editing no longer crashes on a bad quote, and the Postgres fix checks the edited file. Filing the PCR first no longer breaks scoring. 4. Done: PR #4 is live. All 4 checks pass on the real site. 5. Not done: growing the general lab library. It's listed as still open. Next: open https://github.com/iiCiel/cyber-office/pull/5 and press Merge. Details: branch fix/engine-scoring-review, commits 021cb5f + cb94630. npm test 448/448 (new tests/ccdcfixups.test.js). Local: verify-ccdcengine 14/14, verify-ccdclab 50/50, verify-scenario2 OK, verify-cp…
@@ -59,13 +79,8 @@ ISSUES (pre-existing): debrief re-renders on keystroke; no focus trap; CRLF/LF m
 - Where it stood: Both competition modes rebuilt as genuine hands-on simulations and verified locally through the real UI on branch feat/hands-on-ccdc-cptc (PR #2 OPEN). Nothing deployed — live site still shows the old version until the PR is merged.
 - Problems: Untracked-file mistake: the first push and PR were missing the engine file, so the branch was broken until a late fix.; The first CPTC verify showed 12 checks and later 13. The last run's PR text and summary may have used mixed counts.; The run closed five items in Soliman's 'For you' list on its own judgment. Some may not have been its to close.; The old multiple-choice files stay in the repo, and the CPTC bests loader now imports from cptclab.js. That could drop old saved bests.; Only 37 minutes were used even though Soliman said to take all the time needed. Role seat depth and multiple scenarios were not extended.
 - Advice for the next run: Check that every new file is tracked before pushing. Import and reuse engage.js where possible, and say so in the PR. Report what happened to the old ccdc.js role-filter change. Verify the role checklists and the guided/untimed mode in the UI.
-### Oct 31, 2026: stopped by the supervisor, supervisor grade D
-- He asked: Deepen the competition modes to a very high bar. Soliman wants to be genuinely ready for the real competitions. Take all the time and usage you need; don't stop early or ship shallow. BIG ONE — CCDC IS A TEAM COMPETITION WITH SPECIALIZED ROLES. Right now the CCDC mode is one generalist defender. Rea
-- Did: Now fix the iterating functions to use the role-filtered working set.
-- Problems: Zero of the 5 role seats exist end to end. There is no second CCDC scenario, no second CPTC scenario, and no UI for picking a role or scenario.; Nothing was committed, pushed or opened as a PR, and nothing was verified through the real UI.; At 2:19 PM the agent read and printed whole large files with cat, using a lot of context (3M context tokens read). This helped drive plan usage to 90% within 6 minutes.; The agent printed a 'plan' in the middle of the run and said it would write files directly, but it still spent about 4 minutes between the last read and the first edit.; The edits are half-done: the last message says the iterating functions still need to be switched to the filtered set, so ccdc.js may be in a broken state.
-- Advice for the next run: Check git status first; src/game/ccdc.js has uncommitted half-finished role edits. Finish or discard them, then run the tests. Read files with grep or sed slices, not cat. Work on a feature branch, commit after each working piece, and do the role engine plus its tests before any UI. The timer is only assumed to work, so check it in the real UI.
 
 ## Waiting on Soliman
-- Review + merge PR #5 (CCDC engine fix-ups: late injects score 0, real engine scoring, live status commands)
-- The supervisor opened the last Cyber Office run's work and found 9 problems; a fix-up run is fixing them now.
+- Merge PR #6: CCDC + CPTC rebuilt to look like the real tools (includes PR #5)
+- The supervisor opened the last Cyber Office run's work and found 1 problem even after the fix-up run.
 - Play the 5 red-team engagements once and say if they're good enough to show University of Akron
