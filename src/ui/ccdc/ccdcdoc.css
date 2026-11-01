@@ -1,0 +1,73 @@
+/* CCDC packet + after-action report as documents in a PDF viewer (Chrome's built-in viewer: #525659 backdrop,
+   #323639 toolbar), plus the Notepad playbook window. Plain document typography — no cards, no gradients. */
+.ccx { background: #525659; overflow: auto; color: #000; }
+.ccx.ccx-playing { overflow: hidden; background: #000; }
+.ccx-pdf { min-height: 100%; display: flex; flex-direction: column; align-items: center; padding-bottom: 24px; font: 13px/1.45 Arial, Helvetica, sans-serif; }
+.ccx-pdfbar { position: sticky; top: 0; z-index: 5; align-self: stretch; height: 48px; background: #323639; color: #f1f1f1; display: flex; align-items: center; gap: 18px; padding: 0 16px; box-shadow: 0 1px 4px rgba(0,0,0,.4); font: 14px Roboto, 'Segoe UI', Arial, sans-serif; }
+.ccx-pdf-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ccx-pdf-page, .ccx-pdf-zoom { color: #c9c9c9; font-size: 13px; }
+.ccx-pdf-btn { background: transparent; color: #f1f1f1; border: 1px solid #6b6f73; border-radius: 3px; padding: 5px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+.ccx-pdf-btn:hover { background: #45494d; }
+.ccx-page { width: min(860px, calc(100% - 24px)); background: #fff; margin-top: 14px; padding: 44px 56px; box-shadow: 0 2px 6px rgba(0,0,0,.45); text-align: left; }
+.ccx-doc h1 { margin: 4px 0 0; font: 700 26px/1.2 Georgia, 'Times New Roman', serif; }
+.ccx-doc h2 { margin: 22px 0 8px; font: 700 15px/1.3 Arial, sans-serif; color: #1f3864; border-bottom: 1px solid #1f3864; padding-bottom: 3px; text-transform: uppercase; letter-spacing: .3px; }
+.ccx-doc h3 { margin: 14px 0 4px; font-size: 13.5px; }
+.ccx-doc p, .ccx-doc li { margin: 6px 0; }
+.ccx-doc ol { padding-left: 22px; }
+.ccx-doc-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 20px; border-bottom: 3px solid #1f3864; padding-bottom: 10px; }
+.ccx-doc-org { font-size: 12px; color: #444; text-transform: uppercase; letter-spacing: .5px; }
+.ccx-doc-meta { border-collapse: collapse; font-size: 12px; }
+.ccx-doc-meta th { text-align: left; padding: 1px 10px 1px 0; color: #444; font-weight: 400; }
+.ccx-doc-meta td { font-weight: 700; }
+.ccx-tbl { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 6px 0 4px; display: table; }
+.ccx-tbl th { background: #1f3864; color: #fff; text-align: left; padding: 5px 8px; font-weight: 700; border: 1px solid #1f3864; }
+.ccx-tbl td { border: 1px solid #b4b4b4; padding: 4px 8px; vertical-align: top; }
+.ccx-tbl tbody tr:nth-child(even) td { background: #f2f2f2; }
+.ccx-tbl tr.bad td { background: #fbe4e4; }
+.ccx-tbl tr.you td { background: #fff2cc; font-weight: 700; }
+.ccx-tbl tr.total td { font-weight: 700; border-top: 2px solid #000; background: #fff; }
+.ccx-tbl .mono, .ccx-doc .mono { font-family: Consolas, 'Courier New', monospace; font-size: 12px; }
+.ccx-tbl .num { text-align: right; font-variant-numeric: tabular-nums; }
+.ccx-small { font-size: 11.5px; color: #444; margin-top: 2px; }
+.ccx-form-row { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: flex-start; margin: 10px 0; }
+.ccx-form-label { width: 80px; font-weight: 700; padding-top: 6px; }
+.ccx-radio { display: flex; gap: 6px; align-items: flex-start; border: 1px solid #b4b4b4; padding: 5px 9px; min-width: 200px; flex: 1 1 220px; cursor: pointer; background: #fff; }
+.ccx-radio.on { border-color: #1f3864; background: #eef3fb; outline: 1px solid #1f3864; }
+.ccx-radio input { margin-top: 3px; }
+.ccx-radio small { display: block; color: #555; font-size: 11.5px; }
+.ccx-seats .ccx-radio { flex-basis: 260px; }
+.ccx-doc-actions { display: flex; gap: 10px; margin-top: 22px; border-top: 1px solid #ccc; padding-top: 14px; }
+.ccx-btn { font: 13px Arial, sans-serif; padding: 7px 16px; border: 1px solid #8a8a8a; background: #f0f0f0; cursor: pointer; border-radius: 2px; color: #000; }
+.ccx-btn:hover { background: #e2e2e2; }
+.ccx-btn.primary { background: #1f3864; border-color: #1f3864; color: #fff; font-weight: 700; }
+.ccx-btn.primary:hover { background: #2b4c86; }
+.ccx-grade { width: 64px; height: 64px; border: 3px solid #000; display: flex; align-items: center; justify-content: center; font: 700 40px Georgia, serif; }
+.ccx-grade.gA { color: #1e7b34; border-color: #1e7b34; } .ccx-grade.gB { color: #1f3864; border-color: #1f3864; }
+.ccx-grade.gC { color: #8a6d00; border-color: #8a6d00; } .ccx-grade.gD, .ccx-grade.gF { color: #b00020; border-color: #b00020; }
+.ccx-note { background: #fff4ce; border-left: 4px solid #c19c00; padding: 6px 10px; }
+.ccx-rank { font-weight: 700; font-size: 14px; }
+.ccx-inj { border-bottom: 1px solid #ddd; padding-bottom: 6px; }
+.ccx-model { color: #333; font-size: 12.5px; }
+.ccx-timeline tr.bad td { color: #9b0000; background: #fff; } .ccx-timeline tr.red td { color: #9b0000; }
+.ccx-timeline tr.inject td { color: #1f3864; }
+.ccx .cc-inj-late { color: #9b0000; }
+.ccx .cc-sev { border-radius: 0; }
+@media (max-width: 640px) {
+  .ccx-page { padding: 22px 16px; }
+  .ccx-doc-head { flex-direction: column; align-items: flex-start; }
+  .ccx-tbl { display: block; overflow-x: auto; }
+  .ccx-form-label { width: 100%; }
+}
+
+/* Notepad */
+.np { display: flex; flex-direction: column; height: 100%; background: #fff; font: 12px 'Segoe UI', sans-serif; }
+.np-menu { flex: none; display: flex; gap: 2px; padding: 2px 4px; border-bottom: 1px solid #f0f0f0; }
+.np-menu span { padding: 2px 7px; }
+.np-menu span:hover { background: #e5f3ff; }
+.np-text { flex: 1; min-height: 0; overflow: auto; padding: 2px 4px; font: 14.5px/1.3 Consolas, 'Courier New', monospace; white-space: pre; color: #000; outline: 0; }
+.np-line { white-space: pre; }
+.np-cmd { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 0; margin: 0; font: inherit; white-space: pre; color: #000; cursor: pointer; }
+.np-cmd:hover, .np-cmd:focus { background: #cce8ff; outline: 0; }
+.np-status { flex: none; display: flex; justify-content: flex-end; border-top: 1px solid #d7d7d7; background: #f0f0f0; }
+.np-status span { padding: 2px 14px; border-left: 1px solid #d7d7d7; font-size: 12px; }
+@media (max-width: 640px) { .np-text { white-space: pre-wrap; font-size: 13px; } .np-line, .np-cmd { white-space: pre-wrap; } }

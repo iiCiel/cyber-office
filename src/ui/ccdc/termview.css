@@ -1,0 +1,49 @@
+/* TermView themes. Colours are taken from the real clients' default schemes:
+   PuTTY 0.7x defaults (fg #BBBBBB on #000000, bold = bright: green #55FF55, blue #5555FF) with Ubuntu's PS1;
+   Windows PowerShell 5.1 console (bg RGB 1,36,86 = #012456, fg #EEEDF0, errors red on black);
+   Kali QTerminal "Kali-Dark" with the zsh two-line prompt (green frame, bold blue user, white path);
+   the pfSense console over SSH (plain FreeBSD grey on black). */
+.tv { display: flex; flex-direction: column; height: 100%; min-height: 0; padding: 2px 4px 4px; cursor: text; box-sizing: border-box; text-align: left; }
+.tv-out { flex: 1 1 auto; min-height: 0; overflow-y: auto; white-space: pre-wrap; word-break: break-all; }
+.tv-line { min-height: 1.25em; }
+.tv-cmdline { display: flex; align-items: baseline; flex: none; }
+.tv-prompt { white-space: pre; flex: none; }
+.tv-input { flex: 1; min-width: 40px; background: transparent; border: 0; outline: 0; color: inherit; font: inherit; padding: 0; margin: 0; caret-color: currentColor; }
+.tv-out::-webkit-scrollbar { width: 14px; }
+
+/* PuTTY / xterm */
+.tv-putty, .tv-fbsd { background: #000; color: #bbb; font: 13px/1.25 'Courier New', Courier, monospace; }
+.tv-putty .tv-out::-webkit-scrollbar-track, .tv-fbsd .tv-out::-webkit-scrollbar-track { background: #f0f0f0; }
+.tv-putty .tv-out::-webkit-scrollbar-thumb, .tv-fbsd .tv-out::-webkit-scrollbar-thumb { background: #cdcdcd; border: 2px solid #f0f0f0; }
+.tv-c-ugreen { color: #55ff55; }
+.tv-c-ublue { color: #5555ff; }
+.tv-putty .tv-line.err, .tv-fbsd .tv-line.err { color: #ff5555; }
+.tv-putty .tv-line.ok, .tv-fbsd .tv-line.ok { color: #55ff55; }
+.tv-putty .tv-line.warn, .tv-fbsd .tv-line.warn { color: #ffff55; }
+.tv-putty .tv-line.sys, .tv-fbsd .tv-line.sys { color: #bbb; }
+.tv-line.note { color: #00bbbb; }
+.tv-line.fix { color: #000; background: #55ff55; display: inline-block; padding: 0 4px; }
+.tv-line.cmd b { font-weight: 700; }
+
+/* Windows PowerShell 5.1 */
+.tv-pwsh { background: #012456; color: #eeedf0; font: 13px/1.2 Consolas, 'Lucida Console', monospace; }
+.tv-pwsh .tv-line.err { color: #ff0000; background: #000; display: block; }
+.tv-pwsh .tv-line.warn { color: #ffff00; background: #000; display: block; }
+.tv-pwsh .tv-line.ok { color: #eeedf0; }
+.tv-pwsh .tv-line.note { color: #00ffff; }
+.tv-pwsh .tv-line.fix { color: #012456; background: #eeedf0; }
+.tv-pwsh .tv-out::-webkit-scrollbar-track { background: #f0f0f0; }
+.tv-pwsh .tv-out::-webkit-scrollbar-thumb { background: #cdcdcd; border: 2px solid #f0f0f0; }
+
+/* Kali QTerminal */
+.tv-kali { background: #1c1f26; color: #e6e6e6; font: 13px/1.3 'Fira Code', 'DejaVu Sans Mono', Consolas, monospace; }
+.tv-kali .tv-cmdline { align-items: flex-end; }
+.tv-c-kblue { color: #2fb36a; }   /* frame: green for a normal user */
+.tv-c-kuser { color: #3b8eea; }   /* kali㉿kali and $: bold blue */
+.tv-c-kpath { color: #ffffff; }
+.tv-kali .tv-line.err { color: #f14c4c; }
+.tv-kali .tv-line.ok { color: #23d18b; }
+.tv-kali .tv-line.warn { color: #f5f543; }
+.tv-kali .tv-line.sys { color: #9aa0a6; }
+.tv-kali .tv-out::-webkit-scrollbar-track { background: #1c1f26; }
+.tv-kali .tv-out::-webkit-scrollbar-thumb { background: #3a3f4b; }

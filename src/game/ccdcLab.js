@@ -20,7 +20,8 @@ import { evalFirewall, applyFirewallCommand, firewallHelp } from './ccdcFirewall
 import { applyEdit, isEdit } from './ccdcEdit.js';
 import { rng, freshSeed } from './shuffle.js';
 import { finalSweep, tickTo } from './ccdcEngine.js';
-import { initHostState, applyHostChange } from './hostState.js';
+import { initHostState, applyHostChange, applyAdChange } from './hostState.js';
+import { makeDirectory } from './directory.js';
 
 export const SERVICE_STATE = { UP: 'up', DOWN: 'down' };
 export const MODES = { GUIDED: 'guided', COMPETITION: 'competition' };
@@ -186,6 +187,12 @@ export function runLine(state, deviceId, rawLine) {
   // State-changing admin commands (Stop-Service, Remove-LocalUser, systemctl stop, ufw allow, …) update the box's
   // live state whether or not they are the graded fix, so status commands afterwards reflect reality.
   if (ds.live) applyHostChange(ds.live, line, dev.kind);
+  // Domain controller: AD changes land in this game's own copy of the directory (built on first use), so
+  // Get-ADUser / Get-ADGroupMember afterwards show the current truth and replays start clean.
+  if (dev.kind === 'pwsh' && dev.ctx?.dir?.spec) {
+    if (!ds.dir) ds.dir = makeDirectory(JSON.parse(JSON.stringify(dev.ctx.dir.spec)));
+    applyAdChange(ds.dir, line);
+  }
 
   // 0) Rotating the scored account's password? The command is legitimate, but until a PCR is filed the scoring
   //    engine can no longer authenticate — flag it so the live engine fails that service until the PCR lands.
@@ -255,7 +262,7 @@ export function runLine(state, deviceId, rawLine) {
   if (editLines) return { lines: editLines, effects: {} };
 
   // 3) Everything else: the real inspection engine for this box (reading the box's current, possibly edited, fs).
-  const ctx = { ...dev.ctx, cwd: ds.cwd, fs: ds.fs || dev.ctx?.fs, live: ds.live };
+  const ctx = { ...dev.ctx, cwd: ds.cwd, fs: ds.fs || dev.ctx?.fs, live: ds.live, dir: ds.dir || dev.ctx?.dir };
   const res = dev.kind === 'pwsh' ? runPwsh(line, ctx) : runBash(line, ctx);
   if (res.cwd) ds.cwd = res.cwd;
   const text = res.out == null ? '' : String(res.out).replace(/\n$/, '');

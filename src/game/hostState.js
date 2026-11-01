@@ -154,3 +154,34 @@ export function ufwStatus(L) {
   if (!f.rules.length) return `${[...head, '(no rules — default allow inbound)'].join('\n')}\n`;
   return `${[...head, ...f.rules.map((r) => `${String(r.to).padEnd(27)}${r.action.padEnd(12)}${r.from}`)].join('\n')}\n`;
 }
+
+// ---- Active Directory changes (domain controller) ------------------------------------------------------------
+// Disable-ADAccount / Enable-ADAccount / Add-ADGroupMember / Remove-ADGroupMember / Remove-ADUser change the
+// game's own copy of the directory, so Get-ADUser / Get-ADGroupMember afterwards show the current truth.
+function adArg(toks, names) {
+  for (let i = 1; i < toks.length; i++) {
+    if (names.includes(lc(toks[i]).replace(/:$/, '')) && toks[i + 1]) return toks[i + 1];
+  }
+  return toks.slice(1).find((t) => !t.startsWith('-') && !t.startsWith('$')) || '';
+}
+
+/** Apply one typed line to a per-game directory (from makeDirectory). Unknown lines are ignored. */
+export function applyAdChange(dir, line) {
+  if (!dir) return;
+  const toks = words(line);
+  const cmd = lc(toks[0]);
+  const id = () => adArg(toks, ['-identity']);
+  if (cmd === 'disable-adaccount' || cmd === 'enable-adaccount') {
+    const u = dir.lookup(id());
+    if (u && u.type === 'user') dir.setEnabled(u.sam, cmd === 'enable-adaccount');
+  } else if (cmd === 'remove-adgroupmember' || cmd === 'add-adgroupmember') {
+    const g = adArg(toks, ['-identity']);
+    const raw = adArg(toks, ['-members', '-member']) || toks.slice(1).filter((t) => !t.startsWith('-') && !t.startsWith('$'))[1] || '';
+    for (const m of raw.split(',').map((s) => s.trim()).filter(Boolean)) {
+      if (cmd === 'remove-adgroupmember') dir.removeMember(g, m); else dir.addMember(g, m);
+    }
+  } else if (cmd === 'remove-aduser') {
+    const u = dir.lookup(id());
+    if (u && u.type === 'user' && !String(u.sid || '').endsWith('-500')) dir.removeUser(u.sam);
+  }
+}
