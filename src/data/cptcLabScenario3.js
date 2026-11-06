@@ -9,7 +9,10 @@
 // all patterns in a group must match, any group may match) and `reveal` (canned output). Findings are tried in
 // order, so each one is keyed to its own host to keep commands from colliding.
 
+import { RAW_3 } from './cptcRaw3.js';
+
 export const CPTC_LAB_3 = {
+  raw: RAW_3,
   id: 'lakeshore-logistics-2026',
   client: 'Lakeshore Logistics',
   engagement: 'External + internal network and application penetration test, one week, remote.',

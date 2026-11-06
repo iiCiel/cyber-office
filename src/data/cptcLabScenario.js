@@ -7,7 +7,10 @@
 // `reveal` (the canned tool output). The report step rates each on a likelihood×impact matrix and asks for a
 // remediation; `refLikelihood`/`refImpact` are the reference rating the grader compares against.
 
+import { RAW_1 } from './cptcRaw1.js';
+
 export const CPTC_LAB = {
+  raw: RAW_1,
   id: 'meridian-lab-2026',
   client: 'Meridian Health Partners',
   engagement: 'External + internal network penetration test, two weeks, remote.',

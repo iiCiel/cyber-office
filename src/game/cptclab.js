@@ -48,6 +48,32 @@ const HELP = [
 ];
 
 /**
+ * Raw tool output. A finding or recon entry may carry `raw: [{ when?, out }]`: the first entry whose `when`
+ * (same pattern groups as `discover`) matches the typed line wins, so `nmap` prints an nmap report, `gobuster`
+ * a gobuster run, `sqlmap` a sqlmap log, etc. `out` is a list of lines or `(typedLine, lowered) => lines`, so the
+ * output can echo the host/ID the player actually typed. No match falls back to the `reveal`/`output` summary.
+ */
+function pickRaw(entries, line, rawLine) {
+  for (const e of asList(entries)) {
+    if (e.when && !matchesAny(e.when, line)) continue;
+    return typeof e.out === 'function' ? e.out(String(rawLine || '').trim(), line) : e.out;
+  }
+  return null;
+}
+// Colour the status markers real tools colour: [+] green, [-] red, [!]/[WARNING] yellow, [*] info.
+function rawLineObj(text) {
+  const t = String(text);
+  let cls = '';
+  if (/^\s*(\[\+\]|SMB\s.*\[\+\])|\(Pwn3d!\)|^\[\d\d:\d\d:\d\d\] \[(INFO|PAYLOAD)\].*(is vulnerable|injectable|appears to be)/.test(t)) cls = 'ok';
+  else if (/^\s*\[-\]|\[(ERROR|CRITICAL)\]|SMB\s.*\[-\]/.test(t)) cls = 'err';
+  else if (/^\[\d+\]\[[\w-]+\] host:/.test(t)) cls = 'ok';
+  else if (/^\[[\w:.-]+\] \[\w+\] \[(critical|high)\]/.test(t)) cls = 'err';
+  else if (/^\s*\[!\]|\[WARNING\]|^\[[\w:.-]+\] \[\w+\] \[medium\]/.test(t)) cls = 'warn';
+  else if (/^\s*#\s*RoE:|^┌──\(|^└─\$ /.test(t)) cls = 'note';
+  return { cls, text: t };
+}
+
+/**
  * Run one typed line in the Kali terminal. Returns { lines:[{cls,text}], discovered?:findingId }.
  * A command either prints recon output or DISCOVERS a finding (its `reveal` text) the first time it is run.
  */
@@ -70,15 +96,19 @@ export function runEnum(state, rawLine) {
     if (matchesAny(f.discover, line)) {
       const first = !state.discovered[f.id];
       state.discovered[f.id] = true;
-      const lines = (f.reveal || []).map((text) => ({ cls: '', text }));
+      const raw = pickRaw(f.raw || sc.raw?.findings?.[f.id], line, rawLine);
+      const lines = raw ? raw.map(rawLineObj) : (f.reveal || []).map((text) => ({ cls: '', text }));
       if (first) lines.push({ cls: 'flag', text: `FINDING CONFIRMED → ${f.title}  [added to your report]` });
       else lines.push({ cls: 'note', text: '(already in your report)' });
       return { lines, discovered: f.id };
     }
   }
   // A recon command that does not map to a finding?
-  for (const r of sc.recon || []) {
-    if (matchesAny(r.match, line)) return { lines: (r.output || []).map((text) => ({ cls: '', text })) };
+  for (const [ri, r] of (sc.recon || []).entries()) {
+    if (matchesAny(r.match, line)) {
+      const raw = pickRaw(r.raw || sc.raw?.recon?.[ri], line, rawLine);
+      return { lines: raw ? raw.map(rawLineObj) : (r.output || []).map((text) => ({ cls: '', text })) };
+    }
   }
   return { lines: [{ cls: 'err', text: `${line.split(' ')[0]}: no result. Type "help", or "scope" for what is in scope. Recon first (nmap), then enumerate each service.` }] };
 }

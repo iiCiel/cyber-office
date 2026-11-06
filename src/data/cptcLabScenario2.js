@@ -7,7 +7,10 @@
 // all patterns in a group must match, any group may match) and `reveal` (canned output). Findings are tried in
 // order, so each one is keyed to its own host to keep commands from colliding.
 
+import { RAW_2 } from './cptcRaw2.js';
+
 export const CPTC_LAB_2 = {
+  raw: RAW_2,
   id: 'atlas-fintech-2026',
   client: 'Atlas Credit Union Services',
   engagement: 'External web, API and cloud penetration test, one week, remote.',
