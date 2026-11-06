@@ -25,7 +25,7 @@ export const nextStep = (run) => (run.finished ? null : run.eng.steps.find((s) =
 
 const HELP = [
   'This is a simulation. Only the moves of this engagement work; nothing is executed anywhere.',
-  'Built-ins:  help  moves  roe  hint  clear',
+  'Built-ins:  help  moves  roe  hint  clear   (plus whoami, id, pwd, hostname, date, uname -a, ip a, ls, history)',
   'Type a command from the MOVES list (or click it) to run it.',
 ];
 
@@ -46,7 +46,10 @@ export function runCommand(run, input) {
   }
   if (!step) return { kind: 'refused', lines: ['Engagement complete. Nothing left to run; open the SOC debrief.'] };
 
-  const idx = step.choices.findIndex((c) => norm(c.cmd) === q);
+  const idx = matchChoice(step, q);
+  // Everyday shell commands (after the step's own moves, so a step that IS "ip addr" still advances).
+  const amb = idx < 0 && ambient(run, q);
+  if (amb) return { kind: 'builtin', lines: amb };
   if (idx >= 0) {
     const choice = step.choices[idx];
     if (choice.violation) {
@@ -70,6 +73,74 @@ export function runCommand(run, input) {
   run.refused += 1;
   if (later) return { kind: 'refused', lines: [`Not yet: you have not found what that needs. Next goal: ${step.goal}`] };
   return { kind: 'refused', lines: [`${first}: not available in this simulation. Type "moves" for what you can do next.`] };
+}
+
+// --- a terminal, not a menu ----------------------------------------------------------------------------------
+// Real operators retype commands their own way: sudo in front, flags in a different order, a trailing slash.
+// Accept those as the same move, so the player is judged on WHAT they run, not on matching our exact string.
+const canon = (q) => {
+  const t = norm(q).replace(/^sudo\s+(-\S+\s+)*/, '').split(' ').map((w) => w.replace(/(.)\/$/, '$1'));
+  return { head: t[0], bag: t.slice(1).sort().join(' ') };
+};
+export function matchChoice(step, input) {
+  const q = norm(input);
+  let i = step.choices.findIndex((c) => norm(c.cmd) === q);
+  if (i >= 0) return i;
+  const a = canon(q);
+  i = step.choices.findIndex((c) => { const b = canon(c.cmd); return b.head === a.head && b.bag === a.bag; });
+  return i;
+}
+
+const pad2 = (n) => String(n).padStart(2, '0');
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+/** Who/where the prompt says we are: "user@host:path$". Null for non-shell prompts (smb: \>). */
+export function whereAmI(run) {
+  const m = /^([\w.-]+)@([\w.-]+):([^$#\s]*)/.exec(run.prompt || '');
+  if (!m) return null;
+  const [, user, host, raw] = m;
+  const home = user === 'root' ? '/root' : `/home/${user}`;
+  return { user, host, cwd: raw.replace(/^~/, home) || home, root: /#/.test(run.prompt) };
+}
+
+/**
+ * Everyday shell commands that work at any step and never advance the chain (whoami, id, ip a, history...).
+ * Output follows the current prompt, so after a pivot "whoami" really says svc_portal on portal01.
+ */
+export function ambient(run, q) {
+  const w = whereAmI(run);
+  if (!w) return null;
+  const kali = w.host === 'kali';
+  const ip = kali ? run.eng.attacker?.ip || '198.51.100.66' : '192.0.2.15';
+  const uid = w.root ? 0 : kali ? 1000 : 1001;
+  const user = w.root && kali ? 'root' : w.user;
+  const d = run.eng.date || { weekday: 'FRI', month: 'Oct', day: 30, year: 2026 };
+  const t = run.clock;
+  const hh = `${pad2(Math.floor(t / 3600) % 24)}:${pad2(Math.floor((t % 3600) / 60))}:${pad2(t % 60)}`;
+  const wd = (d.weekday || 'FRI').slice(0, 1) + (d.weekday || 'FRI').slice(1, 3).toLowerCase();
+  switch (q) {
+    case 'whoami': return [user];
+    case 'id': return [`uid=${uid}(${user}) gid=${uid}(${user}) groups=${uid}(${user})${kali && !w.root ? ',27(sudo),117(wireshark)' : ''}`];
+    case 'pwd': return [w.cwd];
+    case 'hostname': return [w.host];
+    case 'date': return [`${wd} ${d.month || MON[9]} ${pad2(d.day)} ${hh} EDT ${d.year}`];
+    case 'uname -a': return [kali ? `Linux kali 6.11.2-amd64 #1 SMP PREEMPT_DYNAMIC Kali 6.11.2-1kali1 (2026-10-02) x86_64 GNU/Linux` : `Linux ${w.host} 5.15.0-122-generic #132-Ubuntu SMP Thu Aug 29 13:45:52 UTC 2024 x86_64 x86_64 x86_64 GNU/Linux`];
+    case 'ip a': case 'ip addr': case 'ifconfig': return [
+      '1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000',
+      '    inet 127.0.0.1/8 scope host lo',
+      `2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000`,
+      `    link/ether 08:00:27:${kali ? '4e:1a:9c' : '7d:02:b1'} brd ff:ff:ff:ff:ff:ff`,
+      `    inet ${ip}/24 brd ${ip.replace(/\.\d+$/, '.255')} scope global ${kali ? 'dynamic ' : ''}eth0`,
+    ];
+    case 'ls': case 'ls -la': case 'ls -l': return kali
+      ? ['loot  notes.md  scans  scope.txt']
+      : ['total 12', `drwxr-x--- 2 ${user} ${user} 4096 ${d.month || 'Oct'} ${pad2(d.day)} 09:12 .`, `-rw------- 1 ${user} ${user}  220 Jan  6  2024 .bash_logout`, `-rw------- 1 ${user} ${user} 3771 Jan  6  2024 .bashrc`];
+    case 'cat scope.txt': return run.eng.roe.map((l) => `- ${l}`);
+    case 'history': {
+      const lines = history(run).map((h, i) => `  ${String(i + 1).padStart(3)}  ${h.choice.cmd}`);
+      return lines.length ? lines : ['    1  history'];
+    }
+    default: return null;
+  }
 }
 
 /** Run a full chain automatically (tests / verify): `prefer` = 'quiet' | 'loud'. */
