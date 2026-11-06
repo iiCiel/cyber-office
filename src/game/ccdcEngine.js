@@ -101,6 +101,15 @@ export function tickTo(state, sec) {
   const eng = state.engine;
   if (!eng) return;
   if (sec < eng.clock) return;
+  // A big jump (ending the round early, a backgrounded tab) must replay the round in order: step through each
+  // scored-check boundary so a wave at 6:00 cannot fail the checks at 2:00-5:30. Stepping by check boundaries
+  // gives exactly the same result as ticking second by second.
+  while (eng.lastCheckAt + CHECK_INTERVAL < sec) stepTo(state, eng.lastCheckAt + CHECK_INTERVAL);
+  stepTo(state, sec);
+}
+
+function stepTo(state, sec) {
+  const eng = state.engine;
   eng.clock = sec;
 
   // Inject release + deadline.
