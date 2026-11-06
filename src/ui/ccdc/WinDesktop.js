@@ -61,6 +61,7 @@ export class WinDesktop {
     this.ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => this.layout()) : null;
     this.ro?.observe(this.root);
     this.refresh();
+    this.renderTaskbar(); // pinned Explorer / PowerShell buttons show even before any window is open (Win10 workstation)
     if (this.isServer) this.openApp('sm'); // Server Manager opens by itself at sign-in on a server
   }
 
