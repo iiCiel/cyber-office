@@ -1,6 +1,6 @@
 # Project: Cyber Office
 
-> Project file from the Command Center, Nov 6, 2026, 11:58 AM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
+> Project file from the Command Center, Nov 6, 2026, 12:06 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
 
 ## Goal
 A pixel-art browser game where you live a real day as a junior security analyst: walk the office, read real-looking email, dig through logs, deal with coworkers, and watch your choices play out. Not a quiz and not a wall of text. Built in public as a portfolio piece for internship applications.
@@ -14,43 +14,32 @@ A pixel-art browser game where you live a real day as a junior security analyst:
 D:\Projects\cyber-office
 
 ## Notes (what is done, in progress, next, issues)
-STATUS (Oct 31, full-sim run): PR #6 OPEN https://github.com/iiCiel/cyber-office/pull/6 (branch feat/ccdc-full-sim, commit e3d3af4). It is built on fix/engine-scoring-review, so it INCLUDES PR #5; merging #6 ships both. All checks are LOCAL (npx vite --port 5194 --strictPort) until merged. MUSIC REMOVED, do not re-add.
+STATUS (Nov 6): PR #6 MERGED (live). PR #9 OPEN https://github.com/iiCiel/cyber-office/pull/9 (branch fix/pr6-review). Local checks only until merged. MUSIC REMOVED, do not re-add.
 
-WHAT PR #6 DOES
-- CCDC scene (src/scenes/CcdcLabScene.js) rewritten:
-  - Brief = team packet PDF (.ccx-pdf/.ccx-doc). Play = JumpBox (src/ui/ccdc/JumpBox.js): Win10 taskbar, window manager, Chrome/PuTTY/RDP frames, toasts. Debrief = after-action report PDF (.ccx-aar).
-  - Team number is seeded from ccdcTeams roster (this.tn()).
-  - Practice mode also attaches the engine (no deadline; injects all released, dueAt=Infinity; timeLimitSec set so End fast-forwards).
-- Apps in src/ui/ccdc/:
-  - TermView.js: themes putty/pwsh/kali/fbsd
-  - PuttyApp.js: Ubuntu banner; pfSense console menu, 8 = shell
-  - PfSenseApp.js + src/game/pfsenseMap.js: GUI actions -> rule-editor run() commands
-  - WinDesktop.js + winApps*.js + src/game/winGuiMap.js: ADUC/services/tasks -> PowerShell run(); app ids ps/sm/aduc/services/tasks/events/lusr/explorer
-  - SiemApp.js + src/game/siemGen.js (createSiem: get(i), count, liveAt, onWave, hunt) + siemSearch.js (startSearch, chunked SPL) + src/data/siemStories.js (STORIES; 6 hunt q's per company)
-  - ScoreboardApp.js, InjectsApp.js, ChatApp.js + src/game/ccdcTeams.js (roster, standings(state,sec), liveTeamScore, rankOf)
-  - PlaybookApp.js (Notepad, practice only)
-- The scene calls siem.onWave for every probe/compromise. huntScore is shown in the AAR as a bonus, not in the letter grade.
-- Engine fix: per-game AD directory. makeDirectory now keeps .spec; runLine builds ds.dir and applyAdChange (hostState.js) applies Disable/Enable-ADAccount, Add/Remove-ADGroupMember, Remove-ADUser; the pwsh ctx uses ds.dir. Tests: tests/ccdcad.test.js.
-- CPTC (src/scenes/CptcLabScene.js + src/ui/cptc/*): ROE letter, Kali Xfce desktop, QTerminal (runEnum), Mousepad notes, report document. cptclab.js grading unchanged.
-- Research: docs/reference-ui.md -> docs/reference-ui/{jumpbox,scoreboard,ccdc-day,pfsense,windows,siem,cptc}.md. Splunk docs (403) and Netgate screenshots (404) were blocked, so some hex values are from memory (flagged in those files).
-- Proof: docs/proof/{ccdc-sim,siem,pfsense,windows,scoreboard,cptc}/.
-- Tests: npm test 499/499.
-- Browser checks: scripts/verify-ccdcsim.mjs 38/38 (1366+390, plus a practice/Harbor Point pass) and scripts/verify-cptclab.mjs 24/24, both run from the main tree. Per-app checks use dev-only preview/*.html: scripts/verify-pfsense.mjs, verify-windows.mjs, shot-siem.mjs, shoot-scoreboard.mjs.
-- REMOVED old UI scripts: verify-ccdclab/ccdcengine/scenario2/fixups.mjs. Engine coverage stays in the unit tests.
+PR #9 CONTAINS
+- Codex P2 fix (ccdcEngine.tickTo): a big clock jump now replays the round check by check (stepTo), so ending early equals ticking second by second. Test: tests/ccdcfastforward.test.js.
+- Codex P2 fix (siemSearch): stats count(field) counts only events that have the field. Test in tests/siemgen.test.js.
+- engage.js (red-team engagements): canon() matching (sudo stripped, flag order ignored, trailing slashes ignored). matchChoice/whereAmI/ambient exported. Ambient builtins (whoami, id, pwd, hostname, date, uname -a, ip a, ifconfig, ls, cat scope.txt, history) follow the prompt's user@host, run only after matchChoice fails, and never add a strike. Test: tests/engage-terminal.test.js.
+- scripts/round-timeline.mjs -> docs/proof/timeline/{cedarline,harbor-point}.md (numbers showing rivals, waves, injects and SLA change over time).
+- docs/reference/ = real screenshots from Wikimedia Commons (pfSense 2.7 dashboard, pfSense 2.3.2, PuTTY Ubuntu, Event Viewer, Kali 2021.2) + README with side-by-side notes.
+- npm test 507/507.
 
 NEXT
-(1) After the merge: node scripts/verify-ccdcsim.mjs https://iiciel.github.io/cyber-office/ and node scripts/verify-cptclab.mjs https://iiciel.github.io/cyber-office/ ; then call it live.
-(2) Make the siem.onWave lines specific to each finding (currently one generic template per host role).
-(3) ADUC opens on the Users container only; consider expanding the tree on open.
-(4) Grow the general lab library (still open, skipped 3 times).
-(5) 3rd CCDC + 3rd CPTC scenario, each with a SIEM story.
-(6) More step.verify fixes (sshd_config PermitRootLogin no, postfix main.cf).
-(7) Optionally delete the old MCQ files (src/game/ccdc.js|cptc.js, CcdcScene/CptcScene).
+(1) After the merge: node scripts/verify-ccdcsim.mjs https://iiciel.github.io/cyber-office/ and node scripts/verify-cptclab.mjs (same URL).
+(2) pfSense dashboard: add a 3rd column (Services Status, Traffic Graphs) to match the reference.
+(3) Make siem.onWave lines specific to each finding.
+(4) ADUC: expand the tree on open.
+(5) Grow the general lab library (still open).
+(6) 3rd CCDC + 3rd CPTC scenario.
+(7) Reference images still missing: Server Manager, ADUC, Splunk, CCDC scoreboard (non-free; ask Soliman).
 
-AUTHOR GOTCHAS: a multi-step fix's step.accept is a FLAT AND-list of regexes. Use the Edit tool for regex/escape lines; sed and inline node quoting broke twice this run. JumpBox calls app.focus() with no args (WinDesktop.focus handles the no-arg call). The `.jb button {color:inherit}` rule beats single-class colours, so prefix with `.jb`. No python/pkill on this machine; stop vite via TaskStop or taskkill /PID.
-ISSUES (pre-existing): no focus trap; CRLF/LF mix (git warns); bundle is 3.1 MB (consider code-splitting the competition scenes).
+GOTCHAS: Use the Edit tool for regex lines; a heredoc node patch stripped the backslashes this run. Wikimedia: use Special:FilePath without ?width (width returned an error page). Ambient commands must run AFTER matchChoice (halcyon uses `ip addr` as a step).
 
 ## Recent runs (newest first)
+### Nov 6, 2026: done
+- He asked: Weekly usage resets at 18:00 UTC (about 1 hour), so use everything left. A restart just interrupted the previous run, so check git status first and don't redo finished work. Fix the supervisor's 6 problems on PR #6, improve the red-team engagements, keep working until stopped, and report.
+- Did: Merge PR #9. It fixes the PR #6 review problems and makes the red-team terminals feel more real: https://github.com/iiCiel/cyber-office/pull/9 1. Done: ending a CCDC round early now scores the same as playing it out. Before the fix it gave wrong uptime, e.g. 30 instead of 72. Splunk `stats count(field)` now counts correctly too. 2. Done: there is now proof that the round is alive. For each company, a minute-by-minute table shows rival scores moving, red-team waves at 3:00/8:00/12:00, injects going overdue and SLA violations going up (docs/proof/timeline/). 3. Done: the red-team terminal now accepts sudo and flags in any order. whoami, id, pwd, hostname, ip a, ls and history now work and match the box you're on. They never count as a wrong move. 4. Done: real screenshots of pfSense, PuTTY, Event Viewer and Kali are saved in docs/reference/, with notes comparing them to our screens. Our pfSense dashboard matches the real layout, except it's missing the Services Status / Traffic Graphs column. 5. NOT DONE (needs you): I couldn't get free real screenshots of Server Manager, AD Users and Computers, Splunk or a CCDC scoreboard, so I couldn't compare those screens. Next: open https://git…
+- Where it stood: PR #6 is live. PR #9 is open (review fixes, proof that the round changes over time, more realistic red-team terminals, real reference screenshots). It goes live once you merge it.
 ### Nov 6, 2026: stopped by the supervisor, supervisor grade F
 - He asked: Weekly usage resets in about 1 hour, so use what's left. Address the supervisor's 6 problems on PR #6, keep improving the red-team engagements, and report.
 - Did: PR #6 is already merged. Let me see the Codex review findings and the supervisor's 6 problems.
@@ -74,16 +63,9 @@ ISSUES (pre-existing): no focus trap; CRLF/LF mix (git warns); bundle is 3.1 MB 
 - Where it stood: PR #2+#3 are live (hands-on CCDC/CPTC with the 9 fixes). This run's big realism upgrade is built, tested and live-verified locally on branch feat/realistic-competitions → PR #4 OPEN, not yet merged/deployed.
 - Problems: 8 tool errors, including a heredoc EOF failure and CPTC validator FAILs that needed patching.; The first Cedarline verify failed (seat tab counts) and needed edits, so the new device was added without updating checks.; The supervisor had to steer at 7:00 PM to push the run toward the Step 2 items (file editing, devices, commands, lab library). The PR was nearly opened first.; The run ended at 40 minutes despite 'take all the time and usage you need'.; Nothing is deployed; it still needs Soliman's merge.
 - Advice for the next run: Merge state first: check whether PR #4 is merged, then branch from main. Still missing from Step 2: growing the general lab library in terminal style. Do that next. Confirm docs/competition-research.md exists and cite it in the PR. After any device or finding change, update tests and verify scripts together.
-### Oct 31, 2026: done, supervisor grade B
-- He asked: Fix-up run started by the supervisor. It checked the last run's work itself and found 9 problems: 1. The Incident Response / Captain seat should crash when the round starts. No device has role 'ir', so deviceList is empty, dev is undefined and devicePanel(dev) reads dev.id and throws. (seen: ccdcLab
-- Did: Merge PR #3: the live site has the old CCDC/CPTC with the 9 bugs (PR #2 was merged before this run's fixes were pushed). 1. Done: all 9 supervisor problems fixed and checked LOCALLY. The IR/Captain seat no longer crashes: it gets a Captain's desk with the injects. Blank injects are refused, and injects are graded item by item. Boilerplate CPTC reports now get a C, not an A. The MySQL and firewall loopholes are closed. Clicking only the checklist items now hardens 8/8. 2. Needs you: merge PR #3. Until then the live site's IR seat crashes and blank injects still score full points (I checked the live site). 3. Needs you: decide whether it's OK that engage.js was NOT reused. CCDC uses the real bash/PowerShell engines (shell.js/pwsh.js). CPTC has its own small engine and reuses only the terminal look, because engage.js is a fixed step-by-step chain. Say yes, or ask for a port. 4. FYI: the old unsaved role edits in ccdc.js were dropped (that file is unchanged), and roles were rebuilt in ccdcLab.js. The stray title.png is out of the PR; it's still on your disk and now gitignored. 5. Done: the Linux seat now has a real second job: a hidden SSH key on the mail server. Next: open https://gi…
-- Where it stood: Live site = PR #2 build (still has the IR-seat crash and the loose grading). All 9 fixes are done and verified locally in PR #3; they ship once it's merged.
-- Problems: The fixes did not reach main. PR #2 was merged mid-run, so the live site still has the IR crash and full-point blank injects. The run's own check against the live site showed FAIL.; Two failed tool calls came from messy regex edits and one shell quoting error. They cost a few minutes but were fixed.; PROJECT.md was not updated to settle the engage.js HARD RULE. It was left for Soliman to decide, which is acceptable but leaves the rule and the code in conflict.; The run did not check the merge state of PR #2 until after it had finished the work.
-- Advice for the next run: Check whether the PR is already merged before starting, and push each fix as soon as it's committed. Keep calling checks LOCAL until the change is on main and the live site is verified. Once PR #3 is merged, rerun both verify scripts against the live URL.
 
 ## Waiting on Soliman
-- The supervisor stopped the Cyber Office run: your plan usage reached 90% (This week).
-- The supervisor opened the last Cyber Office run's work and found 6 problems.
-- Merge PR #6: CCDC + CPTC rebuilt to look like the real tools (includes PR #5)
+- Drop real screenshots of Server Manager, AD Users and Computers, Splunk Search and a CCDC scoreboard into docs/reference/
+- Merge PR #9 (PR #6 review fixes + more realistic red-team terminals)
 - The supervisor opened the last Cyber Office run's work and found 1 problem even after the fix-up run.
 - Play the 5 red-team engagements once and say if they're good enough to show University of Akron
