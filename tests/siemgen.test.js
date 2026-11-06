@@ -177,3 +177,21 @@ test('stats count(field) counts only events that have the field (Codex PR #6 rev
   assert.equal(nNone, 0);
   assert.ok(nUser <= n);
 });
+
+test('onWave lines are specific to the finding that was hit', () => {
+  const expect = {
+    'web-admin-default': /wp-login\.php|plugin-install/, 'web-shell': /stats\.php\?cmd=/, 'mysql-exposed': /root/, 'mail-open-relay': /203.0.113.66|spam-sender\.example|gmail\.example/,
+    'ssh-root-key': /root/, 'rogue-da': /svc-backup2/, 'smbv1-dc': /445|cmd.exe/, 'ws-schtask': /Administrator|SystemCheck|4698|Task/, 'firewall-anyany': /203\.0\.113\.66/,
+  };
+  for (const [fid, re] of Object.entries(expect)) {
+    const s = createSiem(CED, { seed: 5 });
+    const added = s.onWave(fid, 300, 'compromised');
+    assert.ok(added.length > 0, fid);
+    assert.ok(added.every((i) => re.test(s.get(i).raw)), `${fid}: ${s.get(added[0]).raw}`);
+  }
+  const h = createSiem(HP, { seed: 5 });
+  for (const [fid, re] of [['exposed-git', /\.git\/|\.env/], ['postgres-trust', /COPY members|SELECT version|connection authorized/], ['guest-admin', /Guest/], ['app-cron', /sysupd/]]) {
+    const a = h.onWave(fid, 300, 'compromised');
+    assert.ok(a.length > 0 && a.every((i) => re.test(h.get(i).raw)), fid);
+  }
+});

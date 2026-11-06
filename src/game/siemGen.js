@@ -511,7 +511,7 @@ export function createSiem(scenario, opts = {}) {
     const at = roundStart + Math.floor(clockSec);
     const base = total + Math.floor(clockSec * liveRate);
     const n = outcome === 'compromised' ? 18 : 7;
-    const specs = story.waveLines ? story.waveLines(ctx, host, outcome, at, n) : [];
+    const specs = story.waveLines ? story.waveLines(ctx, host, outcome, at, n, findingId) : [];
     const added = [];
     let idx = base + 1;
     for (const sp of specs) {

@@ -190,9 +190,35 @@ export class PfSenseApp {
       el('tbody', '', ...[['dpinger', 'Gateway Monitoring Daemon'], ['ntpd', 'NTP clock sync'], ['sshd', 'Secure Shell Daemon'], ['syslogd', 'System Logger Daemon'], ['unbound', 'DNS Resolver']]
         .map(([n, d]) => el('tr', '', el('td', '', n), el('td', '', d), el('td', 'pf-ok', '✓ Running')))));
     c.append(el('div', 'pf-cols',
-      el('div', 'pf-col', this.panel('System Information', sysInfo), this.panel('Services Status', svc)),
-      el('div', 'pf-col', this.panel('Interfaces', ifs), this.panel('Gateways', gw))));
+      el('div', 'pf-col', this.panel('System Information', sysInfo)),
+      el('div', 'pf-col', this.panel('Interfaces', ifs), this.panel('Gateways', gw)),
+      el('div', 'pf-col', this.panel('Services Status', svc), this.panel('Traffic Graphs', this.trafficGraph()))));
     this.updateDash();
+  }
+
+  trafficGraph() {
+    const W = 300; const H = 70;
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('class', 'pf-graph'); svg.style.width = '100%';
+    const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+    for (const [k, v] of Object.entries({ x: 0, y: 0, width: W, height: H, fill: '#fff', stroke: '#ccc' })) bg.setAttribute(k, v);
+    svg.append(bg);
+    for (let g = 1; g < 4; g++) { const l = document.createElementNS('http://www.w3.org/2000/svg', 'line'); for (const [k, v] of Object.entries({ x1: 0, x2: W, y1: (H / 4) * g, y2: (H / 4) * g, stroke: '#eee' })) l.setAttribute(k, v); svg.append(l); }
+    const mkp = (stroke) => { const p = document.createElementNS('http://www.w3.org/2000/svg', 'polyline'); p.setAttribute('fill', 'none'); p.setAttribute('stroke', stroke); p.setAttribute('stroke-width', '1.2'); svg.append(p); return p; };
+    const pi = mkp('#e36a1d'); const po = mkp('#3b6fb6');
+    this.refs.gIn = pi; this.refs.gOut = po;
+    const legend = el('div', 'pf-muted', el('span', '', { style: 'color:#e36a1d' }, '■ '), 'WAN in  ', el('span', '', { style: 'color:#3b6fb6' }, '■ '), 'WAN out');
+    return el('div', 'pf-graphbox', svg, legend);
+  }
+
+  updateGraph(s) {
+    const r = this.refs;
+    if (!r.gIn) return;
+    const pts = (seed, amp) => Array.from({ length: 30 }, (_, i) => {
+      const t = s - (29 - i) * 10; const v = 8 + amp * (0.5 + 0.5 * Math.sin(t / 37 + seed)) * (0.6 + 0.4 * Math.sin(t / 11 + seed * 3));
+      return `${(i * 300) / 29},${70 - Math.min(66, v)}`;
+    }).join(' ');
+    r.gIn.setAttribute('points', pts(1, 40)); r.gOut.setAttribute('points', pts(4, 22));
   }
 
   setBar(key, pct, text) {
@@ -209,6 +235,7 @@ export class PfSenseApp {
     const up = 2 * 86400 + 4 * 3600 + 12 * 60 + 55 + s;
     const p2 = (n) => String(n).padStart(2, '0');
     r.uptime.textContent = `${Math.floor(up / 86400)} Days ${p2(Math.floor(up / 3600) % 24)} Hours ${p2(Math.floor(up / 60) % 60)} Minutes ${p2(up % 60)} Seconds`;
+    this.updateGraph(s);
     r.now.textContent = `Sat Oct 31 ${clockToHms(s)} UTC 2026`;
     r.cfg.textContent = `Sat Oct 31 08:41:07 UTC 2026`;
     const cpu = 3 + ((s * 7) % 9);

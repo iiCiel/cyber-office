@@ -1,0 +1,22 @@
+// Screenshot of the pfSense Status > Dashboard (3 columns). node scripts/shot-pfdash.mjs [url] [out.png]
+import { chromium } from 'playwright-core';
+const url = process.argv[2] || 'http://localhost:5194/cyber-office/';
+const out = process.argv[3] || 'docs/proof/pfsense-3col/dashboard-1366.png';
+const b = await chromium.launch({ channel: 'chrome', headless: true });
+const page = await b.newPage({ viewport: { width: 1366, height: 900 } });
+await page.goto(url + '?v=' + Date.now());
+await page.waitForFunction(() => window.__game?.scene?.isActive('Title'), null, { timeout: 20000 });
+await page.keyboard.press('t');
+await page.waitForFunction(() => window.__game.scene.isActive('Competitions'));
+await page.locator('.comp-card[data-mode="ccdc"]').click();
+await page.waitForFunction(() => window.__game.scene.isActive('CcdcLab'));
+await page.locator('.ccx-radio', { hasText: 'Competition' }).click();
+await page.locator('.ccx-btn.primary').click();
+await page.waitForSelector('.jb-taskbar');
+await page.waitForTimeout(500);
+await page.locator('.jb-tb-app[data-open="pf"]').click();
+await page.waitForTimeout(400);
+await page.locator('.jb-win[data-win="pf"] .pf-brand').click();
+await page.waitForTimeout(1500);
+await page.screenshot({ path: out });
+await b.close();
