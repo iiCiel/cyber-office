@@ -5,6 +5,7 @@ import { startSearch } from '../src/game/siemSearch.js';
 import { STORIES } from '../src/data/siemStories.js';
 import CED from '../src/data/ccdcLabScenario.js';
 import HP from '../src/data/ccdcLabScenario2.js';
+import RV from '../src/data/ccdcLabScenario3.js';
 
 const run = (siem, q, o = {}) => new Promise((res) => startSearch(siem, q, { ...o, onDone: res }));
 
@@ -14,6 +15,7 @@ const hp = createSiem(HP, { seed: 1 });
 test('at least 2,000,000 events, index-addressable and deterministic', () => {
   assert.ok(ced.total >= 2_000_000);
   assert.ok(hp.total >= 2_000_000);
+  assert.ok(createSiem(RV, { seed: 1 }).total >= 2_000_000);
   for (const i of [0, 1, 999, 1_234_567, ced.total - 1]) {
     const a = ced.get(i); const b = ced.get(i);
     assert.equal(a.raw, b.raw);
@@ -121,6 +123,7 @@ test('hunt accept regexes match the right answers and reject others', () => {
   const ok = {
     'cedarline-lab-2026': { attacker_ip: '203.0.113.66', vector: 'brute force on wp-login', first_account: 'admin', first_login_time: '23:07', backdoor_account: 'svc-backup2', c2: '198.51.100.200:8443' },
     'harborpoint-lab-2026': { attacker_ip: '203.0.113.131', vector: 'exposed .git folder', first_account: 'hp_app', first_login_time: '03:41', backdoor_account: 'svc_update', c2: '198.51.100.214:4443' },
+    'ridgeview-lab-2026': { attacker_ip: '203.0.113.88', vector: 'unauthenticated redis on 6379', first_account: 'redis', first_login_time: '02:36', backdoor_account: 'svc-hl7', c2: '198.51.100.77:9001' },
   };
   for (const [id, answers] of Object.entries(ok)) {
     const ids = STORIES[id].hunt.map((q) => q.id);

@@ -2,11 +2,12 @@
 // Plays an untouched round (seed 1) and prints one row per minute. Usage: node scripts/round-timeline.mjs [2]
 import { CCDC_LAB } from '../src/data/ccdcLabScenario.js';
 import { CCDC_LAB_2 } from '../src/data/ccdcLabScenario2.js';
+import { CCDC_LAB_3 } from '../src/data/ccdcLabScenario3.js';
 import { newGame, MODES } from '../src/game/ccdcLab.js';
 import { attachEngine, tickTo, fmtClock } from '../src/game/ccdcEngine.js';
 import { standings } from '../src/game/ccdcTeams.js';
 
-const scen = process.argv[2] === '2' ? CCDC_LAB_2 : CCDC_LAB;
+const scen = process.argv[2] === '3' ? CCDC_LAB_3 : process.argv[2] === '2' ? CCDC_LAB_2 : CCDC_LAB;
 const s = attachEngine(newGame(scen, { seed: 1, mode: MODES.COMPETITION }));
 const end = s.timeLimitSec;
 const out = [`# ${scen.company || scen.name || scen.id}: untouched round, seed 1, ${fmtClock(end)} long`, ''];

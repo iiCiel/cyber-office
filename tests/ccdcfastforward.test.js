@@ -3,12 +3,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CCDC_LAB } from '../src/data/ccdcLabScenario.js';
 import { CCDC_LAB_2 } from '../src/data/ccdcLabScenario2.js';
+import { CCDC_LAB_3 } from '../src/data/ccdcLabScenario3.js';
 import { newGame, score, expire, MODES } from '../src/game/ccdcLab.js';
 import { attachEngine, tickTo } from '../src/game/ccdcEngine.js';
 
 const pick = (sc) => ({ service: sc.service ?? sc.services ?? sc.servicePts, sla: sc.sla ?? sc.slaPenalty, total: sc.total });
 
-for (const [name, scen] of [['CCDC_LAB', CCDC_LAB], ['CCDC_LAB_2', CCDC_LAB_2]]) {
+for (const [name, scen] of [['CCDC_LAB', CCDC_LAB], ['CCDC_LAB_2', CCDC_LAB_2], ['CCDC_LAB_3', CCDC_LAB_3]]) {
   test(`${name}: ending immediately scores the same as ticking second by second`, () => {
     const a = attachEngine(newGame(scen, { seed: 1, mode: MODES.COMPETITION }));
     expire(a); // jumps straight to the buzzer
