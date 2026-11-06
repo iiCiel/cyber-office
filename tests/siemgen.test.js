@@ -167,3 +167,13 @@ test('search: head N exits early and returns newest first; progress is reported'
   assert.ok(progress >= 1);
   assert.ok(full.scanned === full.total);
 });
+
+test('stats count(field) counts only events that have the field (Codex PR #6 review)', async () => {
+  const h = await run(ced, 'host=web01 sourcetype=access_combined status=404 | stats count count(uri) count(no_such_field) count(user) as withUser');
+  const [n, nUri, nNone, nUser] = h.table.rows[0];
+  assert.deepEqual(h.table.columns, ['count', 'count(uri)', 'count(no_such_field)', 'withUser']);
+  assert.ok(n > 0);
+  assert.equal(nUri, n);
+  assert.equal(nNone, 0);
+  assert.ok(nUser <= n);
+});
