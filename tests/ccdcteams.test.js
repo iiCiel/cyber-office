@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CCDC_LAB } from '../src/data/ccdcLabScenario.js';
 import { CCDC_LAB_2 } from '../src/data/ccdcLabScenario2.js';
+import { CCDC_LAB_3 } from '../src/data/ccdcLabScenario3.js';
 import { newGame, runLine, answerInject, score, expire, MODES } from '../src/game/ccdcLab.js';
 import { attachEngine, tickTo } from '../src/game/ccdcEngine.js';
 import { teamsAt, standings, rankOf, liveTeamScore, roster } from '../src/game/ccdcTeams.js';
@@ -77,7 +78,7 @@ test('player can finish anywhere: idle player is not first, a perfect round beat
 });
 
 test('liveTeamScore matches the final scorecard at the end of the round', () => {
-  for (const sc of [CCDC_LAB, CCDC_LAB_2]) {
+  for (const sc of [CCDC_LAB, CCDC_LAB_2, CCDC_LAB_3]) {
     const s = fresh(9, sc);
     tickTo(s, 150);
     const mid = liveTeamScore(s);

@@ -212,13 +212,13 @@ export function createAduc(ctx) {
     };
     node(`Active Directory Users and Computers [${m.dc}.${m.domain}]`, 0, { icon: 'i-aduc', kids: true, expanded: true });
     node('Saved Queries', 1, { icon: 'i-folder', kids: true });
-    const walk = (dn, name, depth) => {
+    const walk = (dn, name, depth, kind) => {
       const kids = adTree(m, dn);
-      const expanded = st.open.has(dn) || dn === m.dn;
-      node(name, depth, { dn, icon: dn === m.dn ? 'i-domain' : 'i-folder', kids: kids.length > 0, expanded, on: st.cont === dn });
-      if (expanded) for (const k of kids) walk(k.dn, k.name, depth + 1);
+      const expanded = st.open.has(dn);
+      node(name, depth, { dn, icon: dn === m.dn ? 'i-domain' : kind === 'ou' ? 'i-ou' : 'i-folder', kids: kids.length > 0, expanded, on: st.cont === dn });
+      if (expanded) for (const k of kids) walk(k.dn, k.name, depth + 1, k.kind);
     };
-    walk(m.dn, m.domain, 1);
+    walk(m.dn, m.domain, 1, 'domain');
   }
   function renderList() {
     const m = m0();
@@ -244,7 +244,8 @@ export function createAduc(ctx) {
   }
   function render() {
     const m = m0();
-    if (!st.cont) { st.cont = m.ouByName.get('Users')?.dn || m.dn; st.open = new Set([m.dn]); }
+    // First open: expand the whole OU tree (domain + every OU that has child OUs) so the structure is visible at once.
+    if (!st.cont) { st.cont = m.ouByName.get('Users')?.dn || m.dn; st.open = new Set([m.dn, ...m.ous.filter((o) => adTree(m, o.dn).length).map((o) => o.dn)]); }
     const t = pane.scrollTop; const tt = tree.scrollTop;
     renderTree(); renderList();
     pane.scrollTop = t; tree.scrollTop = tt;

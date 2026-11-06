@@ -5,6 +5,7 @@ import { startSearch } from '../src/game/siemSearch.js';
 import { STORIES } from '../src/data/siemStories.js';
 import CED from '../src/data/ccdcLabScenario.js';
 import HP from '../src/data/ccdcLabScenario2.js';
+import RV from '../src/data/ccdcLabScenario3.js';
 
 const run = (siem, q, o = {}) => new Promise((res) => startSearch(siem, q, { ...o, onDone: res }));
 
@@ -14,6 +15,7 @@ const hp = createSiem(HP, { seed: 1 });
 test('at least 2,000,000 events, index-addressable and deterministic', () => {
   assert.ok(ced.total >= 2_000_000);
   assert.ok(hp.total >= 2_000_000);
+  assert.ok(createSiem(RV, { seed: 1 }).total >= 2_000_000);
   for (const i of [0, 1, 999, 1_234_567, ced.total - 1]) {
     const a = ced.get(i); const b = ced.get(i);
     assert.equal(a.raw, b.raw);
@@ -121,6 +123,7 @@ test('hunt accept regexes match the right answers and reject others', () => {
   const ok = {
     'cedarline-lab-2026': { attacker_ip: '203.0.113.66', vector: 'brute force on wp-login', first_account: 'admin', first_login_time: '23:07', backdoor_account: 'svc-backup2', c2: '198.51.100.200:8443' },
     'harborpoint-lab-2026': { attacker_ip: '203.0.113.131', vector: 'exposed .git folder', first_account: 'hp_app', first_login_time: '03:41', backdoor_account: 'svc_update', c2: '198.51.100.214:4443' },
+    'ridgeview-lab-2026': { attacker_ip: '203.0.113.88', vector: 'unauthenticated redis on 6379', first_account: 'redis', first_login_time: '02:36', backdoor_account: 'svc-hl7', c2: '198.51.100.77:9001' },
   };
   for (const [id, answers] of Object.entries(ok)) {
     const ids = STORIES[id].hunt.map((q) => q.id);
@@ -166,4 +169,32 @@ test('search: head N exits early and returns newest first; progress is reported'
   const full = await run(ced, 'sourcetype=linux_secure', { onProgress: () => { progress++; } });
   assert.ok(progress >= 1);
   assert.ok(full.scanned === full.total);
+});
+
+test('stats count(field) counts only events that have the field (Codex PR #6 review)', async () => {
+  const h = await run(ced, 'host=web01 sourcetype=access_combined status=404 | stats count count(uri) count(no_such_field) count(user) as withUser');
+  const [n, nUri, nNone, nUser] = h.table.rows[0];
+  assert.deepEqual(h.table.columns, ['count', 'count(uri)', 'count(no_such_field)', 'withUser']);
+  assert.ok(n > 0);
+  assert.equal(nUri, n);
+  assert.equal(nNone, 0);
+  assert.ok(nUser <= n);
+});
+
+test('onWave lines are specific to the finding that was hit', () => {
+  const expect = {
+    'web-admin-default': /wp-login\.php|plugin-install/, 'web-shell': /stats\.php\?cmd=/, 'mysql-exposed': /root/, 'mail-open-relay': /203.0.113.66|spam-sender\.example|gmail\.example/,
+    'ssh-root-key': /root/, 'rogue-da': /svc-backup2/, 'smbv1-dc': /445|cmd.exe/, 'ws-schtask': /Administrator|SystemCheck|4698|Task/, 'firewall-anyany': /203\.0\.113\.66/,
+  };
+  for (const [fid, re] of Object.entries(expect)) {
+    const s = createSiem(CED, { seed: 5 });
+    const added = s.onWave(fid, 300, 'compromised');
+    assert.ok(added.length > 0, fid);
+    assert.ok(added.every((i) => re.test(s.get(i).raw)), `${fid}: ${s.get(added[0]).raw}`);
+  }
+  const h = createSiem(HP, { seed: 5 });
+  for (const [fid, re] of [['exposed-git', /\.git\/|\.env/], ['postgres-trust', /COPY members|SELECT version|connection authorized/], ['guest-admin', /Guest/], ['app-cron', /sysupd/]]) {
+    const a = h.onWave(fid, 300, 'compromised');
+    assert.ok(a.length > 0 && a.every((i) => re.test(h.get(i).raw)), fid);
+  }
 });

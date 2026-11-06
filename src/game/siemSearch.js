@@ -280,9 +280,10 @@ function statsAdd(t, ev) {
   if (!g) { g = new Group(t.aggs, key); t.groups.set(key, g); }
   g.n++;
   for (let a = 0; a < t.aggs.length; a++) {
-    const ag = t.aggs[a]; if (ag.fn === 'count') continue;
+    const ag = t.aggs[a]; if (ag.fn === 'count' && !ag.field) continue;
     const v = fieldValue(ev, ag.field); if (v === undefined) continue;
     switch (ag.fn) {
+      case 'count': g.cnt[a]++; break; // count(field): events where the field is present
       case 'dc': g.st[a].add(String(v)); break;
       case 'values': if (g.st[a].size < 200) g.st[a].add(String(v)); break;
       case 'sum': case 'avg': { const x = typeof v === 'number' ? v : parseFloat(v); if (!Number.isNaN(x)) { g.st[a] += x; g.cnt[a]++; } break; }
@@ -302,7 +303,7 @@ function statsTable(t) {
     const keyParts = t.by.length > 1 ? g.key.split('\u0001') : t.by.length ? [g.key] : [];
     const vals = t.aggs.map((a, i) => {
       switch (a.fn) {
-        case 'count': return g.n;
+        case 'count': return a.field ? g.cnt[i] : g.n;
         case 'dc': return g.st[i].size;
         case 'values': return [...g.st[i]].sort().join(' ');
         case 'sum': return Math.round(g.st[i] * 1000) / 1000;

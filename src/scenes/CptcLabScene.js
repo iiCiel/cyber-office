@@ -98,7 +98,7 @@ export class CptcLabScene extends Phaser.Scene {
     this.root.append(desk.el);
 
     this.term = new TermView({
-      theme: 'kali', prompt: () => 'kali㉿kali ~', label: 'Kali terminal', buffer: this.termBuf, history: this.cmdHist, complete: COMPLETE,
+      theme: 'kali', prompt: () => 'kali㉿kali ~', label: 'Kali terminal', buffer: this.termBuf, history: this.cmdHist, complete: [...new Set([...COMPLETE, ...(this.scenario.complete || [])])],
       run: (line) => this.runLine(line),
     });
     const termBody = h('div', { class: 'kx-termwrap' }, h('div', { class: 'kx-termmenu', 'aria-hidden': 'true' }, ['File', 'Edit', 'View', 'Terminal', 'Help'].map((m) => h('span', {}, m))), this.term.el);
@@ -150,7 +150,7 @@ export class CptcLabScene extends Phaser.Scene {
     });
     const hints = this.guided ? [
       h('div', { class: 'kx-nl' }, ''), h('div', { class: 'kx-nl' }, 'TODO / methodology (click to load into the terminal)'), h('div', { class: 'kx-nl' }, '-'.repeat(30)),
-      HINTS.map((c) => h('button', { type: 'button', class: 'kx-hint', onclick: () => { this.desk.open('term'); this.term.setInput(c); } }, `[ ] ${c}`)),
+      (sc.hints || HINTS).map((c) => h('button', { type: 'button', class: 'kx-hint', onclick: () => { this.desk.open('term'); this.term.setInput(c); } }, `[ ] ${c}`)),
     ] : [h('div', { class: 'kx-nl' }, ''), h('div', { class: 'kx-nl dim' }, 'Competition mode: no hints. "scope" in the terminal restates the rules.')];
     clear(this.notesBody).append(
       h('div', { class: 'kx-nmenu', 'aria-hidden': 'true' }, ['File', 'Edit', 'Search', 'View', 'Document', 'Help'].map((m) => h('span', {}, m))),

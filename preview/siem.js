@@ -3,8 +3,10 @@ import { SiemApp } from '../src/ui/ccdc/SiemApp.js';
 import { createSiem } from '../src/game/siemGen.js';
 import CED from '../src/data/ccdcLabScenario.js';
 import HP from '../src/data/ccdcLabScenario2.js';
+import RV from '../src/data/ccdcLabScenario3.js';
 
-const sc = new URLSearchParams(location.search).get('s') === '2' ? HP : CED;
+const sParam = new URLSearchParams(location.search).get('s');
+const sc = sParam === '3' ? RV : sParam === '2' ? HP : CED;
 const siem = createSiem(sc, { seed: 1 });
 let clock = 0;
 const app = new SiemApp({

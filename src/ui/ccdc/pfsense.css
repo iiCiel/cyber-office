@@ -90,6 +90,36 @@
 .pf .pf-label { display: inline-block; padding: .2em .6em; font-size: 75%; font-weight: 700; color: #fff; border-radius: .25em; }
 .pf .pf-label-ok { background: #5cb85c; }
 
+/* dashboard (matches the real 2.7 widgets: compact headings with icons, thin bars with the figure below, icon status cells) */
+.pf .pf-pagehead { display: flex; align-items: center; justify-content: space-between; background: #f5f5f5; border: 1px solid #e3e3e3; border-radius: 4px; padding: 0 12px; margin: 0 0 14px; }
+.pf .pf-pagehead .pf-breadcrumb { margin: 0; border: 0; padding: 7px 0; font-size: 19px; }
+.pf .pf-pagehead .pf-breadcrumb li.pf-active { color: #1e3f75; }
+.pf .pf-pagehead-icons { display: flex; gap: 8px; color: #1e3f75; }
+.pf .pf-i { display: inline-flex; vertical-align: middle; line-height: 0; }
+.pf .pf-widget { margin-bottom: 12px; }
+.pf .pf-widget > .pf-panel-heading { display: flex; align-items: center; justify-content: space-between; padding: 4px 10px; }
+.pf .pf-widget .pf-panel-title { font-size: 14px; }
+.pf .pf-widget-icons { display: flex; gap: 5px; color: #fff; }
+.pf .pf-widget .pf-table { font-size: 12px; }
+.pf .pf-widget .pf-table th, .pf .pf-widget .pf-table td { padding: 4px 7px; }
+.pf .pf-sysinfo th { width: 36%; }
+.pf .pf-plain tbody tr:nth-child(odd) { background: transparent; }
+.pf .pf-ifname { white-space: nowrap; }
+.pf .pf-ifname .pf-i { color: #1e3f75; margin-right: 5px; }
+.pf .pf-ifup { color: #5cb85c; width: 18px; }
+.pf .pf-gw-ok { background: #dff0d8; color: #3c763d; }
+.pf .pf-svc-st { color: #5cb85c; width: 20px; }
+.pf .pf-svc-act { color: #1e3f75; white-space: nowrap; }
+.pf .pf-svc-act .pf-i { margin-right: 4px; cursor: pointer; }
+.pf .pf-barwrap .pf-progress { height: 10px; min-width: 0; border-radius: 3px; margin: 3px 0 2px; }
+.pf .pf-barwrap .pf-bar-text { position: static; line-height: 1.4; font-size: 12px; text-align: left; }
+.pf .pf-bullets { list-style: disc; padding-left: 16px; }
+.pf .pf-graphbox { padding: 6px 8px 4px; border-bottom: 1px solid #eee; }
+.pf .pf-graph-head { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 2px; }
+.pf .pf-graph-title { font-weight: 700; }
+.pf .pf-graph-legend { color: #555; white-space: pre; }
+.pf .pf-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; vertical-align: middle; }
+
 /* buttons */
 .pf .pf-btn { display: inline-block; padding: 6px 12px; font: inherit; font-size: 14px; line-height: 1.428; border: 1px solid transparent; border-radius: 4px; cursor: pointer; white-space: nowrap; }
 .pf .pf-btn[disabled] { opacity: .55; cursor: not-allowed; }

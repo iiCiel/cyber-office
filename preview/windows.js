@@ -2,11 +2,12 @@
 //   /cyber-office/preview/windows.html?sc=1&dev=dc01   (sc: 1 Cedarline, 2 Harbor Point; dev: dc01 | ws01)
 import { CCDC_LAB } from '../src/data/ccdcLabScenario.js';
 import { CCDC_LAB_2 } from '../src/data/ccdcLabScenario2.js';
+import { CCDC_LAB_3 } from '../src/data/ccdcLabScenario3.js';
 import { newGame, runLine } from '../src/game/ccdcLab.js';
 import { WinDesktop } from '../src/ui/ccdc/WinDesktop.js';
 
 const q = new URLSearchParams(location.search);
-const scenario = q.get('sc') === '2' ? CCDC_LAB_2 : CCDC_LAB;
+const scenario = q.get('sc') === '3' ? CCDC_LAB_3 : q.get('sc') === '2' ? CCDC_LAB_2 : CCDC_LAB;
 const devId = q.get('dev') || 'dc01';
 const state = newGame(scenario, { seed: 1 });
 const dev = state.deviceList.find((d) => d.id === devId);
