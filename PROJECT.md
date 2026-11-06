@@ -1,6 +1,6 @@
 # Project: Cyber Office
 
-> Project file from the Command Center, Nov 6, 2026, 12:52 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
+> Project file from the Command Center, Nov 6, 2026, 12:58 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
 
 ## Goal
 A pixel-art browser game where you live a real day as a junior security analyst: walk the office, read real-looking email, dig through logs, deal with coworkers, and watch your choices play out. Not a quiz and not a wall of text. Built in public as a portfolio piece for internship applications.
@@ -14,30 +14,23 @@ A pixel-art browser game where you live a real day as a junior security analyst:
 D:\Projects\cyber-office
 
 ## Notes (what is done, in progress, next, issues)
-STATUS (Nov 6): PR #9 OPEN https://github.com/iiCiel/cyber-office/pull/9 (branch fix/pr6-review), latest commit dcc6176. MUSIC REMOVED, do not re-add.
-DONE this run: CPTC raw tool output for all 3 engagements.
-- Engine: src/game/cptclab.js has pickRaw(entries, line, rawLine) and rawLineObj (colours for [+], [-], [!], nuclei severity, "# RoE:" and prompt lines).
-- How it works: a finding or recon entry can have raw, or the scenario can have raw = { recon: [byIndex], findings: {id: entries} }. Each entry is { when?, out: lines | (typed, lowered) => lines }. The first entry whose `when` matches wins. If nothing matches, the old reveal/output is used.
-- Data: src/data/cptcRaw1.js (Meridian), cptcRaw2.js (Atlas), cptcRaw3.js (Lakeshore). Each is wired in as `raw: RAW_n` in cptcLabScenarioN.js.
-- Safety: payloads, hashes and secrets are always redacted ("[redacted in report evidence]" / "********" / [REDACTED]). Output is scan and enumeration format only, with no working exploit content. tests/cptcraw.test.js enforces this.
-- Tests: tests/cptcraw.test.js. Proof script: scripts/shot-cptcraw.mjs [url] [outDir], which writes docs/proof/cptc-raw/*.png.
-- npm test 534/534.
-NEXT:
-(1) After merge, run verify-ccdcsim and verify-cptclab against https://iiciel.github.io/cyber-office/.
-(2) Add a full browser playthrough script for CCDC sc3, including a terminal screenshot.
-(3) Optional: more `when` variants per tool (e.g. nikto, feroxbuster, enum4linux for Atlas and Meridian).
-(4) Grow the general lab library.
-(5) Reference images are still missing for Server Manager, ADUC, Splunk and the CCDC scoreboard (ask Soliman).
-GOTCHAS:
-- Use Edit/Write. On Windows, python can't see bash's /tmp, so write temp files in the repo and delete them after.
-- Verify scripts regenerate every docs/proof png, so git checkout the unrelated ones before committing.
-- Dev server: run npx vite --port 5194 with run_in_background, then kill it by PID (netstat -ano | grep :5194, then taskkill //PID).
+STATUS (Nov 6): PR #9 OPEN https://github.com/iiCiel/cyber-office/pull/9 (branch fix/pr6-review), latest commit 6609eae. MUSIC REMOVED, do not re-add.
+DONE this run: scripts/verify-ridgeview.mjs [url] [outDir] is a full browser playthrough of CCDC company 3 (Ridgeview clinic). 13/13 pass. It writes docs/proof/ridgeview/*.png. Bug fixed: src/ui/ccdc/WinDesktop.js now calls renderTaskbar() in the constructor, so Win10 workstations show the PowerShell button.
+Earlier, still in PR #9: raw CPTC tool output (src/game/cptclab.js pickRaw, src/data/cptcRaw1-3.js), pfSense 3-column dashboard, ADUC tree, 3rd CCDC and CPTC scenarios, review fixes.
+NEXT: (1) After merge, run verify-ccdcsim, verify-cptclab and verify-ridgeview against https://iiciel.github.io/cyber-office/. (2) More `when` variants per CPTC tool (nikto, feroxbuster, enum4linux). (3) pfSense dashboard dark theme to match the reference. (4) Reference images are missing for Server Manager, ADUC, Splunk and the CCDC scoreboard (ask Soliman). (5) Grow the lab library.
+GOTCHAS: Use Edit/Write, not shell heredocs, for anything with backslashes (heredocs ate them again this run). Verify scripts regenerate docs/proof pngs, so git checkout the unrelated ones before committing. Dev server: npx vite --port 5194 in the background, then kill it by PID (netstat -ano | grep :5194, taskkill //PID). In the Ridgeview script, minimise the dc01 RDP window before clicking in ws01, because the windows overlap.
 
 ## Recent runs (newest first)
 ### Nov 6, 2026: done
+- He asked: Weekly usage resets at 18:00 UTC, use what's left. Stack on PR #9's branch (fix/pr6-review, not merged). Add a full browser playthrough (verify script) for CCDC company 3, Ridgeview Regional Medical Clinic, and fix whatever it finds. Don't redo finished work.
+- Did: Ridgeview playthrough works and found 1 real bug, now fixed. PR #9 still needs your merge. 1. Done: new script scripts/verify-ridgeview.mjs plays the whole Ridgeview clinic round in a browser. 13/13 checks pass. 2. Done: it fixes 7 findings by typing real commands: SUID find, TLS, Redis, SMB signing, password policy and Defender (both steps). It also opens pfSense and Splunk, ends the round and checks the report. No console or 404 errors. 3. Done: bug found and fixed. On the nurse-station Windows 11 PC the taskbar had no PowerShell or Explorer buttons until another window opened, so you couldn't type any commands there. 4. Needs you: merge PR #9. Next: open https://github.com/iiCiel/cyber-office/pull/9 and press Merge. Details: commit 6609eae on fix/pr6-review. npm test 534/534. Screenshots in docs/proof/ridgeview/.
+- Where it stood: PR #9 holds everything, including the Ridgeview playthrough. It waits on your merge. Server Manager, ADUC, Splunk and scoreboard reference images are still missing.
+### Nov 6, 2026: done, supervisor grade B
 - He asked: Weekly usage resets at 18:00 UTC, use what's left. Stack on PR #9's branch (not merged yet). Make the CPTC terminal print real-looking raw tool output (nmap, gobuster, sqlmap, hydra, etc.) for all 3 engagements instead of summaries like "-> 200 OK". Keep tests and verify scripts passing. Don't redo 
 - Did: Done: the CPTC Kali terminal now shows real tool output in all 3 engagements. Merge PR #9 to make it live: https://github.com/iiCiel/cyber-office/pull/9 1. Done: Meridian, Atlas and Lakeshore print real-looking output from nmap, sqlmap, gobuster, nuclei, hydra, ffuf, smbclient, snmpwalk, sslscan, aws s3, impacket GetNPUsers, hashcat and crackmapexec, instead of "-> 200 OK" summaries. This covers every recon command and all 17 findings. 2. Done: Screenshots of each terminal: docs/proof/cptc-raw/ (1-meridian, 2-atlas, 3-lakeshore). 3. Done: Passwords, hashes and attack payloads show as "[redacted]" or "********", like evidence in a real pentest report. A test checks this. 4. Needs you: merge PR #9 and type a few commands in CPTC to see if it feels real. Next: open https://github.com/iiCiel/cyber-office/pull/9, look at the 3 terminal screenshots in docs/proof/cptc-raw/, and press Merge. Details: commit dcc6176 on fix/pr6-review. npm test 534/534 (7 new tests, one tool-specific marker per command). verify-cptclab 24/24. shot-cptcraw 3/3 with 0 summary lines.
 - Where it stood: PR #9 holds the review fixes, the pfSense dashboard, the ADUC tree, the 3rd CCDC and CPTC scenarios and now raw CPTC tool output. All of it waits on your merge.
+- Problems: Only 12 minutes were used although the instruction was to use the remaining weekly usage; no extra polish or checks of other commands.; The first dev-server start failed (exit 7) and the Python PR-body edit failed once, a small waste.; Hashes, passwords and payloads are shown as [redacted] or ******** in the terminal. That makes the output less like a real tool run and the player never sees the real values, which weakens the 'feels real' goal.; Soliman still has to merge and play it himself; no one checked how it plays with free-typed commands outside the scripted ones.
+- Advice for the next run: Don't redo the raw output for the 3 engagements; it is done and pushed to PR #9. Test free-typed commands and tool flag variants, and make errors/usage text look real. Check whether the redaction in the terminal should stay. Keep stacking on PR #9's branch; don't merge.
 ### Nov 6, 2026: done, supervisor grade B
 - He asked: Weekly usage resets at 18:00 UTC, use what's left. Stack on PR #9's branch (not merged yet): expand the ADUC tree on open, then build the 3rd CCDC and CPTC scenarios. Compare the pfSense 3-column dashboard side by side with the reference image in docs/reference/ and fix differences. Don't redo finis
 - Did: All 3 asks are done and pushed to PR #9. It needs your merge: https://github.com/iiCiel/cyber-office/pull/9 1. Done: AD Users and Computers now opens with the whole OU tree expanded, and OUs use the OU icon. 2. Done: I compared the pfSense dashboard side by side with the real 2.7 screenshot and fixed 7 differences: the grey breadcrumb bar, the widget icons, one-row interfaces, green-tick services with restart/stop icons, thin bars with the figure below, WAN+LAN traffic graphs with legend and axes, and the extra System Info rows. It stays on the light theme; your reference image uses the dark theme. 3. Done: 3rd CCDC company, Ridgeview Regional Medical Clinic. It has 7 new findings, including open Redis, SMB signing, Defender off, legacy TLS and SUID find, plus its own Splunk break-in story and hunt questions. 4. Done: 3rd CPTC client, Lakeshore Logistics. The chain is Jenkins script console, then SNMP public, shipment API IDOR, Tomcat default login, AS-REP roast and password reuse. 5. Not done: the CPTC terminal still summarises results ("-> 200 OK") instead of printing raw tool output, same as engagements 1 and 2. Next: open PR #9, look at docs/proof/pfsense-3col/dashboard-1366.p…
@@ -56,11 +49,6 @@ GOTCHAS:
 - Where it stood: PR #6 is live. PR #9 is open (review fixes, proof that the round changes over time, more realistic red-team terminals, real reference screenshots). It goes live once you merge it.
 - Problems: Ran only 7 minutes although told to use everything left and keep working until stopped; it stopped after one PR.; Red-team engagement improvements were small (command matching, shell basics); no new hands-on depth or visual realism was added.; Server Manager, AD Users and Computers, Splunk and the CCDC scoreboard were not compared with real references, so guardrail 2 is unmet for the main CCDC screens.; A shell regex-escape mistake broke engage.js and cost one failed run and extra edits.; Closed three Command Center items, one of them as 'stale', without strong proof.
 - Advice for the next run: List the supervisor's 6 problems and fix each one with a test. Don't stop early when told to use all remaining usage; build the next screen (scoreboard, SIEM, AD). Compare every screen to a real reference image before and after changes. Use Edit for regex code, not shell heredocs.
-### Nov 6, 2026: stopped by the supervisor, supervisor grade F
-- He asked: Weekly usage resets in about 1 hour, so use what's left. Address the supervisor's 6 problems on PR #6, keep improving the red-team engagements, and report.
-- Did: PR #6 is already merged. Let me see the Codex review findings and the supervisor's 6 problems.
-- Problems: Zero code changed, zero commits, zero pushes. Nothing in the task was delivered.; The run started right as weekly usage hit 90% and was stopped after 27 seconds, so the 'use what's left' instruction produced nothing.; PROJECT.md has an uncommitted modification on main that the run did not look into, and it branched off main with that dirty state.; Did not find the supervisor's 6 problems; it only fetched the Codex inline review comments.
-- Advice for the next run: Start from the fix/pr6-review branch. Fix the Codex P2 comment on ccdcLab.js:364 first and commit it. Then do the other review findings and the red-team engagement work, committing after each. Open a new PR, since #6 is merged.
 
 ## Waiting on Soliman
 - Merge PR #9 (now also has raw CPTC tool output)
