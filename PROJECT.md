@@ -1,6 +1,6 @@
 # Project: Cyber Office
 
-> Project file from the Command Center, Nov 6, 2026, 12:40 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
+> Project file from the Command Center, Nov 6, 2026, 12:52 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
 
 ## Goal
 A pixel-art browser game where you live a real day as a junior security analyst: walk the office, read real-looking email, dig through logs, deal with coworkers, and watch your choices play out. Not a quiz and not a wall of text. Built in public as a portfolio piece for internship applications.
@@ -14,32 +14,36 @@ A pixel-art browser game where you live a real day as a junior security analyst:
 D:\Projects\cyber-office
 
 ## Notes (what is done, in progress, next, issues)
-STATUS (Nov 6): PR #9 OPEN https://github.com/iiCiel/cyber-office/pull/9 (branch fix/pr6-review), latest commit aa05bac. MUSIC REMOVED, do not re-add.
-DONE this run:
-- ADUC expands the full OU tree on open (winApps.js createAduc), with the i-ou icon for OUs; verify-windows has a check for it.
-- pfSense dashboard matched to docs/reference/pfsense-dashboard-2.7.png:
-  - PfSenseApp.js: pfIcon/PF_ICONS, widget(), crumbs() now inside a grey .pf-pagehead, renderDash rewritten, trafficGraph(title,key) and updateGraph loop over refs.graphs.
-  - CSS is in the "dashboard" block of pfsense.css.
-  - Notes are in docs/reference/README.md.
-- 3rd CCDC company: Ridgeview clinic in src/data/ccdcLabScenario3.js, 7 findings. SIEM story is in siemStories.js. Also preview windows ?sc=3, siem ?s=3, and round-timeline arg 3.
-- 3rd CPTC client: Lakeshore Logistics in src/data/cptcLabScenario3.js. CptcLabScene now uses sc.hints and scenario.complete.
-- Tests: ccdclab3 and cptclab3. npm test 527/527.
+STATUS (Nov 6): PR #9 OPEN https://github.com/iiCiel/cyber-office/pull/9 (branch fix/pr6-review), latest commit dcc6176. MUSIC REMOVED, do not re-add.
+DONE this run: CPTC raw tool output for all 3 engagements.
+- Engine: src/game/cptclab.js has pickRaw(entries, line, rawLine) and rawLineObj (colours for [+], [-], [!], nuclei severity, "# RoE:" and prompt lines).
+- How it works: a finding or recon entry can have raw, or the scenario can have raw = { recon: [byIndex], findings: {id: entries} }. Each entry is { when?, out: lines | (typed, lowered) => lines }. The first entry whose `when` matches wins. If nothing matches, the old reveal/output is used.
+- Data: src/data/cptcRaw1.js (Meridian), cptcRaw2.js (Atlas), cptcRaw3.js (Lakeshore). Each is wired in as `raw: RAW_n` in cptcLabScenarioN.js.
+- Safety: payloads, hashes and secrets are always redacted ("[redacted in report evidence]" / "********" / [REDACTED]). Output is scan and enumeration format only, with no working exploit content. tests/cptcraw.test.js enforces this.
+- Tests: tests/cptcraw.test.js. Proof script: scripts/shot-cptcraw.mjs [url] [outDir], which writes docs/proof/cptc-raw/*.png.
+- npm test 534/534.
 NEXT:
 (1) After merge, run verify-ccdcsim and verify-cptclab against https://iiciel.github.io/cyber-office/.
-(2) Make the CPTC terminal print raw-looking tool output (real curl/nmap/snmpwalk output) instead of "-> 200 OK" summaries, for all 3 engagements.
-(3) Add a full browser playthrough script for CCDC sc3, including a terminal screenshot.
+(2) Add a full browser playthrough script for CCDC sc3, including a terminal screenshot.
+(3) Optional: more `when` variants per tool (e.g. nikto, feroxbuster, enum4linux for Atlas and Meridian).
 (4) Grow the general lab library.
 (5) Reference images are still missing for Server Manager, ADUC, Splunk and the CCDC scoreboard (ask Soliman).
 GOTCHAS:
-- Use the Edit/Write tools. To patch with python, write the script with Write and run it; no heredocs with quotes.
+- Use Edit/Write. On Windows, python can't see bash's /tmp, so write temp files in the repo and delete them after.
 - Verify scripts regenerate every docs/proof png, so git checkout the unrelated ones before committing.
-- Local dev: npx vite --port 5194 (kill it after).
+- Dev server: run npx vite --port 5194 with run_in_background, then kill it by PID (netstat -ano | grep :5194, then taskkill //PID).
 
 ## Recent runs (newest first)
 ### Nov 6, 2026: done
+- He asked: Weekly usage resets at 18:00 UTC, use what's left. Stack on PR #9's branch (not merged yet). Make the CPTC terminal print real-looking raw tool output (nmap, gobuster, sqlmap, hydra, etc.) for all 3 engagements instead of summaries like "-> 200 OK". Keep tests and verify scripts passing. Don't redo 
+- Did: Done: the CPTC Kali terminal now shows real tool output in all 3 engagements. Merge PR #9 to make it live: https://github.com/iiCiel/cyber-office/pull/9 1. Done: Meridian, Atlas and Lakeshore print real-looking output from nmap, sqlmap, gobuster, nuclei, hydra, ffuf, smbclient, snmpwalk, sslscan, aws s3, impacket GetNPUsers, hashcat and crackmapexec, instead of "-> 200 OK" summaries. This covers every recon command and all 17 findings. 2. Done: Screenshots of each terminal: docs/proof/cptc-raw/ (1-meridian, 2-atlas, 3-lakeshore). 3. Done: Passwords, hashes and attack payloads show as "[redacted]" or "********", like evidence in a real pentest report. A test checks this. 4. Needs you: merge PR #9 and type a few commands in CPTC to see if it feels real. Next: open https://github.com/iiCiel/cyber-office/pull/9, look at the 3 terminal screenshots in docs/proof/cptc-raw/, and press Merge. Details: commit dcc6176 on fix/pr6-review. npm test 534/534 (7 new tests, one tool-specific marker per command). verify-cptclab 24/24. shot-cptcraw 3/3 with 0 summary lines.
+- Where it stood: PR #9 holds the review fixes, the pfSense dashboard, the ADUC tree, the 3rd CCDC and CPTC scenarios and now raw CPTC tool output. All of it waits on your merge.
+### Nov 6, 2026: done, supervisor grade B
 - He asked: Weekly usage resets at 18:00 UTC, use what's left. Stack on PR #9's branch (not merged yet): expand the ADUC tree on open, then build the 3rd CCDC and CPTC scenarios. Compare the pfSense 3-column dashboard side by side with the reference image in docs/reference/ and fix differences. Don't redo finis
 - Did: All 3 asks are done and pushed to PR #9. It needs your merge: https://github.com/iiCiel/cyber-office/pull/9 1. Done: AD Users and Computers now opens with the whole OU tree expanded, and OUs use the OU icon. 2. Done: I compared the pfSense dashboard side by side with the real 2.7 screenshot and fixed 7 differences: the grey breadcrumb bar, the widget icons, one-row interfaces, green-tick services with restart/stop icons, thin bars with the figure below, WAN+LAN traffic graphs with legend and axes, and the extra System Info rows. It stays on the light theme; your reference image uses the dark theme. 3. Done: 3rd CCDC company, Ridgeview Regional Medical Clinic. It has 7 new findings, including open Redis, SMB signing, Defender off, legacy TLS and SUID find, plus its own Splunk break-in story and hunt questions. 4. Done: 3rd CPTC client, Lakeshore Logistics. The chain is Jenkins script console, then SNMP public, shipment API IDOR, Tomcat default login, AS-REP roast and password reuse. 5. Not done: the CPTC terminal still summarises results ("-> 200 OK") instead of printing raw tool output, same as engagements 1 and 2. Next: open PR #9, look at docs/proof/pfsense-3col/dashboard-1366.p…
 - Where it stood: PR #9 now holds the review fixes, the reference-matched pfSense dashboard, the expanded ADUC tree and a 3rd CCDC and CPTC scenario. All of it waits on your merge.
+- Problems: Core hard rule not met for CPTC: the terminal still prints summaries like '-> 200 OK' instead of raw nmap, sqlmap or Burp output. The run reported this itself but made the new engagement on top of the same weak engine.; The CCDC visual check hit a 404 console error and the agent accepted it without looking into it.; The pfSense page stays on the light theme while Soliman's reference is dark. The run noted this but did not fix it or ask.; Wasted about 5 calls fighting Node/Playwright module resolution for a screenshot script.; Only 24 minutes were used on a 'use what is left' usage budget; the raw-output CPTC gap was left open.
+- Advice for the next run: Do the raw tool output in the CPTC terminal first; it is the one known gap against the hard rules. Check any 404 or console error in proof screenshots before calling a screen done. Match the pfSense dashboard theme to the reference image (dark).
 ### Nov 6, 2026: done, supervisor grade B
 - He asked: Weekly usage resets at 18:00 UTC, use what's left. Do the next steps from the last report: add the Services Status / Traffic Graphs column to the pfSense dashboard, and make each red-team wave's SIEM lines match the specific finding it hit. Stack on PR #9's branch, don't redo finished work.
 - Did: Both next steps are done and pushed to PR #9. It still needs your merge: https://github.com/iiCiel/cyber-office/pull/9 1. Done: the pfSense dashboard now has 3 columns, like the real one. System Information | Interfaces + Gateways | Services Status + Traffic Graphs (a live WAN in/out graph). Screenshot: docs/proof/pfsense-3col/dashboard-1366.png. 2. Done: each red-team wave now writes SIEM lines for the exact weakness it hit. Examples: wp-login POST floods, stats.php?cmd= web shell calls, .git/ dumps, COPY ... TO PROGRAM in Postgres, Guest and svc-backup2 logons, open-relay mail, planted-key SSH logins. The wave log now matches the finding in all 15 findings across both companies. 3. Needs you: merge PR #9. 4. Needs you: drop real screenshots of Server Manager, ADUC, Splunk and a CCDC scoreboard into docs/reference/. Next: open PR #9 and press Merge. Details: commit 97d1528, npm test 508/508, verify-ccdcsim 38/38 locally. The pfSense dashboard screenshot has not been compared side by side with the pfSense 2.7 reference image in docs/reference/, so "matches the real layout" is unconfirmed.
@@ -57,18 +61,12 @@ GOTCHAS:
 - Did: PR #6 is already merged. Let me see the Codex review findings and the supervisor's 6 problems.
 - Problems: Zero code changed, zero commits, zero pushes. Nothing in the task was delivered.; The run started right as weekly usage hit 90% and was stopped after 27 seconds, so the 'use what's left' instruction produced nothing.; PROJECT.md has an uncommitted modification on main that the run did not look into, and it branched off main with that dirty state.; Did not find the supervisor's 6 problems; it only fetched the Codex inline review comments.
 - Advice for the next run: Start from the fix/pr6-review branch. Fix the Codex P2 comment on ccdcLab.js:364 first and commit it. Then do the other review findings and the red-team engagement work, committing after each. Open a new PR, since #6 is merged.
-### Oct 31, 2026: done, supervisor grade B
-- He asked: Soliman played the live CCDC mode and said it "just looks terrible, looks so AI made", and that it is not the real thing. Take ALL the time and usage you need; he asked for your full effort last time and did not get it. Start from main (git checkout main && git pull, new branch). STEP 1, LOOK AT THE
-- Did: Merge PR #6 to ship the rebuilt CCDC and CPTC. They now look like the real tools: https://github.com/iiCiel/cyber-office/pull/6 1. Done: CCDC is now your team's Windows jump box. PuTTY into the Linux boxes, a real-looking pfSense web GUI, Remote Desktop into Windows Server (Server Manager, AD Users and Computers, Services, Task Scheduler, Event Viewer, PowerShell), a Discord-style team chat and an inject portal. 2. Done: Splunk with about 2.3 million generated log lines. The break-in is buried in the noise, and one search finds the brute-force IP in about 1 second. Answer the 6 hunt questions about how they got in. 3. Done: a live scoreboard against 9–11 rival teams. Their scores move every check and drop when the red team hits, and your rank sits in the taskbar. 4. Done: CPTC is now a Kali desktop with a real-looking pentest report. 5. Needs you: merge PR #6. It includes PR #5, and nothing is live until it's merged. Next: open https://github.com/iiCiel/cyber-office/pull/6, skim the screenshots in docs/proof/ccdc-sim, and press Merge. Details: branch feat/ccdc-full-sim, commit e3d3af4. npm test 499/499. Browser checks run locally from the main tree: verify-ccdcsim 38/38 (1366 + 39…
-- Where it stood: CCDC and CPTC are rebuilt to look like the real tools and verified locally in PR #6 (which includes PR #5). The live site still has the old UI until Soliman merges.
-- Problems: Real-look claim rests on self-review of screenshots. Soliman already rejected the earlier version for looking AI-made, and nothing here is independent evidence.; Four old CCDC browser scripts were removed as retired UI. That cuts regression coverage, since the unit tests only cover the engine.; A late fix was needed for the toast and taskbar CSS and for the playbook/scoreboard order, which suggests the integration was rushed in the last 10 minutes.; Several failed shell edits from escaping (sed/node -e with quotes) wasted calls.; The run was told to take all the time it needed but finished in 36 minutes.
-- Advice for the next run: Start from PR #6 and Soliman's feedback after he plays it. Prove with numbers that rival scores, red team waves and injects change over time. Compare each screen with a saved real reference screenshot before saying it looks real. Use the Write tool for edits, not shell one-liners.
 
 ## Waiting on Soliman
+- Merge PR #9 (now also has raw CPTC tool output)
 - Merge PR #9 (now also has the pfSense dashboard fixes, ADUC tree, 3rd CCDC + CPTC scenarios)
 - The supervisor opened the last Cyber Office run's work and found 5 problems.
 - The supervisor opened the last Cyber Office run's work and found 4 problems.
 - Drop real screenshots of Server Manager, AD Users and Computers, Splunk Search and a CCDC scoreboard into docs/reference/
-- Merge PR #9 (PR #6 review fixes + more realistic red-team terminals)
 - The supervisor opened the last Cyber Office run's work and found 1 problem even after the fix-up run.
 - Play the 5 red-team engagements once and say if they're good enough to show University of Akron
