@@ -37,6 +37,9 @@ for (const [tag, vp] of [['1366', { width: 1366, height: 768 }], ['390', { width
     if (!narrow) await shot(page, `dc01-start-menu-${tag}`);
     await page.locator('.wd-start-app', { hasText: 'Active Directory Users' }).click();
     await page.waitForSelector('.wd-win .wd-lv');
+    check(`[${tag}] ADUC opens with the OU tree expanded (nested Staff + ServiceAccounts visible)`,
+      (await page.locator('.wd-tn', { hasText: /^Staff$/ }).count()) === 1 && (await page.locator('.wd-tn', { hasText: /^ServiceAccounts$/ }).count()) === 1);
+    if (!narrow) await shot(page, `aduc-tree-expanded-${tag}`);
     await page.locator('.wd-tn', { hasText: /^Users$/ }).first().click();
     const row = page.locator('.wd-win:not(.min) .wd-lv tbody tr', { hasText: 'Backup Svc2' });
     check(`[${tag}] ADUC lists svc-backup2 in Users`, await row.count() === 1);

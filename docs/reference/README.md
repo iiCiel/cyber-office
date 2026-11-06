@@ -18,6 +18,19 @@ All files come from Wikimedia Commons (free licences; see each file page for aut
   Version, CPU Type, Hardware crypto, Kernel PTI, Uptime, ...), same bar widgets for State table / MBUF.
   Ours uses the default light theme (blue panel headers); the reference uses pfSense-dark. Both are real themes.
   Gap: the real dashboard has a 3rd column (Services Status with green ticks, Traffic Graphs). Not built yet.
+- **pfSense dashboard, second pass (Nov 6, 2026)** (ours: docs/proof/pfsense-3col/dashboard-1366.png vs
+  pfsense-dashboard-2.7.png). Differences found and fixed:
+  1. Breadcrumb now sits in the grey page-header bar with the last crumb link-coloured and + / ? icons on the right.
+  2. Every widget heading has the wrench / minimise / close icons and a compact title, like the real widgets.
+  3. Interfaces: one row each with the network icon, green up arrow, media and IP (was two-line text rows).
+  4. Services Status: green check-circle column and blue restart / stop icons under Action (was "Running" text),
+     plus dhcpd. Gateways: green "Online" cell.
+  5. Bars are thin with the figure on the line below ("0% (404/98000) Show states"), as in the real widget.
+  6. System Information adds MDS Mitigation, QAT Crypto, bold BIOS / version values and a bulleted DNS list.
+  7. Traffic Graphs: one graph per interface (WAN, LAN) with title, dot legend, filled in (blue, above 0) /
+     out (orange, below 0) areas, y labels on the right and time labels along the bottom.
+  Remaining by choice: light theme (the 2.7 default) instead of pfSense-dark; no Disks / NTP / Installed
+  Packages / Netgate Support widgets (those widgets are optional in the real product).
 - **Still missing a reference (not on Commons, Microsoft/Splunk images are non-free):** Server Manager, AD Users
   and Computers, Splunk Search, a CCDC scoreboard. Soliman: drop a screenshot of each into this folder if you
   have one; the next run will compare against it.

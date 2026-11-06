@@ -17,6 +17,21 @@ const el = (tag, cls, ...kids) => {
   return h(tag, { class: cls, ...attrs }, ...kids);
 };
 
+// Small inline SVG icons in the look of the Font Awesome glyphs the real webConfigurator uses.
+const PF_ICONS = {
+  wrench: '<path d="M14.5 4.2a3.6 3.6 0 01-4.8 3.4L4 13.3a1.4 1.4 0 01-2-2l5.7-5.7a3.6 3.6 0 014.6-4.6L10.2 3.1l.5 2.2 2.2.5z" fill="currentColor"/>',
+  minus: '<circle cx="8" cy="8" r="7" fill="currentColor"/><rect x="4" y="7" width="8" height="2" fill="#1e3f75"/>',
+  close: '<circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M5.2 5.2l5.6 5.6M10.8 5.2l-5.6 5.6" stroke="#1e3f75" stroke-width="1.8"/>',
+  plus: '<path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="3"/>',
+  help: '<circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M5.9 6.1a2.1 2.1 0 114.1.8c-.4.9-1.9 1.1-1.9 2.4" stroke="#fff" stroke-width="1.6" fill="none"/><circle cx="8.1" cy="11.9" r=".95" fill="#fff"/>',
+  net: '<rect x="6" y="1" width="4" height="3.5" fill="currentColor"/><rect x="1" y="11" width="4" height="3.5" fill="currentColor"/><rect x="6" y="11" width="4" height="3.5" fill="currentColor"/><rect x="11" y="11" width="4" height="3.5" fill="currentColor"/><path d="M8 4.5v4M3 11V8.5h10V11M8 8.5V11" stroke="currentColor" stroke-width="1.3" fill="none"/>',
+  up: '<path d="M8 1.5l5.5 6H10v7H6v-7H2.5z" fill="currentColor"/>',
+  okcircle: '<circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M4.5 8.2l2.4 2.4 4.6-4.8" stroke="#fff" stroke-width="2" fill="none"/>',
+  restart: '<path d="M12.6 9.5A5 5 0 113 6.2" stroke="currentColor" stroke-width="2" fill="none"/><path d="M1 3.4l2.6 4 3.4-3z" fill="currentColor"/>',
+  stop: '<circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.8" fill="none"/><rect x="5.3" y="5.3" width="5.4" height="5.4" fill="currentColor"/>',
+};
+const pfIcon = (name) => { const s = h('span', { class: `pf-i pf-i-${name}`, 'aria-hidden': 'true' }); s.innerHTML = `<svg viewBox="0 0 16 16" width="14" height="14">${PF_ICONS[name]}</svg>`; return s; };
+
 const MENUS = [
   ['System', [['Advanced'], ['General Setup'], ['High Availability Sync'], ['Package Manager'], ['Routing'], ['Setup Wizard'], ['Update'], ['User Manager']]],
   ['Interfaces', [['Assignments'], ['WAN'], ['LAN']]],
@@ -117,10 +132,11 @@ export class PfSenseApp {
     this.root.scrollTop = 0;
   }
 
-  crumbs(list) {
+  crumbs(list, dash = false) {
+    // Real pages: the breadcrumb sits in a grey header bar; the last crumb is a link, with page icons on the right.
     const ol = el('ol', 'pf-breadcrumb');
     list.forEach((c, i) => ol.append(el('li', i === list.length - 1 ? 'pf-active' : '', c)));
-    return ol;
+    return el('div', 'pf-pagehead', ol, el('span', 'pf-pagehead-icons', ...(dash ? [pfIcon('plus')] : []), pfIcon('help')));
   }
 
   render() {
@@ -146,79 +162,106 @@ export class PfSenseApp {
     return el('div', `pf-panel ${extraCls}`, el('div', 'pf-panel-heading', el('h2', 'pf-panel-title', title)), el('div', 'pf-panel-body', body));
   }
 
+  // Dashboard widget: compact heading with the wrench / minimise / close icons on the right, like the real widgets.
+  widget(title, body, { wrench = true } = {}) {
+    const icons = el('span', 'pf-widget-icons', ...(wrench ? [pfIcon('wrench')] : []), pfIcon('minus'), pfIcon('close'));
+    return el('div', 'pf-panel pf-widget pf-nopad', el('div', 'pf-panel-heading', el('h2', 'pf-panel-title', title), icons), el('div', 'pf-panel-body', body));
+  }
+
   alertBox(kind, ...kids) { return el('div', `pf-alert pf-alert-${kind}`, ...kids); }
 
   // ---- Dashboard ---------------------------------------------------------------------------------------
   renderDash(c) {
-    c.append(this.crumbs(PAGE_CRUMBS.dash));
-    const bar = (key) => {
+    c.append(this.crumbs(PAGE_CRUMBS.dash, true));
+    // Real widget bars: a thin bar with the figure on its own line underneath ("0% (404/815000) Show states").
+    const bar = (key, extra) => {
       const fill = el('div', 'pf-bar-fill');
       const txt = el('span', 'pf-bar-text');
       this.refs[key] = { fill, txt };
-      return el('div', 'pf-progress', fill, txt);
+      return el('div', 'pf-barwrap', el('div', 'pf-progress', fill), el('div', '', txt, ...(extra ? [' ', extra] : [])));
     };
+    const link = (t) => h('a', { href: '#', onclick: (e) => e.preventDefault() }, t);
     const row = (k, v) => el('tr', '', el('th', '', k), el('td', '', v));
     const mk = (k) => { const s = el('span', ''); this.refs[k] = s; return s; };
-    const sysInfo = el('table', 'pf-table pf-kv',
+    const sysInfo = el('table', 'pf-table pf-kv pf-sysinfo',
       row('Name', `${this.host}.home.arpa`),
       row('User', 'admin@10.10.10.50 (Local Database)'),
-      row('System', el('span', '', 'VMware Virtual Machine', el('br'), 'Netgate Device ID: 3f9a1c7d2b84e56a0c1d')),
-      row('BIOS', 'Vendor: Phoenix Technologies LTD, Version: 6.00, Release Date: 11/12/2020'),
-      row('Version', el('span', '', `${PF_VERSION} (amd64)`, el('br'), 'built on Mon Dec 4 2023', el('br'), 'FreeBSD 14.0-CURRENT', el('br'), el('i', 'pf-ok', '✓ '), 'The system is on the latest version.')),
-      row('CPU Type', el('span', '', 'Intel(R) Xeon(R) Silver 4210 CPU @ 2.20GHz', el('br'), '2 CPUs: 1 package(s) x 2 core(s)', el('br'), 'AES-NI CPU Crypto: Yes (active)')),
-      row('Hardware crypto', 'Inactive'),
+      row('System', el('span', '', 'VMware Virtual Machine', el('br'), 'Netgate Device ID: ', el('b', '', '3f9a1c7d2b84e56a0c1d'))),
+      row('BIOS', el('span', '', 'Vendor: ', el('b', '', 'Phoenix Technologies LTD'), el('br'), 'Version: ', el('b', '', '6.00'), el('br'), 'Release Date: ', el('b', '', 'Thu Nov 12 2020'))),
+      row('Version', el('span', '', el('b', '', PF_VERSION), ' (amd64)', el('br'), 'built on Mon Dec 4 2023', el('br'), 'FreeBSD 14.0-CURRENT', el('br'), el('br'), 'The system is on the latest version.', el('br'), 'Version information updated at Sat Oct 31 08:40:12 UTC 2026')),
+      row('CPU Type', el('span', '', 'Intel(R) Xeon(R) Silver 4210 CPU @ 2.20GHz', el('br'), '2 CPUs: 1 package(s) x 2 core(s)', el('br'), 'AES-NI CPU Crypto: Yes (active)', el('br'), 'QAT Crypto: No')),
+      row('Hardware crypto', 'AES-CBC,AES-CCM,AES-GCM,AES-ICM,AES-XTS'),
       row('Kernel PTI', 'Enabled'),
+      row('MDS Mitigation', 'Inactive'),
       row('Uptime', mk('uptime')),
       row('Current date/time', mk('now')),
-      row('DNS server(s)', el('span', '', '127.0.0.1', el('br'), '10.10.10.10')),
+      row('DNS server(s)', el('ul', 'pf-bullets', el('li', '', '127.0.0.1'), el('li', '', '10.10.10.10'))),
       row('Last config change', mk('cfg')),
-      row('State table size', el('span', '', bar('states'))),
-      row('MBUF Usage', el('span', '', bar('mbuf'))),
+      row('State table size', bar('states', link('Show states'))),
+      row('MBUF Usage', bar('mbuf')),
       row('Load average', '0.12, 0.09, 0.05'),
       row('CPU usage', bar('cpu')),
       row('Memory usage', bar('mem')),
       row('SWAP usage', bar('swap')),
       row('Disk usage (/)', bar('disk')));
-    const ifs = el('table', 'pf-table pf-kv',
-      el('tr', '', el('th', '', 'WAN'), el('td', '', el('i', 'pf-ok', '▲ '), '1000baseT <full-duplex>', el('br'), this.dev.ip || '203.0.113.2')),
-      el('tr', '', el('th', '', 'LAN'), el('td', '', el('i', 'pf-ok', '▲ '), '1000baseT <full-duplex>', el('br'), '10.10.10.1')));
-    const gw = el('table', 'pf-table',
+    const ifRow = (name, media, ip) => el('tr', '', el('td', 'pf-ifname', pfIcon('net'), link(name)), el('td', 'pf-ifup', pfIcon('up')), el('td', '', media), el('td', '', ip));
+    const ifs = el('table', 'pf-table pf-plain',
+      el('tbody', '', ifRow('WAN', '1000baseT <full-duplex>', this.dev.ip || '203.0.113.2'),
+        ifRow('LAN', '1000baseT <full-duplex>', '10.10.10.1')));
+    const gw = el('table', 'pf-table pf-plain',
       el('thead', '', el('tr', '', ...['Name', 'RTT', 'RTTsd', 'Loss', 'Status'].map((t) => el('th', '', t)))),
-      el('tbody', '', el('tr', '', el('td', '', el('b', '', 'WAN_GW'), el('br'), '203.0.113.1'), el('td', '', '1.3ms'), el('td', '', '0.4ms'), el('td', '', '0.0%'), el('td', '', el('span', 'pf-label pf-label-ok', 'Online')))));
-    const svc = el('table', 'pf-table',
-      el('thead', '', el('tr', '', el('th', '', 'Service'), el('th', '', 'Description'), el('th', '', 'Action'))),
-      el('tbody', '', ...[['dpinger', 'Gateway Monitoring Daemon'], ['ntpd', 'NTP clock sync'], ['sshd', 'Secure Shell Daemon'], ['syslogd', 'System Logger Daemon'], ['unbound', 'DNS Resolver']]
-        .map(([n, d]) => el('tr', '', el('td', '', n), el('td', '', d), el('td', 'pf-ok', '✓ Running')))));
+      el('tbody', '', el('tr', '', el('td', '', el('b', '', 'WAN_GW'), el('br'), el('span', 'pf-muted', '203.0.113.1')), el('td', '', '1.3ms'), el('td', '', '0.4ms'), el('td', '', '0.0%'), el('td', 'pf-gw-ok', 'Online'))));
+    const svc = el('table', 'pf-table pf-plain pf-svc',
+      el('thead', '', el('tr', '', el('th', ''), el('th', '', 'Service'), el('th', '', 'Description'), el('th', '', 'Action'))),
+      el('tbody', '', ...[['dhcpd', 'DHCP Service'], ['dpinger', 'Gateway Monitoring Daemon'], ['ntpd', 'NTP clock sync'], ['sshd', 'Secure Shell Daemon'], ['syslogd', 'System Logger Daemon'], ['unbound', 'DNS Resolver']]
+        .map(([n, d]) => el('tr', '', el('td', 'pf-svc-st', { title: 'Running' }, pfIcon('okcircle')), el('td', '', n), el('td', '', d), el('td', 'pf-svc-act', pfIcon('restart'), pfIcon('stop'))))));
     c.append(el('div', 'pf-cols',
-      el('div', 'pf-col', this.panel('System Information', sysInfo)),
-      el('div', 'pf-col', this.panel('Interfaces', ifs), this.panel('Gateways', gw)),
-      el('div', 'pf-col', this.panel('Services Status', svc), this.panel('Traffic Graphs', this.trafficGraph()))));
+      el('div', 'pf-col', this.widget('System Information', sysInfo)),
+      el('div', 'pf-col', this.widget('Interfaces', ifs), this.widget('Gateways', gw), this.widget('Services Status', svc)),
+      el('div', 'pf-col', this.widget('Traffic Graphs', el('div', '', this.trafficGraph('WAN', 'wan'), this.trafficGraph('LAN', 'lan'))))));
     this.updateDash();
   }
 
-  trafficGraph() {
-    const W = 300; const H = 70;
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('class', 'pf-graph'); svg.style.width = '100%';
-    const bg = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    for (const [k, v] of Object.entries({ x: 0, y: 0, width: W, height: H, fill: '#fff', stroke: '#ccc' })) bg.setAttribute(k, v);
-    svg.append(bg);
-    for (let g = 1; g < 4; g++) { const l = document.createElementNS('http://www.w3.org/2000/svg', 'line'); for (const [k, v] of Object.entries({ x1: 0, x2: W, y1: (H / 4) * g, y2: (H / 4) * g, stroke: '#eee' })) l.setAttribute(k, v); svg.append(l); }
-    const mkp = (stroke) => { const p = document.createElementNS('http://www.w3.org/2000/svg', 'polyline'); p.setAttribute('fill', 'none'); p.setAttribute('stroke', stroke); p.setAttribute('stroke-width', '1.2'); svg.append(p); return p; };
-    const pi = mkp('#e36a1d'); const po = mkp('#3b6fb6');
-    this.refs.gIn = pi; this.refs.gOut = po;
-    const legend = el('div', 'pf-muted', el('span', '', { style: 'color:#e36a1d' }, '■ '), 'WAN in  ', el('span', '', { style: 'color:#3b6fb6' }, '■ '), 'WAN out');
-    return el('div', 'pf-graphbox', svg, legend);
+  // Real Traffic Graphs widget: interface title top-left, dot legend top-right, in (blue, above the axis) and out
+  // (orange, below it) as filled areas, y-axis labels on the right, time labels along the bottom.
+  trafficGraph(title, key) {
+    const NS = 'http://www.w3.org/2000/svg';
+    const W = 340; const H = 150; const PL = 6; const PR = 36; const PT = 8; const PB = 18;
+    const mkS = (tag, attrs, text) => { const n = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v); if (text != null) n.textContent = text; return n; };
+    const svg = mkS('svg', { viewBox: `0 0 ${W} ${H}`, class: 'pf-graph' });
+    svg.style.width = '100%';
+    const mid = PT + (H - PT - PB) / 2;
+    for (const [i, lab] of ['20k', '10k', '0.0', '-10k', '-20k'].entries()) {
+      const y = PT + ((H - PT - PB) / 4) * i;
+      svg.append(mkS('line', { x1: PL, x2: W - PR, y1: y, y2: y, stroke: i === 2 ? '#bbb' : '#eee' }));
+      svg.append(mkS('text', { x: W - PR + 4, y: y + 3, 'font-size': 9, fill: '#555' }, lab));
+    }
+    svg.append(mkS('line', { x1: W - PR, x2: W - PR, y1: PT, y2: H - PB, stroke: '#999' }));
+    const tIn = mkS('path', { fill: 'rgba(66,139,202,.55)', stroke: '#2f7bbf', 'stroke-width': 1 });
+    const tOut = mkS('path', { fill: 'rgba(240,131,46,.55)', stroke: '#e8761e', 'stroke-width': 1 });
+    svg.append(tIn, tOut);
+    const tl = [0, 1, 2].map((i) => { const t = mkS('text', { x: PL + ((W - PR - PL) / 2) * i, y: H - 4, 'font-size': 9, fill: '#333', 'text-anchor': i === 0 ? 'start' : i === 2 ? 'end' : 'middle', 'font-weight': i === 1 ? 400 : 700 }, ''); svg.append(t); return t; });
+    (this.refs.graphs ||= []).push({ tIn, tOut, tl, geo: { W, PL, PR, mid, half: (H - PT - PB) / 2 }, seed: key === 'wan' ? 1 : 5, amp: key === 'wan' ? 0.75 : 0.35 });
+    const dot = (col) => el('span', 'pf-dot', { style: `background:${col}` });
+    return el('div', 'pf-graphbox',
+      el('div', 'pf-graph-head', el('span', 'pf-graph-title', title), el('span', 'pf-graph-legend', dot('#2f7bbf'), ` ${key} (in)  `, dot('#e8761e'), ` ${key} (out)`)),
+      svg);
   }
 
   updateGraph(s) {
-    const r = this.refs;
-    if (!r.gIn) return;
-    const pts = (seed, amp) => Array.from({ length: 30 }, (_, i) => {
-      const t = s - (29 - i) * 10; const v = 8 + amp * (0.5 + 0.5 * Math.sin(t / 37 + seed)) * (0.6 + 0.4 * Math.sin(t / 11 + seed * 3));
-      return `${(i * 300) / 29},${70 - Math.min(66, v)}`;
-    }).join(' ');
-    r.gIn.setAttribute('points', pts(1, 40)); r.gOut.setAttribute('points', pts(4, 22));
+    for (const g of this.refs.graphs || []) {
+      const { W, PL, PR, mid, half } = g.geo;
+      const N = 60; const step = (W - PR - PL) / (N - 1);
+      const val = (i, ph, a) => {
+        const t = s - (N - 1 - i) * 2;
+        const spike = (Math.floor(t / 2) % 47 === 0) ? 0.9 : 0;
+        return Math.min(1, a * (0.25 + 0.35 * (0.5 + 0.5 * Math.sin(t / 9 + ph)) * (0.6 + 0.4 * Math.sin(t / 3.3 + ph * 3))) + spike * a);
+      };
+      const area = (sign, ph, a) => { let d = `M${PL},${mid}`; for (let i = 0; i < N; i++) d += ` L${(PL + i * step).toFixed(1)},${(mid - sign * val(i, ph, a) * half).toFixed(1)}`; return `${d} L${W - PR},${mid} Z`; };
+      g.tIn.setAttribute('d', area(1, g.seed, g.amp)); g.tOut.setAttribute('d', area(-1, g.seed + 2, g.amp * 0.45));
+      const hm = (sec) => { const x = 8 * 3600 + 41 * 60 + sec; return `${String(Math.floor(x / 3600) % 24).padStart(2, '0')}:${String(Math.floor(x / 60) % 60).padStart(2, '0')}`; };
+      g.tl[0].textContent = hm(s - 120); g.tl[1].textContent = hm(s - 60); g.tl[2].textContent = hm(s);
+    }
   }
 
   setBar(key, pct, text) {
