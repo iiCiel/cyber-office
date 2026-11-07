@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { generateTextures } from '../art/textures.js';
+import { preloadHd, installHdChars } from '../art/hd.js';
 import { FONT_NAME } from '../config.js';
 
 export class BootScene extends Phaser.Scene {
@@ -11,10 +12,14 @@ export class BootScene extends Phaser.Scene {
     // Paths are relative to the page, so they work under /cyber-office/ on GitHub Pages.
     this.load.tilemapTiledJSON('office', 'maps/office.tmj');
     this.load.image('tiles', 'maps/tiles.png');
+    // Detailed art (optional): a missing file just means the procedural texture is used.
+    this.load.on('loaderror', (f) => console.warn(`HD art missing: ${f.src}`));
+    preloadHd(this);
   }
 
   create() {
     generateTextures(this);
+    installHdChars(this);
 
     for (const who of ['player', 'coworker', 'manager', 'mike', 'theo', 'carla']) {
       for (const dir of ['down', 'up', 'side']) {

@@ -1,0 +1,8 @@
+Read STYLE.txt in this folder and follow it exactly. Use your image generation tool to create character SPRITE SHEETS for a top-down office RPG. Each sheet is ONE image laid out as a strict grid of 3 columns x 3 rows with generous magenta space between cells; every cell holds the same small chibi character (head about 40% of body height, Stardew Valley proportions), full body, same size and same feet line in every cell. Row 1 = facing DOWN (toward the viewer): standing, walking left foot forward, walking right foot forward. Row 2 = facing UP (back to the viewer): standing, walking left foot, walking right foot. Row 3 = facing RIGHT (side profile): standing, walking step A, walking step B. Keep the character identical across all 9 cells. Save each PNG into raw/chars/ with exactly the file name given (copy it from wherever the tool saves it). Do not edit any other files.
+1. player.png: young junior security analyst, short dark-brown hair, light skin, blue button-up shirt, yellow lanyard with ID badge, dark grey trousers, black shoes.
+2. coworker.png: Dana, analyst, copper hair in a ponytail, medium-tan skin, purple sweater, yellow lanyard, dark trousers.
+3. manager.png: Priya, SOC lead, long black hair, brown skin, charcoal blazer over a white top, green lanyard, dark trousers.
+4. mike.png: Mike Chen, salesman, short black hair, light skin, light-blue dress shirt with a navy tie, grey trousers.
+5. theo.png: Theo Okoye, developer, short black hair, dark-brown skin, green hoodie, white earbuds cable, dark jeans, sneakers.
+6. carla.png: Carla Reyes, finance, blond shoulder-length hair, light skin, red blouse, black skirt and black flats.
+When all 6 are saved, list the files in raw/chars with their sizes.
