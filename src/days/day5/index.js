@@ -1,5 +1,6 @@
 // Day 5 (Friday): the ransomware. The main alert runs a live damage counter until you contain it,
 // and the week's backups decide the ending. No tickets or walk-ups: it's one escalating incident.
+import { shiftHandoff } from '../handoff.js';
 import { emailsFor, PAGES, REPLY_DRAFTS } from './emails.js';
 import { generateLogs, ALERTS, CASE, IP_INFO, DATE, C2 } from './logs.js';
 import { halcyonDirectory, halcyonPowershell } from '../../data/halcyonDirectory.js';
@@ -86,7 +87,7 @@ function prepare(c) {
   const numberMatch = c.d2NumberMatching ? 'Number matching on MFA held all week, nice.' : '';
   const svc = c.d4Contained ? 'You killed svc_backup yesterday, so they can\'t use that one today.' : 'Heads up: svc_backup was never locked down. If they come back, that\'s their key.';
   return {
-    emails: emailsFor(c),
+    emails: [shiftHandoff(5, c), ...emailsFor(c)],
     npcLines: {
       priya: {
         talk: ['Morning. Friday. We made it to Friday.', numberMatch, svc, 'Check your inbox. I pinned the incident runbook in your Terminal. Just in case.'].filter(Boolean),
@@ -136,7 +137,7 @@ export default {
   badgeAtStart: true,
   cast: ['mike', 'theo', 'carla'],
 
-  emails: emailsFor({}), // replaced by prepare() with the carry-aware set
+  emails: [shiftHandoff(5), ...emailsFor({})], // replaced by prepare() with the carry-aware set
   pages: PAGES,
   directory: halcyonDirectory(),
   powershell: halcyonPowershell(),
