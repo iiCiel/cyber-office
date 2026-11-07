@@ -1007,3 +1007,60 @@ a.eg-tid:hover { text-decoration: underline; }
   .eg-events { max-height: 340px; }
 }
 .eg-wrap .eg-term-next { margin-top: 8px; font: 600 14px system-ui, sans-serif; }
+
+/* Tickets: keyboard focus on incident rows (rows are tab stops; Enter/Space selects). */
+.sn-table tr.titem:focus { outline: 2px solid #278efc; outline-offset: -2px; }
+.sn-table tr.titem:focus-visible { outline: 2px solid #278efc; outline-offset: -2px; }
+
+/* Short viewports (landscape phone, compact mode): the desktop rail must fit above the taskbar,
+   and the Tickets window scrolls as one page (list, then the full incident form) instead of
+   squeezing the form into a 2-row strip under the list. */
+.screen.compact .icons { top: 8px; bottom: 42px; gap: 2px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; }
+.screen.compact .icon { width: 76px; padding: 2px; flex: none; }
+.screen.compact .icon .glyph { font-size: 22px; line-height: 28px; }
+.screen.compact .tickets { display: block; height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.screen.compact .tickets .tlist { overflow: visible; }
+.screen.compact .tickets .thead { position: static; }
+.screen.compact .tickets .tdetail { overflow: visible; }
+.screen.compact .tickets .sn-formhead { top: 0; }
+
+/* ServiceNow list/form, matched to docs/reference/servicenow-incident-list.png and -form-top.png */
+.thead.sn-listhead { display: flex; align-items: center; gap: 8px; background: #fff; border-bottom: 1px solid #d5d8da; padding: 5px 10px; }
+.sn-listhead b { font-weight: 700; font-size: 14px; }
+.sn-ico { color: #5c6166; font-size: 15px; width: 22px; height: 22px; display: inline-grid; place-items: center; border: 1px solid #c6c9cc; border-radius: 3px; }
+.sn-sel { border: 1px solid #8c939a; border-radius: 3px; padding: 2px 22px 2px 6px; position: relative; font-size: 12px; background: #fff; }
+.sn-sel::after { content: "\25BE"; position: absolute; right: 6px; top: 2px; color: #5c6166; }
+.sn-search { border: 1px solid #8c939a; border-radius: 3px; padding: 2px 6px; width: 120px; color: #6b7177; font-size: 12px; }
+.sn-grow { flex: 1; }
+.sn-new { background: #293e40; color: #fff; border-radius: 3px; padding: 3px 12px; font-size: 12px; font-weight: 600; }
+.sn-crumb { padding: 4px 12px; font-size: 12px; color: #2e2e2e; border-bottom: 1px solid #d5d8da; background: #fff; display: flex; gap: 4px; align-items: center; }
+.sn-count { margin-left: auto; color: #5c6166; }
+.sn-table th { background: #fff; border-right: none; border-bottom: 1px solid #c6c9cc; font-weight: 700; }
+.sn-table tbody tr.titem:nth-child(even) { background: #f6f7f8; }
+.sn-table tbody tr.titem:hover { background: #eef4f9; }
+.sn-table tbody tr.titem.active { background: #cfdcf7; }
+.sn-chk { width: 18px; padding: 4px 2px 4px 8px !important; color: #5c6166; }
+.sn-box { display: inline-block; width: 12px; height: 12px; border: 1px solid #8c939a; border-radius: 2px; background: #fff; vertical-align: middle; }
+.sn-info { display: inline-grid; place-items: center; width: 14px; height: 14px; border: 1px solid #5c6166; border-radius: 50%; font: italic 700 9px Georgia, serif; color: #5c6166; }
+.tnum, .sn-link { color: #1f5a92; text-decoration: none; }
+.sn-table .sn-pri { display: inline; width: auto; height: auto; border-radius: 10px; margin: 0; background: none; padding: 1px 0; }
+.sn-table .sn-pri.p1 { background: #fde3e3; color: #8c1c1c; padding: 1px 8px; }
+.sn-table .sn-pri.p2 { background: #fde7c9; color: #7a4100; padding: 1px 8px; }
+.sn-table .sn-pri.p3, .sn-table .sn-pri.p4 { background: none; color: #2e2e2e; }
+.sn-formhead { background: #fff; border-bottom: 1px solid #d5d8da; padding: 6px 10px; }
+.sn-back { border: 1px solid #c6c9cc; border-radius: 3px; width: 22px; height: 22px; display: inline-grid; place-items: center; padding: 0; }
+.sn-title { display: flex; flex-direction: column; line-height: 1.15; }
+.sn-title .sn-rectype { font-size: 12px; }
+.sn-title h2 { margin: 0; font-size: 14px; font-weight: 700; }
+.sn-tools { color: #5c6166; letter-spacing: 6px; font-size: 14px; }
+.sn-btn { font-weight: 600; border-color: #8c939a; padding: 4px 12px; }
+.sn-ctl { display: flex; gap: 4px; align-items: stretch; min-width: 0; }
+.sn-ctl .sn-input { flex: 1; min-width: 0; }
+.sn-input { border-color: #8c939a; border-radius: 3px; min-height: 28px; padding: 5px 7px; }
+.sn-input.ro { background: #e9ebed; border-color: #e9ebed; }
+.sn-input.ref { padding-right: 7px; }
+.sn-input.ref::after { content: none; }
+.sn-lookup, .sn-infobtn { flex: none; width: 28px; border: 1px solid #8c939a; border-radius: 3px; display: grid; place-items: center; color: #2e2e2e; background: #fff; font-size: 14px; }
+.sn-infobtn { font: italic 700 12px Georgia, serif; }
+.sn-field label { padding-top: 6px; }
+.thead.sn-listhead, .sn-formhead { background: #f4f5f6; }

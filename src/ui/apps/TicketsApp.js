@@ -80,21 +80,47 @@ export class TicketsApp {
       h(
         'div',
         { class: 'tlist sn-list' },
-        h('div', { class: 'thead sn-listhead' }, h('b', {}, 'Incidents'), h('span', {}, ` [Assigned to me]  ·  ${open} active  ·  ${tickets.length} total`)),
+        h('div', { class: 'thead sn-listhead' },
+          h('span', { class: 'sn-ico', 'aria-hidden': 'true' }, '≡'),
+          h('span', { class: 'sn-ico', 'aria-hidden': 'true' }, '⧩'),
+          h('b', {}, 'Incidents'),
+          h('span', { class: 'sn-sel' }, 'Assigned to'),
+          h('span', { class: 'sn-search' }, 'Search'),
+          h('span', { class: 'sn-grow' }),
+          h('span', { class: 'sn-sel wide' }, 'Actions on selected rows...'),
+          h('span', { class: 'sn-new' }, 'New')),
+        h('div', { class: 'sn-crumb' },
+          h('a', { class: 'sn-link' }, 'All'), ' > ', h('a', { class: 'sn-link' }, 'Assigned to = analyst01'), ' > ', h('a', { class: 'sn-link' }, 'Active = true'),
+          h('span', { class: 'sn-count' }, `${open} active · ${tickets.length} total`)),
         tickets.length
           ? h('table', { class: 'sn-table' },
-              h('thead', {}, h('tr', {}, ['Number', 'Opened', 'Short description', 'Caller', 'Priority', 'State', 'Assignment group'].map((c) => h('th', {}, c)))),
+              h('thead', {}, h('tr', {},
+                h('th', { class: 'sn-chk' }, h('span', { class: 'sn-box' })),
+                h('th', { class: 'sn-chk' }, '⌕'),
+                ['Number', 'Opened', 'Short description', 'Caller', 'Priority', 'State', 'Assignment group'].map((c) => h('th', {}, c)))),
               h('tbody', {}, tickets.map((x) => {
                 const f = itsmFields(x);
                 const done = this.state.tickets[x.id];
-                return h('tr', { class: `titem${x.id === this.selected ? ' active' : ''}${done ? ' done' : ''}`, 'data-ticket': x.id, onclick: () => { this.selected = x.id; this.tab = 'notes'; this.render(); } },
+                const pick = () => this.select(x.id);
+                return h('tr', {
+                  class: `titem${x.id === this.selected ? ' active' : ''}${done ? ' done' : ''}`,
+                  'data-ticket': x.id,
+                  tabindex: 0,
+                  role: 'button',
+                  'aria-pressed': x.id === this.selected ? 'true' : 'false',
+                  'aria-label': `${f.number}: ${x.title}`,
+                  onclick: pick,
+                  onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') { e.preventDefault(); e.stopPropagation(); pick(); } },
+                },
+                  h('td', { class: 'sn-chk' }, h('span', { class: 'sn-box' })),
+                  h('td', { class: 'sn-chk' }, h('span', { class: 'sn-info' }, 'i')),
                   h('td', {}, h('a', { class: 'tnum sn-link' }, f.number)),
-                  h('td', { class: 'sn-dim' }, f.opened),
+                  h('td', {}, f.opened),
                   h('td', { class: 'ttitle' }, x.title),
-                  h('td', { class: 'tfrom' }, f.caller),
-                  h('td', {}, h('span', { class: `sn-pri p${f.priority[0]}` }), f.priority),
+                  h('td', { class: 'tfrom' }, h('a', { class: 'sn-link' }, f.caller)),
+                  h('td', {}, h('span', { class: `sn-pri p${f.priority[0]}` }, f.priority)),
                   h('td', {}, done ? h('span', { class: 'tstatus' }, 'Resolved') : h('span', { class: 'tstatus open' }, 'In Progress')),
-                  h('td', { class: 'sn-dim' }, f.group));
+                  h('td', {}, f.group));
               })))
           : h('div', { class: 'empty' }, 'No tickets.'),
       ),
@@ -102,10 +128,22 @@ export class TicketsApp {
     );
   }
 
+  // Select a ticket (mouse or keyboard). Keeps keyboard focus on the chosen row after the re-render.
+  select(id) {
+    const hadFocus = this.el.contains(document.activeElement);
+    this.selected = id;
+    this.tab = 'notes';
+    this.render();
+    if (hadFocus) this.el.querySelector(`tr[data-ticket="${CSS.escape(id)}"]`)?.focus();
+  }
+
   field(label, value, opts = {}) {
     return h('div', { class: `sn-field${opts.wide ? ' wide' : ''}` },
-      h('label', {}, opts.req ? h('span', { class: 'sn-req' }, '*') : null, label),
-      h('div', { class: `sn-input${opts.ref ? ' ref' : ''}${opts.ro ? ' ro' : ''}${opts.select ? ' select' : ''}` }, value || ''),
+      h('label', {}, opts.req ? h('span', { class: 'sn-req' }, '✱') : null, label),
+      h('div', { class: 'sn-ctl' },
+        h('div', { class: `sn-input${opts.ref ? ' ref' : ''}${opts.ro ? ' ro' : ''}${opts.select ? ' select' : ''}` }, value || ''),
+        opts.ref ? h('span', { class: 'sn-lookup', 'aria-hidden': 'true' }, '⌕') : null,
+        opts.info ? h('span', { class: 'sn-infobtn', 'aria-hidden': 'true' }, 'i') : null),
     );
   }
 
@@ -129,19 +167,21 @@ export class TicketsApp {
     return [
       h('div', { class: 'sn-formhead' },
         h('span', { class: 'sn-back' }, '<'),
-        h('span', { class: 'sn-rectype' }, 'Incident'),
-        h('h2', {}, f.number),
+        h('span', { class: 'sn-ico', 'aria-hidden': 'true' }, '≡'),
+        h('div', { class: 'sn-title' }, h('span', { class: 'sn-rectype' }, 'Incident'), h('h2', {}, f.number)),
+        h('span', { class: 'sn-grow' }),
+        h('span', { class: 'sn-tools', 'aria-hidden': 'true' }, '📎', ' ☷', ' ⋯'),
         h('span', { class: 'sn-btns' },
-          h('button', { type: 'button', class: 'sn-btn' }, 'Follow'),
           h('button', { type: 'button', class: 'sn-btn' }, 'Update'),
-          h('button', { type: 'button', class: 'sn-btn primary', onclick: () => this.el.querySelector('.toptions')?.scrollIntoView({ block: 'nearest' }) }, 'Resolve'),
+          h('button', { type: 'button', class: 'sn-btn', onclick: () => this.el.querySelector('.toptions')?.scrollIntoView({ block: 'nearest' }) }, 'Resolve'),
+          h('button', { type: 'button', class: 'sn-btn' }, 'Save'),
         ),
       ),
       h('div', { class: 'sn-flow' }, ['New', 'In Progress', 'On Hold', 'Resolved', 'Closed'].map((s) => h('span', { class: s === state ? 'on' : (s === 'New' || (decided && s === 'In Progress')) ? 'past' : '' }, s))),
       h('div', { class: 'sn-grid' },
         h('div', {},
           this.field('Number', f.number, { ro: true }),
-          this.field('Caller', f.caller, { req: true, ref: true }),
+          this.field('Caller', f.caller, { req: true, ref: true, info: true }),
           this.field('Department', f.dept, { ro: true }),
           this.field('Category', f.category, { select: true }),
           this.field('Subcategory', f.subcategory, { select: true }),
@@ -154,7 +194,7 @@ export class TicketsApp {
           this.field('Impact', f.impact, { select: true }),
           this.field('Urgency', f.urgency, { select: true }),
           this.field('Priority', f.priority, { ro: true }),
-          this.field('Assignment group', f.group, { ref: true }),
+          this.field('Assignment group', f.group, { ref: true, req: true }),
           this.field('Assigned to', 'analyst01', { ref: true }),
         ),
       ),

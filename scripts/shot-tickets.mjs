@@ -40,7 +40,57 @@ for (const [label, vp, mobile] of [['desktop', { width: 1366, height: 860 }, fal
   check(`${label}: incident list shows the Day 2 queue`, rows === 3, `rows=${rows}`);
   const head = await page.locator(`${W} .sn-formhead h2`).first().innerText().catch(() => '');
   check(`${label}: form header shows an INC number`, /^INC\d{7}$/.test(head), head);
+  // No toast over the form in proof shots.
+  await page.evaluate(() => document.querySelectorAll('.toast').forEach((t) => t.remove()));
+  // All four desktop launchers (icon + label) sit fully above the taskbar.
+  const rail = await page.evaluate((W) => {
+    const bar = document.querySelector(`${W} .taskbar`).getBoundingClientRect();
+    return [...document.querySelectorAll(`${W} .icons .icon`)].map((i) => { const r = i.getBoundingClientRect(); return { label: i.innerText.replace(/\s+/g, ' ').trim(), bottom: Math.round(r.bottom), barTop: Math.round(bar.top), ok: r.bottom <= bar.top + 0.5 && r.height > 0 }; });
+  }, W);
+  check(`${label}: all ${rail.length} launchers and labels sit above the taskbar`, rail.length === 4 && rail.every((r) => r.ok), rail.map((r) => `${r.label}@${r.bottom}/${r.barTop}`).join(', '));
   await page.screenshot({ path: `${out}/${label}-1-form.png` });
+  if (!mobile) { // crops for the side-by-side with the real ServiceNow list and form top (docs/reference/servicenow-incident-*.png)
+    await page.locator(`${W} .tlist`).screenshot({ path: `${out}/part-list.png` });
+    const box = await page.evaluate((W) => {
+      const a = document.querySelector(`${W} .sn-formhead`).getBoundingClientRect();
+      const g = document.querySelector(`${W} .sn-grid`).getBoundingClientRect();
+      const c = document.querySelector(`${W} .tdetail`).getBoundingClientRect();
+      return { x: a.left, y: a.top, width: a.width, height: Math.min(g.bottom, c.bottom) - a.top };
+    }, W);
+    await page.screenshot({ path: `${out}/part-formtop.png`, clip: box });
+    const toasts = await page.locator('.toast').count();
+    check('desktop: no toast on screen in the comparison crops', toasts === 0, `toasts=${toasts}`);
+  }
+  // Keyboard: Tab from the first row to the second row, press Enter, the form must show that INC number.
+  await page.locator(`${W} tr[data-ticket]`).first().focus();
+  await page.keyboard.press('Tab');
+  const focusedId = await page.evaluate(() => document.activeElement?.dataset?.ticket || '');
+  const secondId = await page.locator(`${W} tr[data-ticket]`).nth(1).getAttribute('data-ticket');
+  const secondInc = (await page.locator(`${W} tr[data-ticket]`).nth(1).locator('.tnum').innerText()).trim();
+  check(`${label}: Tab moves focus to the second ticket row`, focusedId === secondId, `${focusedId} vs ${secondId}`);
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(150);
+  const kbHead = (await page.locator(`${W} .sn-formhead h2`).first().innerText()).trim();
+  check(`${label}: Enter on the second row opens ${secondInc}`, kbHead === secondInc, kbHead);
+  const thirdInc = (await page.locator(`${W} tr[data-ticket]`).nth(2).locator('.tnum').innerText()).trim();
+  await page.keyboard.press('Tab');
+  await page.keyboard.press(' ');
+  await page.waitForTimeout(150);
+  const spHead = (await page.locator(`${W} .sn-formhead h2`).first().innerText()).trim();
+  check(`${label}: Space on the third row opens ${thirdInc}`, spHead === thirdInc, spHead);
+  await page.screenshot({ path: `${out}/${label}-1k-keyboard.png` });
+  // Back to the first ticket (the resolve step below uses it).
+  await page.click(`${W} tr[data-ticket]:first-child`);
+  await page.waitForTimeout(150);
+  if (mobile) {
+    // The incident form scrolls inside the window: scroll down to the fields below Caller.
+    const sc = await page.evaluate((W) => { const el = document.querySelector(`${W} .tickets`); el.scrollTop = document.querySelector(`${W} .sn-grid`).offsetTop - 40; return { top: el.scrollTop, max: el.scrollHeight - el.clientHeight }; }, W);
+    await page.waitForTimeout(150);
+    check(`${label}: the incident form scrolls inside the window`, sc.top > 0 && sc.max > 200, `scrollTop=${sc.top} max=${sc.max}`);
+    const visible = await page.evaluate((W) => { const win = document.querySelector(`${W} .window .content`).getBoundingClientRect(); return [...document.querySelectorAll(`${W} .sn-field label`)].filter((l) => { const r = l.getBoundingClientRect(); return r.top >= win.top && r.bottom <= win.bottom; }).map((l) => l.innerText.replace(/[*✱]/g, '').trim()); }, W);
+    check(`${label}: scrolled form shows the fields below Caller`, ['Category', 'Priority', 'Assignment group'].every((x) => visible.includes(x)), visible.join(','));
+    await page.screenshot({ path: `${out}/${label}-1s-scrolled.png` });
+  }
   await page.locator(`${W} .toptions`).scrollIntoViewIfNeeded();
   await page.screenshot({ path: `${out}/${label}-1b-resolve.png` });
   await page.click(`${W} [data-option=approval]`);
