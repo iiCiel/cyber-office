@@ -22,23 +22,22 @@ export default {
   npcLines: {
     priya: {
       talk: [
-        'Morning! Welcome to the SOC. Well, the SOC is mostly you and me.',
-        'I just activated your badge, so the server room should let you in now.',
-        'Get settled at your desk first. Then go look at the SOC console in there.',
-        'Rule one: if something looks weird, it probably is. Come ask me.',
+        "Morning, welcome aboard. Priya Raman, I run security here. The SOC is you, me, and Northgate's MDR overnight.",
+        'Your badge is live as of five minutes ago, so the server room door will open for you now.',
+        "Plan for today: get logged in at your desk, clear your inbox, then take the SIEM console in the server room. There's a P3 sitting in the queue with your name on it.",
+        "House rules: anything that smells off, you open a case and write down what you saw, with timestamps. And you don't sit on a P1. You come get me.",
       ],
-      again: ['Desk, then the SOC console. Shout if anything looks off.'],
+      again: ['Desk, inbox, then the SIEM console in the server room. If you\'re unsure whether it\'s a P1, treat it like one and grab me.'],
       effect: { badgeActive: true },
     },
     dana: {
       talk: [
-        'Oh hey, you must be the new analyst!',
-        "I'm Dana. Helpdesk. I reset about forty passwords a day.",
-        'Your desk is the one with the bright blue screen. Middle row.',
-        'I set up your laptop at 6 this morning, so you might get a sign-in alert email. That was me.',
-        'Server room is the metal door on the right. Badge reader is picky.',
+        "Oh hey, you're the new analyst! Dana. Service desk, Tier 1, also Tier 2 when Greg's out, which is always.",
+        'Your desk is the one with the blue screen, middle row. I imaged it at 6 this morning.',
+        "Heads up: you'll probably get a new-sign-in alert email from that. That was me. It's on INC0004388 if anyone asks.",
+        'Server room is the metal door on the right. The badge reader wants you to really mean it.',
       ],
-      again: ['Forty-one passwords now. It is 9 AM.'],
+      again: ['Queue check: 23 open, 9 of them password resets. It is 9 AM.'],
     },
   },
 

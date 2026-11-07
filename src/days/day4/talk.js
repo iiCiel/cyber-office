@@ -1,40 +1,41 @@
-// Day 4: Carla from Finance calls about the "new bank details".
+// Day 4: Carla from Finance (accounts payable) calls about the "new bank details".
+// She talks AP: remit-to change, vendor master, wire cut-off. Careful, but busy.
 export const CARLA_CALL = {
   start: {
     say: [
       ['Carla Reyes (Finance)', [
-        'Hi, it\'s Carla. Did you see my email?',
-        'Northwind says their bank changed. There\'s a signed letter and everything, and it got through the spam filter.',
-        'Invoice NW-7781, $48,200, due today. Can I pay it to the new account?',
+        'Hi, Carla in AP. Did my email come through?',
+        'Northwind sent a remit-to change. New bank, signed letter on their letterhead, and no external-sender warning on it.',
+        'Invoice NW-7781, $48,200, due today, and the wire cut-off is 2 PM. Can I update the vendor master and pay it?',
       ]],
     ],
     choices: [
-      { text: 'Hold off. Call Northwind on the number in our vendor file, not one from the email, and confirm the change first.', next: 'callback', set: { outcome: 'callback' } },
-      { text: "Look at the sender: northwindsupplies-billing.com isn't their real domain. Don't pay; report it.", next: 'domain', set: { outcome: 'domain' } },
-      { text: 'Reply to their email and ask them to confirm.', next: 'reply', set: { outcome: 'reply' } },
-      { text: 'It passed the spam filter and has a signed letter. Go ahead.', next: 'pay', set: { outcome: 'paid' } },
+      { text: 'Hold it. Call Northwind on the number already in the vendor master, not one from the email, and confirm the change first.', next: 'callback', set: { outcome: 'callback' } },
+      { text: "Look at the sender domain: northwindsupplies-billing.com isn't theirs. Don't pay, and report it as phishing.", next: 'domain', set: { outcome: 'domain' } },
+      { text: 'Reply to the email and ask them to confirm.', next: 'reply', set: { outcome: 'reply' } },
+      { text: 'It passed the filter and the letter is signed. Go ahead.', next: 'pay', set: { outcome: 'paid' } },
     ],
   },
   callback: {
     say: [
       ['You', ['(Twenty minutes later.)']],
-      ['Carla Reyes (Finance)', ['I called the number in our vendor file. Their real AR person, Janet, has never heard of a bank change.', "She's furious. I'm not paying anyone today. Thank you."]],
+      ['Carla Reyes (Finance)', ["Called the number on file. Janet in their AR has never heard of a bank change. She's flagging it on their side.", "Nothing goes out today. I've put a hold on the vendor record. Thank you."]],
     ],
     end: true,
   },
   domain: {
-    say: [['Carla Reyes (Finance)', ['Oh. Oh no. It\'s "-billing". I would never have noticed.', "Okay. Not paying. I'll forward it to the SOC."]]],
+    say: [['Carla Reyes (Finance)', ['Oh. Oh no. "-billing". I read that three times and never saw it.', "Okay. Not paying. I'll hit Report Phish so it lands with the SOC."]]],
     end: true,
   },
   reply: {
     say: [
-      ['You', ['(Carla replies. Ten minutes later "Janet" answers.)']],
-      ['Carla Reyes (Finance)', ['They confirmed! Very polite. Paying now.']],
+      ['You', ['(Carla replies on the same thread. Ten minutes later "Janet" answers.)']],
+      ['Carla Reyes (Finance)', ['She confirmed! Very professional. The wire goes out before cut-off.']],
     ],
     end: true,
   },
   pay: {
-    say: [['Carla Reyes (Finance)', ['Great. Sending the wire now. Thanks!']]],
+    say: [['Carla Reyes (Finance)', ['Great. Releasing the wire now. Thanks!']]],
     end: true,
   },
 };

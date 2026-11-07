@@ -5,6 +5,9 @@
 //   choices: [{ text, next, set }]          `set` is merged into the conversation's result
 //   end:     true                           conversation ends after `say`
 // The runner (OfficeScene.runConversation) stores the merged result in GameState.
+//
+// Voices: Dana is Tier 1 service desk (dry, overworked, talks in ticket numbers and the queue).
+// The caller is a vishing attempt that sounds like a stressed salesperson, not a cartoon villain.
 
 const CALLER = 'Caller · +1 (216) 555-0187';
 
@@ -15,59 +18,59 @@ export const PHONE_CALL = {
   start: {
     say: [
       [CALLER, [
-        'Hey, is this IT security? This is Mike Chen, from Sales.',
-        "I'm at the airport and I'm locked out of my email. My client demo starts in 20 minutes.",
-        "Helpdesk isn't picking up. Can you reset my password and just read me the new one? Please.",
+        "Hi, is this security? The service desk line just rings out. It's Mike Chen, Sales.",
+        "I'm at Hopkins, gate B9, and Outlook keeps saying my password expired. I've got the Brennan Freight demo in twenty minutes.",
+        "Can you just reset it and read me the new one? I'll change it after, promise.",
       ]],
     ],
     choices: [
-      { text: 'Sure. Resetting it now...', next: 'reset', set: { outcome: 'reset' } },
-      { text: "Before I do anything: what's your employee ID?", next: 'askid', set: { askedId: true } },
-      { text: "I'll call you back on your number in the company directory.", next: 'callback', set: { askedCallback: true } },
-      { text: "Resets go through the helpdesk's verification. I'll open a ticket for you.", next: 'ticket' },
+      { text: 'Okay, give me a sec. Resetting it now.', next: 'reset', set: { outcome: 'reset' } },
+      { text: "Before I touch the account: what's your employee ID?", next: 'askid', set: { askedId: true } },
+      { text: "I'll call you back on the number we have for you in the directory.", next: 'callback', set: { askedCallback: true } },
+      { text: "Password resets need identity verification through the service desk. I'll open an incident for you.", next: 'ticket' },
     ],
   },
   askid: {
-    say: [[CALLER, ["Uh... it's 20417. I don't have my badge on me, I'm traveling.", 'Come on, the demo is in 15 minutes.']]],
+    say: [[CALLER, ['Uh, 20417? My badge is in my checked bag.', "Look, I'm boarding in fifteen. Can we do this?"]]],
     choices: [
-      { text: 'Okay, that matches. Resetting it now.', next: 'reset', set: { outcome: 'reset-after-id' } },
-      { text: "I'll call you back on your number in the company directory.", next: 'callback', set: { askedCallback: true } },
-      { text: "Resets go through the helpdesk's verification. I'll open a ticket for you.", next: 'ticket' },
+      { text: 'Okay, 20417 matches. Resetting it now.', next: 'reset', set: { outcome: 'reset-after-id' } },
+      { text: "Employee IDs are on every org chart. I'll call you back on your directory number.", next: 'callback', set: { askedCallback: true } },
+      { text: "Password resets need identity verification through the service desk. I'll open an incident for you.", next: 'ticket' },
     ],
   },
   callback: {
-    say: [[CALLER, ['Call me back? My phone is about to die!', "Look, Mark Holloway is going to hear about this if I miss this demo. It's a big client."]]],
+    say: [[CALLER, ["Call me back? I'm on 4% battery, man.", "Mark Holloway signed off on this account personally. If I lose Brennan over a callback, that's on you."]]],
     choices: [
-      { text: "Sorry. Directory number, or it doesn't happen.", next: 'verify', set: { outcome: 'callback-verified' } },
+      { text: "Understood. It's a directory callback or nothing, for anyone, VPs included.", next: 'verify', set: { outcome: 'callback-verified' } },
       { text: 'Okay, okay. Resetting it now.', next: 'reset', set: { outcome: 'reset-under-pressure' } },
     ],
   },
   ticket: {
-    say: [[CALLER, ["A ticket? I don't have time for a ticket! Just reset it!"]]],
+    say: [[CALLER, ['An incident? Like a ticket? Nobody reads those before Thursday.', "Just reset it. I'll do the paperwork later."]]],
     choices: [
-      { text: "That's the process. The helpdesk will verify you and call you back.", next: 'refused', set: { outcome: 'refused-process' } },
+      { text: "The service desk will verify you and call you back. That's the process for everyone.", next: 'refused', set: { outcome: 'refused-process' } },
       { text: 'Fine, fine. Resetting it now.', next: 'reset', set: { outcome: 'reset-under-pressure' } },
     ],
   },
   reset: {
     say: [
-      [CALLER, ["Oh, thank you! You're a lifesaver."]],
-      ['You', ['(You read the new password over the phone. He hangs up fast.)']],
+      [CALLER, ["Perfect. You're a lifesaver.", 'Spell it for me? ...Got it. Bye.']],
+      ['You', ['(You read the new password over the phone. The line goes dead fast.)']],
     ],
     end: true,
   },
   verify: {
     say: [
-      [CALLER, ['...Fine. Whatever.', '(click)']],
-      ['You', ["(You look up Mike Chen in the directory and call his desk: +1 (330) 555-0142.)"]],
-      ['Mike Chen', ["Hello? Yeah, this is Mike. I'm at my desk on the second floor.", "Locked out? No. And I'm not at any airport.", 'Wait. Someone is pretending to be me?!']],
+      [CALLER, ['...Unbelievable. Fine.', '(click)']],
+      ['You', ['(You look up Mike Chen in the directory and dial his desk: +1 (330) 555-0142.)']],
+      ['Mike Chen (Sales)', ["Mike Chen. Hey, what's up?", "Airport? No, I'm at my desk. Second floor. Been here since eight.", 'Hang on. Someone called you pretending to be me? That is creepy.']],
     ],
     end: true,
   },
   refused: {
     say: [
       [CALLER, ['(He hangs up.)']],
-      ['You', ['Hm. Mike Chen badged in at 8:21 this morning. Was he really at the airport?']],
+      ['You', ['Hm. The SIEM had Mike Chen badging in at 08:21. Hard to do that from an airport.']],
     ],
     end: true,
   },
@@ -78,32 +81,32 @@ export const USB_DROP = {
   start: {
     say: [
       ['Dana (IT helpdesk)', [
-        'Hey! Found this in the parking lot. A USB stick labeled "SALARIES 2026".',
-        "There's another one just like it on someone's desk, too. Weird.",
-        "Can you plug it into your PC and see whose it is? I'm dying to know. I mean, so we can return it.",
+        'Okay, weird one. Facilities found this by the loading dock. Label says "SALARIES 2026".',
+        "There's a twin of it on a desk upstairs too. Somebody is handing these out.",
+        'Can you plug it in and see whose it is? Strictly for lost-and-found purposes. Obviously.',
       ]],
     ],
     choices: [
       { text: 'Sure, hand it over.', next: 'plug', set: { outcome: 'plugged' } },
-      { text: "Nope. Unknown USB sticks don't go in any of our PCs. I'll bag it and give it to Priya to check safely.", next: 'safe', set: { outcome: 'handed-to-soc' } },
-      { text: 'Just throw it in the trash.', next: 'trash', set: { outcome: 'trashed' } },
+      { text: "No. Unknown USB doesn't touch a production box. Bag it, and Priya can image it on the air-gapped analysis laptop.", next: 'safe', set: { outcome: 'handed-to-soc' } },
+      { text: 'Just bin it.', next: 'trash', set: { outcome: 'trashed' } },
     ],
   },
   plug: {
     say: [
-      ['You', ['(You plug it in. A black window flashes open and closes in a blink. Then nothing.)']],
-      ['Dana (IT helpdesk)', ['Huh. Empty? Lame.']],
+      ['You', ['(You plug it in. A console window flashes for half a second and closes. Then nothing.)']],
+      ['Dana (IT helpdesk)', ['Huh. Empty? Lame.', "...Was that a PowerShell window? I'm going to pretend I didn't see that."]],
     ],
     end: true,
   },
   safe: {
     say: [
-      ['Dana (IT helpdesk)', ["Ugh, fine. You're no fun.", "...Okay, that's actually smart. I'll grab the other one before somebody plugs it in."]],
+      ['Dana (IT helpdesk)', ['Ugh. You sound like the annual training video.', "No, you're right. I'll grab the other one before somebody in Sales plugs it in, and log an INC so it's on record."]],
     ],
     end: true,
   },
   trash: {
-    say: [['Dana (IT helpdesk)', ['Into the bin it goes. Bye, salaries.']]],
+    say: [['Dana (IT helpdesk)', ['Into the bin. Bye, salaries.', "...Though if it's what I think it is, somebody might want to look at it. Eh. Not my queue."]]],
     end: true,
   },
 };
