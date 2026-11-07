@@ -1,0 +1,17 @@
+Read STYLE.txt in this folder and follow it exactly. Use your image generation tool to create the following images, ONE image per object, and save each PNG into raw/props/ with exactly the file name given (copy it from wherever the tool saves it). Do not edit any other files. Objects (width:height is the rough proportion of the object):
+1. desk.png (4:3): a plain office cubicle desk seen from the front-top: one 24-inch monitor showing a dim email client (abstract grey lines), keyboard, mouse, a closed laptop, a pen cup, a few papers. Wooden top with grey metal side panels.
+2. desk-mine.png (4:3): same desk style but this is the player desk: one monitor glowing bright blue (Outlook-like inbox, abstract), keyboard, mouse, a fresh coffee mug, a small succulent, a lanyard with ID badge lying on it, two yellow sticky notes on the monitor edge.
+3. desk-soc.png (4:3): a Security Operations Center analyst desk: three monitors side by side on arms showing dark SIEM dashboards (abstract world map with red dots, green/red bar charts, log lines), keyboard, mouse, a desk phone, a headset, an energy drink can.
+4. chair.png (1:1): an ergonomic black mesh office chair seen from BEHIND (the backrest faces the viewer), five-star base with wheels.
+5. rack.png (1:2): a tall 42U black server rack seen from the front: stacked 1U/2U servers with drive bays, many tiny green and amber status LEDs, a patch panel with blue and yellow cables at the top, perforated door frame.
+6. plant.png (2:3): a tall leafy potted office plant (fiddle-leaf fig) in a white ceramic pot.
+7. cooler.png (1:2): a standing office water cooler with a blue 5-gallon bottle on top, white body, blue and red taps.
+8. printer.png (5:4): a large grey multifunction office laser printer/copier with a paper tray, a scanner lid, a small control panel with a tiny red error light, a sheet of paper sticking out of the output tray.
+9. bookshelf.png (1:1): a dark wooden bookshelf with three shelves full of binders, compliance manuals, ring folders in blue, red, white and black, a small trophy and a box file.
+10. coffee.png (1:1): a small break-room counter with an espresso/coffee machine, a stack of paper cups, a sugar jar and a mug, cabinet doors below.
+11. fridge.png (1:2): a tall stainless-steel office fridge with two doors, a couple of magnets and a yellow sticky note.
+12. table.png (2:1): a small round-cornered break-room table with a pink donut box (open, donuts visible) and two coffee mugs.
+13. table-long.png (3:1): a long dark-wood conference table seen from above at 3/4, with a triangular conference speakerphone in the middle, two open laptops, a notepad and water bottles.
+14. reception.png (2:1): a modern reception desk with a light wood top and grey front panel, a monitor, a visitor sign-in tablet on a stand, a small bell, a visitor badge tray.
+15. whiteboard.png (2:1): a wall-mounted whiteboard with an incident-response timeline drawn in blue, red and green marker as boxes, arrows and squiggles (NO readable letters), a few magnets, a marker tray at the bottom.
+When all 15 are saved, list the files in raw/props with their sizes.

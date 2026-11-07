@@ -8,3 +8,7 @@ smoke-out/
 # Local scratch art, not part of the game build
 /title.png
 .scratch/
+
+# Codex raw art (45 MB) and Codex logs; see art-src/README.md
+art-src/raw/
+art-src/log-*.txt

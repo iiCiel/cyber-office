@@ -1,0 +1,14 @@
+Read STYLE.txt in this folder and follow it, EXCEPT: these are square seamless TILE textures seen straight from above, so they fill the whole square edge to edge with no magenta and no outline around the square. Each must tile seamlessly when repeated in a grid. Each image should look like a pixel-art floor/wall tile drawn at high detail (about 64x64 art pixels, big chunky square pixels). Use your image generation tool to make ONE image per tile and save each PNG into raw/tiles/ with exactly the file name given (copy it from wherever the tool saves it). Do not edit any other files.
+1. floor.png: navy-blue commercial office carpet tile with a subtle low-pile texture and faint seam on one edge.
+2. floor-server.png: grey raised-floor data-centre panel with a perforated vent pattern and a thin metal border.
+3. wall-top.png: the top of an interior wall seen from above: a dark charcoal flat surface with a slightly lighter edge line at the bottom.
+4. wall-face.png: the front face of an office interior wall: warm off-white painted drywall in the upper 80%, a darker grey-brown skirting board along the bottom 15%.
+5. window.png: the same off-white wall face with a window in it: dark-wood frame, glass showing a light blue sky with a hint of a city skyline, horizontal blinds at the top, same skirting board at the bottom.
+6. front-door.png: glass double front door of an office building with wooden frame and a metal push bar, seen from inside, filling the tile.
+7. tile-light.png: light beige polished porcelain lobby floor tile with subtle marble veining and thin grout lines.
+8. wood.png: warm oak wood plank floor, planks running horizontally, staggered joints.
+9. server-door.png: a grey steel secure door with a small wire-glass window and a black badge card reader with a red LED on the right side, set into a dark wall.
+10. mat.png: a dark brown coir entrance doormat on a light beige stone floor (the mat fills the middle, floor shows at the edges).
+11. carpet-green.png: muted sage-green office carpet tile with subtle texture (for a break room).
+12. wall-face-board.png: the same off-white wall face (with skirting board) with a cork board pinned on it holding small white and yellow notes and a red pin (no readable text).
+When all 12 are saved, list the files in raw/tiles with their sizes.

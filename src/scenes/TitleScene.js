@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { addHdLayers, addProp, hasHdProp, charScale, HAS_CHAIR } from '../art/hd.js';
 import { VIEW_W, VIEW_H, BASE_W, BASE_H, FONT } from '../config.js';
 import { GameState } from '../game/GameState.js';
 import { getDay, LAST_DAY } from '../days/index.js';
@@ -121,13 +122,23 @@ export class TitleScene extends Phaser.Scene {
     const z = Math.max(MAP_ZOOM, Math.ceil(Math.max(VIEW_W / map.widthInPixels, VIEW_H / map.heightInPixels)));
     const ox = Math.round((BASE_W - map.widthInPixels * z) / 2);
     const oy = Math.round((BASE_H - map.heightInPixels * z) / 2);
-    for (const name of ['floor', 'walls']) map.createLayer(name, ts, ox, oy)?.setScale(z);
+    const low = ['floor', 'walls'].map((name) => map.createLayer(name, ts, ox, oy)?.setScale(z));
+    // Same detailed 64px tiles as the game, when they loaded.
+    if (Object.keys(addHdLayers(this, map, ['floor', 'walls'], ox, oy, z)).length) low.forEach((l) => l?.destroy());
     const props = (o) => Object.fromEntries((o.properties || []).map((p) => [p.name, p.value]));
     for (const o of map.getObjectLayer('objects')?.objects || []) {
       const p = props(o);
       const at = (img) => img.setOrigin(0.5, 1).setScale(z).setPosition(ox + o.x * z, oy + o.y * z);
-      if (o.type === 'prop' && p.tex && this.textures.exists(p.tex)) at(this.add.image(0, 0, p.tex));
-      else if (o.type === 'npc' && p.sprite && this.textures.exists(p.sprite)) at(this.add.sprite(0, 0, p.sprite, `${p.face === 'up' ? 'up' : 'down'}-idle`));
+      if (o.type === 'prop' && p.tex && this.textures.exists(p.tex)) {
+        if (p.tex.startsWith('desk') && !(HAS_CHAIR.has(p.tex) && hasHdProp(this, p.tex))) {
+          const c = addProp(this, 0, 0, 'chair');
+          c.setOrigin(0.5, 1).setScale(c.scaleX * z, c.scaleY * z).setPosition(ox + o.x * z, oy + (o.y + 12) * z);
+        }
+        const img = addProp(this, 0, 0, p.tex);
+        img.setOrigin(0.5, 1).setScale(img.scaleX * z, img.scaleY * z).setPosition(ox + o.x * z, oy + o.y * z);
+      } else if (o.type === 'npc' && p.sprite && this.textures.exists(p.sprite)) {
+        at(this.add.sprite(0, 0, p.sprite, `${p.face === 'up' ? 'up' : 'down'}-idle`)).setScale(z * charScale(this, p.sprite));
+      }
     }
     // The camera centres the 960x720 layout; the shade covers the whole window around it.
     const ex = (VIEW_W - BASE_W) / 2;

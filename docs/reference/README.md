@@ -34,3 +34,8 @@ All files come from Wikimedia Commons (free licences; see each file page for aut
 - **Still missing a reference (not on Commons, Microsoft/Splunk images are non-free):** Server Manager, AD Users
   and Computers, Splunk Search, a CCDC scoreboard. Soliman: drop a screenshot of each into this folder if you
   have one; the next run will compare against it.
+- **servicenow-incident-lower.png**: lower half of a real ServiceNow incident form (Notes / Related Records /
+  Closure Information tabs, Watch list, Additional comments, Work notes, Post), from the University of Michigan
+  ServiceNow training guide: https://mylinccontent.dsc.umich.edu/mais/html/SL_InvestigateDiagnoseResolveanIncident.html
+  Our Tickets app copies its grey field labels, flat inputs with lookup icons, state flow bar, work-notes
+  activity stream and blue Update / Resolve buttons. Side by side: docs/proof/tickets/sbs-servicenow.png.
