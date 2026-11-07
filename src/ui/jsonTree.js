@@ -29,7 +29,7 @@ function node(value, depth, openDepth) {
       wrap.append(` ${close}`);
       return;
     }
-    const body = h('span', { class: 'jb' });
+    const body = h('span', { class: 'jbody' });
     for (const k of keys) {
       const v = value[k];
       body.append(h('span', { class: 'jl' }, h('span', { class: 'jk' }, arr ? `${k}` : k), ': ', isObj(v) ? node(v, depth + 1, openDepth) : scalar(v)));

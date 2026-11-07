@@ -12,6 +12,14 @@ import { runSearch, fieldSummary, histogram, getField } from '../game/spl.js';
 // Everything on screen comes from the day's data through textContent, never innerHTML.
 const IP_RE = /\b(?:\d{1,3}\.){3}\d{1,3}\b/g;
 const compact = (e) => `${hms(e.t)} ${e.host.padEnd(6)} ${e.short}`;
+// One event as its real raw text on a single line (syslog as-is, WinEventLog / JSON folded), the way a live tail shows it.
+export const rawLine = (e) => {
+  if (!e.raw) return compact(e);
+  let line = e.raw;
+  if (line.startsWith('{')) { try { line = JSON.stringify(JSON.parse(line)); } catch { /* keep as-is */ } }
+  else if (line.includes('\n')) line = line.split('\n').map((x) => x.trim()).filter(Boolean).join(' ');
+  return line.length > 240 ? `${line.slice(0, 239)}…` : line;
+};
 const DEFAULT_SELECTED = ['host', 'source', 'sourcetype'];
 const MAX_LINES = [5, 10, 20, 50, Infinity];
 const RANGES = [
@@ -165,7 +173,7 @@ export class SocScreen extends Overlay {
   renderTail() {
     if (!this.tail) return;
     const recent = this.logs().slice(-14);
-    clear(this.tail).append(recent.map(compact).join('\n'));
+    clear(this.tail).append(recent.map(rawLine).join('\n'));
   }
 
   // ---------- one notable event ----------
@@ -378,7 +386,7 @@ export class SocScreen extends Overlay {
       pager,
       h('div', { class: 'colhead' }, h('span', { class: 'c-i' }, 'i'), h('span', { class: 'c-time' }, 'Time'), h('span', { class: 'c-evt' }, 'Event')),
       ...rows.map((e) => this.renderRow(e, flagged)),
-      shown.length ? null : h('div', { class: 'quiet' }, res.error ? 'Fix the search and try again.' : 'No results found. Try expanding the time range, or check the field names in the sidebar.'),
+      ...(shown.length ? [] : [h('div', { class: 'quiet' }, res.error ? 'Fix the search and try again.' : 'No results found. Try expanding the time range, or check the field names in the sidebar.')]),
     );
   }
 
@@ -586,7 +594,7 @@ export class SocScreen extends Overlay {
           const drill = i === 0 && !/^(count|percent)$/.test(c) && text && !text.includes('\n');
           return h('td', { class: /^\d+(\.\d+)?$/.test(text) ? 'num' : '' }, drill ? h('button', { type: 'button', class: 'val', title: `Search for ${c}=${text}`, onclick: () => this.runDrill(c, text) }, text) : text);
         })))),
-      t.rows.length ? null : h('div', { class: 'quiet' }, 'No results found.'),
+      ...(t.rows.length ? [] : [h('div', { class: 'quiet' }, 'No results found.')]),
     );
   }
 

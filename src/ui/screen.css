@@ -278,7 +278,7 @@
 .meta .lookup { color: #5c6773; font-style: italic; border-left: 2px solid #f8be34; padding-left: 6px; }
 .meta .ips { margin-left: auto; }
 .json { font-family: Consolas, 'Courier New', monospace; font-size: 11px; line-height: 1.4; color: #1b2229; }
-.json .jb { display: block; margin-left: 16px; }
+.json .jbody { display: block; margin-left: 16px; }
 .json .jl { display: block; }
 .json .jk { color: #3c444d; font-weight: 600; }
 .json .jt { background: none; border: 0; padding: 0; color: #006eaa; font: inherit; cursor: pointer; }

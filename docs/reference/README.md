@@ -51,3 +51,14 @@ All files come from Wikimedia Commons (free licences; see each file page for aut
   red ✱ required marks, taller inputs with darker borders, separate magnifier box on reference fields, (i) after
   Caller, grey borderless read-only fields. Kept on purpose: the state flow bar (a real ServiceNow "process flow"
   formatter some instances turn on; not in this reference) and a smaller field set.
+
+## Log formats (Nov 6, fix/pr10-review)
+
+- `wazuh-siem-events.png`, `wazuh-xdr-alerts.png`: Wazuh dashboard screenshots from Wikimedia Commons (GPLv2, Wazuh Inc.).
+  Used as a SIEM reference for how a real event list and an EDR-style alert are laid out. No Splunk ES screenshot yet.
+- pfSense `filterlog`: CSV layout from the Netgate docs (Monitoring > Logs > Raw Filter Log Format). `src/game/fwfmt.js`
+  writes it, and the fields follow the Splunk TA-pfsense names (action, src_ip, dest_port, transport, ...).
+- Defender for Endpoint alerts: the Microsoft Graph security `alert` (alerts_v2) JSON shape (id, incidentId,
+  serviceSource, mitreTechniques, evidence[] of device/process/file evidence), sourcetype `ms365:defender:incident:alerts`.
+- Sysmon Event ID 1: XmlWinEventLog with the real Data names (Image, CommandLine, Hashes, ParentImage, ParentCommandLine).
+- Proof: `docs/proof/logs/day5-{soc,mde,filterlog,sysmon}.png` from `scripts/shot-daylogs.mjs` (0 console errors).

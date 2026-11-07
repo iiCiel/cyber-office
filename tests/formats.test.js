@@ -89,3 +89,37 @@ test('US Eastern offset follows the real DST rules (2007+ and before)', async ()
   assert.equal(stamps({ month: 'Jul', day: 15, year: 2020 }, T(10, 0)).iso, '2020-07-15T14:00:00Z');
   assert.equal(stamps({ month: 'Jun', day: 27, year: 2017, utcOffset: 0 }, T(10, 0)).iso, '2017-06-27T10:00:00Z');
 });
+
+test('pfSense filterlog: real CSV layout, sourcetype and TA-pfsense style fields', async () => {
+  const { filterlog } = await import('../src/game/fwfmt.js');
+  const [e] = build((b) => b.add(T(3, 12, 6), 'fw01', 'pfsense', filterlog(T(3, 12, 6), { rule: 12, iface: 'igb0', act: 'pass', dir: 'in', proto: 'udp', src: '185.220.101.47', dst: '198.51.100.20', sport: 51150, dport: 1194 })));
+  assert.match(e.raw, /^Oct 24 03:12:06 fw01 filterlog\[\d+\]: 12,,,\d{10},igb0,match,pass,in,4,0x0,,\d+,\d+,0,none,17,udp,\d+,185\.220\.101\.47,198\.51\.100\.20,51150,1194,\d+$/);
+  assert.equal(e.sourcetype, 'pfsense:filterlog');
+  assert.deepEqual([e.fields.action[0], e.fields.src_ip[0], e.fields.dest_port[0], e.fields.transport[0]], ['allowed', '185.220.101.47', '1194', 'udp']);
+});
+
+test('Day 5: the EDR alerts are Defender for Endpoint JSON, the spread has Sysmon 1, the firewall has filterlog', async () => {
+  const { generateLogs } = await import('../src/days/day5/logs.js');
+  const ev = generateLogs({ nowMinutes: 12 * 60 });
+  const alert = ev.find((e) => e.key === 'edr-alert');
+  const rec = JSON.parse(alert.raw);
+  assert.equal(alert.sourcetype, 'ms365:defender:incident:alerts');
+  assert.equal(rec.serviceSource, 'microsoftDefenderForEndpoint');
+  assert.deepEqual(rec.mitreTechniques, ['T1486', 'T1490']);
+  assert.ok(rec.evidence.some((x) => x['@odata.type'] === '#microsoft.graph.security.processEvidence' && x.imageFile.fileName === 'p.exe'));
+  const spread = JSON.parse(ev.find((e) => e.key === 'spread').raw);
+  assert.equal(spread.title, 'Ransomware payload remotely launched');
+  const ws = ev.find((e) => e.key === 'spread-ws');
+  assert.match(ws.raw, /<EventID>1<\/EventID>/);
+  assert.match(ws.raw, /<Data Name='ParentCommandLine'>C:\\Windows\\system32\\svchost\.exe -k netsvcs -p -s Schedule<\/Data>/);
+  assert.ok(ev.filter((e) => e.sourcetype === 'pfsense:filterlog').length > 100);
+  assert.ok(!ev.some((e) => /^edr: /.test(e.msg)), 'no made-up "edr:" summary lines left');
+});
+
+test('Splunk JSON tree classes do not collide with the CCDC jump box (.jb is position:absolute there)', async () => {
+  const fs = await import('node:fs');
+  const tree = fs.readFileSync(new URL('../src/ui/jsonTree.js', import.meta.url), 'utf8');
+  assert.ok(!/class: 'jb'/.test(tree), 'jsonTree must not use the .jb class');
+  const css = fs.readFileSync(new URL('../src/ui/screen.css', import.meta.url), 'utf8');
+  assert.match(css, /\.json \.jbody \{/);
+});

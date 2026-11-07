@@ -10,6 +10,7 @@
 // If the player typed their password into the phishing page, the attacker uses it a few minutes later.
 
 import { T, logBuilder, finishLogs, STAFF } from '../../game/logkit.js';
+import { filterlog, wanScanNoise } from '../../game/fwfmt.js';
 
 export const DATE = { weekday: 'MON', name: 'Monday', month: 'Oct', day: 19, year: 2026, domain: 'halcyonmutual.local', netbios: 'HALCYON' };
 export const ATTACKER_IP = '185.220.101.47';
@@ -49,6 +50,9 @@ export function generateLogs({ nowMinutes = 24 * 60, phishedAt = null } = {}) {
     add(t, 'vpn01', 'openvpn', `openvpn[1187]: ${ATTACKER_IP}:${port} TLS Auth Error: Auth Username/Password verification failed for peer`, { ip: ATTACKER_IP, attack: true });
     t += 3 + Math.floor(r() * 3);
   }
+  // pfSense on the edge passes the Tor exit's OpenVPN packets (udp/1194 is allowed from anywhere) and drops scanners.
+  for (let i = 0; i < 6; i++) { const ft = T(3, 12, 6) + i * 19; add(ft, 'fw01', 'pfsense', filterlog(ft, { rule: 12, iface: 'igb0', act: 'pass', dir: 'in', proto: 'udp', src: ATTACKER_IP, dst: '198.51.100.20', sport: 51150 + i * 8, dport: 1194 }), { ip: ATTACKER_IP, attack: true, key: i === 0 ? 'fw-vpn' : undefined }); }
+  wanScanNoise(add);
   t = T(3, 14, 52);
   ok(t, 'j.alvarez', ATTACKER_IP, 'VPN01', 3, { attack: true, key: 'success' });
   add(t + 1, 'vpn01', 'openvpn', `openvpn[1187]: ${ATTACKER_IP}:51190 [j.alvarez] Peer Connection Initiated with [AF_INET]${ATTACKER_IP}:51190`, { ip: ATTACKER_IP, user: 'j.alvarez', attack: true, key: 'vpn-up' });
