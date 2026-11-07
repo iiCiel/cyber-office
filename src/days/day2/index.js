@@ -1,4 +1,5 @@
 // Day 2 (Tuesday): MFA goes live, and the attackers go after it. Covering the helpdesk queue.
+import { shiftHandoff } from '../handoff.js';
 import { EMAILS, PAGES, REPLY_DRAFTS } from './emails.js';
 import { generateLogs, ALERTS, CASE, IP_INFO, DATE } from './logs.js';
 import { MIKE_CONFESSES } from './talk.js';
@@ -89,7 +90,7 @@ export default {
   badgeAtStart: true,
   cast: ['mike'],
 
-  emails: EMAILS,
+  emails: [shiftHandoff(2), ...EMAILS], // the MDR's overnight handoff is read, not scored
   pages: PAGES,
   replyDrafts: REPLY_DRAFTS,
   logs: (st) =>

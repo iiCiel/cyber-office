@@ -1,4 +1,5 @@
 // Day 3 (Wednesday): the customer portal. The Terminal works now.
+import { shiftHandoff } from '../handoff.js';
 import { EMAILS, PAGES, REPLY_DRAFTS } from './emails.js';
 import { generateLogs, accessLog, ALERTS, CASE, IP_INFO, DATE, ATTACKER_IP } from './logs.js';
 import { THEO_WAF } from './talk.js';
@@ -150,7 +151,7 @@ export default {
   badgeAtStart: true,
   cast: ['mike', 'theo'],
 
-  emails: EMAILS,
+  emails: [shiftHandoff(3), ...EMAILS], // the MDR's overnight handoff is read, not scored
   pages: PAGES,
   directory: halcyonDirectory(),
   powershell: halcyonPowershell(),

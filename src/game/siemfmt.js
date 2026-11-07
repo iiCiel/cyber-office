@@ -12,6 +12,7 @@
 
 import { WIN_EVENTS, wrapWinEvent, sysmonXml, sidOf, DOMAIN_SID } from './winevents.js';
 import { parseKv, legacyOkta, legacyCloudTrail, legacyUal, legacyAzureAudit } from './cloudfmt.js';
+import { filterlogFields } from './fwfmt.js';
 
 const pad = (n) => String(n).padStart(2, '0');
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -101,6 +102,7 @@ export const SOURCETYPES = {
   proxy: syslog('proxy:access', '/var/log/proxy/access.log', 'network'),
   netflow: { index: 'network', sourcetype: 'netflow', path: 'udp:2055', style: 'syslog' },
   firewall: syslog('firewall', 'udp:514', 'network'),
+  pfsense: syslog('pfsense:filterlog', 'udp:514', 'network'),
   waf: syslog('waf', 'udp:514', 'network'),
   ids: syslog('ids:alert', 'udp:514', 'network'),
   'tls-inspect': syslog('tls:inspect', 'udp:514', 'network'),
@@ -282,6 +284,7 @@ export function enrichEvents(events, date, opts = {}) {
       for (const [k, v] of Object.entries(parseKv(raw.includes('\n') ? e.msg : raw).kv)) fields[k] = [v];
       const web = raw.match(/^(\S+) \S+ \S+ \[[^\]]+\] "(\S+) (\S+) [^"]*" (\d{3}) (\d+|-)(?: "([^"]*)" "([^"]*)")?/);
       if (web) Object.assign(fields, { clientip: [web[1]], method: [web[2]], uri: [web[3]], status: [web[4]], bytes: [web[5]], ...(web[7] ? { useragent: [web[7]] } : {}) });
+      if (e.source === 'pfsense') Object.assign(fields, filterlogFields(e.msg) || {});
       if (e.source === 'sshd') {
         const m = e.msg.match(/(Failed|Accepted) (\w+) for (?:invalid user )?(\S+) from (\S+) port (\d+)/);
         if (m) Object.assign(fields, { action: [m[1] === 'Failed' ? 'failure' : 'success'], method: [m[2]], user: [m[3]], src_ip: [m[4]], src_port: [m[5]] });

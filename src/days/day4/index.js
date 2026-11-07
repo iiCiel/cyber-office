@@ -1,4 +1,5 @@
 // Day 4 (Thursday): follow the money. Vendor fraud, data theft with a service account, and the backups.
+import { shiftHandoff } from '../handoff.js';
 import { EMAILS, PAGES, REPLY_DRAFTS } from './emails.js';
 import { generateLogs, ALERTS, CASE, IP_INFO, DATE } from './logs.js';
 import { CARLA_CALL } from './talk.js';
@@ -88,7 +89,7 @@ export default {
   badgeAtStart: true,
   cast: ['carla', 'theo', 'mike'],
 
-  emails: EMAILS,
+  emails: [shiftHandoff(4), ...EMAILS], // the MDR's overnight handoff is read, not scored
   pages: PAGES,
   replyDrafts: REPLY_DRAFTS,
   logs: (st) => generateLogs({ nowMinutes: st.minutes }),
