@@ -3,6 +3,7 @@
 // collision box and object position stays exactly as it was with the 16px procedural art.
 // If a file fails to load, the procedural texture with the same world size is used instead.
 import Phaser from 'phaser';
+import { autotileWallTops } from './autotile.js';
 
 export const HD = 4;
 export const HD_SCALE = 1 / HD;
@@ -63,7 +64,9 @@ export function addHdLayers(scene, map, names, x = 0, y = 0, scale = 1) {
   for (const name of names) {
     const src = map.getLayer(name);
     if (!src) continue;
-    const data = src.data.map((row) => row.map((t) => (t ? t.index : -1)));
+    const first = map.tilesets[0]?.firstgid ?? 1;
+    const raw = src.data.map((row) => row.map((t) => (t ? t.index : -1)));
+    const data = autotileWallTops(raw, first, scene.textures.get('tiles-hd').getSourceImage());
     const hm = scene.make.tilemap({ data, tileWidth: 16 * HD, tileHeight: 16 * HD });
     const ts = hm.addTilesetImage('tiles-hd', 'tiles-hd', 16 * HD, 16 * HD, 0, 0, map.tilesets[0]?.firstgid ?? 1);
     const layer = hm.createLayer(0, ts, x, y).setScale(scale / HD);
@@ -71,3 +74,4 @@ export function addHdLayers(scene, map, names, x = 0, y = 0, scale = 1) {
   }
   return out;
 }
+

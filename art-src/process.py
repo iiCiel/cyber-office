@@ -60,7 +60,7 @@ def fit(im, w, h, pad_bottom=0):
 
 
 def tiles():
-    rows = (len(TILES) + COLS - 1) // COLS
+    rows = (len(TILES) + 16 + COLS - 1) // COLS
     sheet = Image.new('RGBA', (COLS * T, rows * T))
     for i, name in enumerate(TILES):
         im = Image.open(os.path.join(RAW, 'tiles', name + '.png')).convert('RGB')
@@ -68,6 +68,27 @@ def tiles():
             m = im.width // 8
             im = im.crop((m, m, im.width - m, im.height - m))
         sheet.paste(im.resize((T, T), Image.BOX), ((i % COLS) * T, (i // COLS) * T))
+    # Wall-top autotiles: 16 variants after the base tiles (index len(TILES) + mask). Mask bit set = that
+    # neighbour is also wall-top (N=1, E=2, S=4, W=8). Each side WITHOUT a wall-top neighbour gets the trim strip
+    # (dark outline + lit top/left bevel, shaded bottom/right bevel) cut from the Codex wall-edge tile.
+    cap = Image.open(os.path.join(RAW, 'tiles', 'wall-top.png')).convert('RGB')
+    m = cap.width // 8
+    cap = cap.crop((m, m, cap.width - m, cap.height - m)).resize((T, T), Image.BOX)
+    edge = Image.open(os.path.join(RAW, 'tiles', 'wall-edge.png')).convert('RGB').resize((T, T), Image.BOX)
+    k = T // 14  # trim width in texture pixels (about 1 world pixel)
+    for mask in range(16):
+        t = cap.copy()
+        # Strips use only the middle of each side (stretched to full length), so no corner ticks show where
+        # two trimmed tiles sit side by side.
+        if not mask & 1: t.paste(edge.crop((k, 0, T - k, k)).resize((T, k), Image.BOX), (0, 0))
+        if not mask & 4: t.paste(edge.crop((k, T - k, T - k, T)).resize((T, k), Image.BOX), (0, T - k))
+        if not mask & 8: t.paste(edge.crop((0, k, k, T - k)).resize((k, T), Image.BOX), (0, 0))
+        if not mask & 2: t.paste(edge.crop((T - k, k, T, T - k)).resize((k, T), Image.BOX), (T - k, 0))
+        # Re-apply the corners from the edge tile so where two trims meet they join cleanly.
+        for (cx, cy, a, b) in ((0, 0, 1, 8), (T - k, 0, 1, 2), (0, T - k, 4, 8), (T - k, T - k, 4, 2)):
+            if not mask & a and not mask & b: t.paste(edge.crop((cx, cy, cx + k, cy + k)), (cx, cy))
+        i = len(TILES) + mask
+        sheet.paste(t, ((i % COLS) * T, (i // COLS) * T))
     sheet.save(os.path.join(OUT, 'tiles-hd.png'))
     print('tiles-hd.png', sheet.size)
 
