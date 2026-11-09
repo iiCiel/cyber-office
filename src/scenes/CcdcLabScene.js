@@ -227,9 +227,9 @@ export class CcdcLabScene extends Phaser.Scene {
     wins.push({ id: 'score', kind: 'browser', icon: 'score', pinned: true, desktop: 'Scoring Engine', title: 'Scoring Engine', short: 'Scoreboard', tabLabel: this.guided ? 'Overview · Scoring Engine' : 'Services · Scoring Engine', url: `https://scoring.ccdc.local/${this.guided ? 'overview' : 'services'}`,
       create: () => new ScoreboardApp({ state: st, clock: () => this.elapsed(), full: this.guided, onRevert: (id) => this.revert(id) }) });
     if (st.injectList.length) {
-      wins.push({ id: 'injects', kind: 'browser', icon: 'inject', pinned: true, desktop: 'Inject Portal', title: 'Inject Portal', short: 'Injects', tabLabel: `Injects · Team ${this.tn()}`, url: `https://injects.ccdc.local/team/${this.tn()}`,
+      wins.push({ id: 'injects', kind: 'browser', icon: 'inject', pinned: true, desktop: 'NISE', title: 'NISE', short: 'NISE', tabLabel: 'National Inject Scoring Engine', url: 'https://nise.ccdc.local/injects',
         badge: () => (this.jb?.app('injects')?.unreadCount?.() ?? this.unreleasedUnread()),
-        create: () => new InjectsApp({ state: st, guided: this.guided, clock: () => this.elapsed(), onSubmit: (id, text) => this.submitInject(id, text) }) });
+        create: () => new InjectsApp({ state: st, guided: this.guided, clock: () => this.elapsed(), team: this.tn(), onNav: (w) => { if (w === 'services') this.jb.open('score'); }, onSubmit: (id, text) => this.submitInject(id, text) }) });
     }
     wins.push({ id: 'ir', kind: 'browser', icon: 'inject', pinned: true, desktop: 'Incident Reports', title: 'Incident Reports', short: 'Incidents', tabLabel: `Incident Reports · Team ${this.tn()}`, url: `https://injects.ccdc.local/team/${this.tn()}/incidents`,
       create: () => new IncidentApp({ state: st, guided: this.guided, onSubmit: (report) => submitIncident(st, report) }) });
@@ -330,7 +330,7 @@ export class CcdcLabScene extends Phaser.Scene {
     const evs = this.state.engine.events;
     for (; this.seenEvents < evs.length; this.seenEvents++) {
       const e = evs[this.seenEvents];
-      if (e.cls === 'inject') this.jb?.toast({ app: 'Inject Portal', title: 'New inject released', text: e.text, open: 'injects' });
+      if (e.cls === 'inject') this.jb?.toast({ app: 'NISE', title: 'New inject released', text: e.text, open: 'injects' });
       else if (this.guided && e.cls === 'bad' && /SLA/.test(e.text)) this.jb?.toast({ app: 'Scoring Engine', title: 'SLA violation', text: e.text, cls: 'bad', open: 'score' });
       else if (this.guided && e.cls === 'redop') this.jb?.toast({ app: 'Coach', title: 'Red Team activity', text: e.text, cls: 'warn', open: 'siem' });
     }

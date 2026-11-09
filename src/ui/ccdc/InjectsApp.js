@@ -1,7 +1,8 @@
-// The inject portal: scoring-engine "Injects" page (table with ID / Title / Score / Status / Time Remaining) plus
-// the memo view with a deliverable box. Drafts live in a map so refresh() never disturbs typing.
+// The NISE team portal's main page, as Midwest teams see it (docs/reference/nise-injects-2026.png): blue nav, Recent
+// Announcements, then the Injects table. Below it, the memo view with a deliverable box. Drafts live in a map so
+// refresh() never disturbs typing.
 //
-//   const ij = new InjectsApp({ state, clock, guided, onSubmit: (id, text) => ({ ok, error?, late?, grade? }) })
+//   const ij = new InjectsApp({ state, clock, guided, team, onNav, onSubmit: (id, text) => ({ ok, error?, late?, grade? }) })
 import { h, clear } from '../dom.js';
 import './injects.css';
 
@@ -10,14 +11,21 @@ const clockText = (sec, scale = 1) => {
   const t = 9 * 3600 + Math.max(0, Math.floor(sec * scale));
   return `${String(Math.floor(t / 3600)).padStart(2, '0')}:${String(Math.floor((t % 3600) / 60)).padStart(2, '0')}`;
 };
+// Portal timestamps look like the real ones: 10/31 9:09.
+const stamp = (sec, scale = 1) => {
+  const t = 9 * 3600 + Math.max(0, Math.floor(sec * scale));
+  return `10/31 ${Math.floor(t / 3600)}:${String(Math.floor((t % 3600) / 60)).padStart(2, '0')}`;
+};
 const remaining = (sec) => {
   const s = Math.max(0, Math.floor(sec));
   return `0d ${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m ${s % 60}s`;
 };
 
 export class InjectsApp {
-  constructor({ state, onSubmit, guided = false, clock }) {
+  constructor({ state, onSubmit, guided = false, clock, team = '', onNav = null }) {
     this.state = state;
+    this.team = team;
+    this.onNav = onNav;
     this.onSubmit = onSubmit;
     this.guided = !!guided;
     this.clock = clock || (() => state.engine?.clock || 0);
@@ -27,14 +35,23 @@ export class InjectsApp {
     this.rows = {}; // id -> { tr, status, left, score }
     this.results = {}; // id -> last submit result
     this.detailKey = null;
-    this.el = h('div', { class: 'ij' });
-    this.title = h('div', { class: 'ij-titlebar' }, h('h1', {}, 'Injects'), this.team = h('span', { class: 'ij-team' }, ''));
+    this.el = h('div', { class: 'ij nise' });
+    const nav = (label, go) => h('a', { href: '#', onclick: (e) => { e.preventDefault(); go(); } }, label);
+    this.annBody = h('tbody', {});
+    this.annCount = -1;
+    this.annPanel = h('section', { class: 'ni-panel' }, h('h2', {}, 'Recent Announcements'), h('div', { class: 'ni-body' },
+      h('table', { class: 'ni-table' }, h('thead', {}, h('tr', {}, h('th', {}, 'Title'), h('th', { class: 'ni-pub' }, 'Published'))), this.annBody)));
     this.tbody = h('tbody', {});
-    this.table = h('table', { class: 'ij-table' },
-      h('thead', {}, h('tr', {}, ['ID', 'Title', 'From', 'Score', 'Status', 'Time Remaining'].map((t, i) => h('th', { class: `ij-c${i}` }, t)))), this.tbody);
-    this.empty = h('div', { class: 'ij-empty' }, 'No injects have been released yet. New injects appear here and in the team chat.');
-    this.detail = h('div', { class: 'ij-detail' });
-    this.el.append(this.title, h('div', { class: 'ij-card ij-listcard' }, this.table, this.empty), this.detail);
+    this.table = h('table', { class: 'ni-table ij-table' },
+      h('thead', {}, h('tr', {}, ['Title', 'Start', 'Due', 'Reject', 'Points', 'Submitted', 'Remaining'].map((t, i) => h('th', { class: `ni-c${i}` }, t)))), this.tbody);
+    this.empty = h('div', { class: 'ij-empty' }, 'No injects have been released yet.');
+    this.injPanel = h('section', { class: 'ni-panel' }, h('h2', {}, 'Injects'), h('div', { class: 'ni-body ni-scroll' }, this.table, this.empty));
+    this.detail = h('div', { class: 'ij-detail ni-detail' });
+    this.page = h('div', { class: 'ni-page' }, this.annPanel, this.injPanel, this.detail);
+    this.el.append(h('nav', { class: 'ni-nav' },
+      nav('SCOREBOARD', () => this.onNav?.('services')), nav('INJECTS', () => this.injPanel.scrollIntoView()),
+      nav('ANNOUNCEMENTS', () => this.annPanel.scrollIntoView()), nav('SERVICES', () => this.onNav?.('services')),
+      h('span', { class: 'ni-user' }, `TEAM${this.team}: LOGOUT`)), this.page);
     this.refresh();
   }
 
@@ -71,25 +88,26 @@ export class InjectsApp {
       if (!r) {
         r = this.rows[i.id] = {
           tr: h('tr', { class: 'ij-row', tabindex: '0', onclick: () => this.select(i.id), onkeydown: (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.select(i.id); } } }),
-          status: h('span', { class: 'ij-badge' }), left: h('td', { class: 'ij-c5' }), score: h('td', { class: 'ij-c3' }),
-          title: h('td', { class: 'ij-c1' }, h('a', { href: '#', onclick: (e) => { e.preventDefault(); this.select(i.id); } }, stripTitle(i.title))),
+          left: h('td', { class: 'ni-c6' }), sub: h('td', { class: 'ni-c5' }), score: h('td', { class: 'ni-c4' }),
+          title: h('td', { class: 'ni-c0' }, h('a', { href: '#', onclick: (e) => { e.preventDefault(); this.select(i.id); } }, stripTitle(i.title))),
         };
-        r.tr.append(h('td', { class: 'ij-c0' }, String(this._num(i))), r.title, h('td', { class: 'ij-c2' }, i.from), r.score, h('td', { class: 'ij-c4' }, r.status), r.left);
+        const t0 = this._timer(i.id);
+        const due = Number.isFinite(t0.dueAt) ? stamp(t0.dueAt, this.state.timeScale) : '';
+        r.tr.append(r.title, h('td', { class: 'ni-c1' }, stamp(t0.releaseAt, this.state.timeScale)), h('td', { class: 'ni-c2' }, due), h('td', { class: 'ni-c3' }, due), r.score, r.sub, r.left);
         this.tbody.append(r.tr);
       }
       const st = this._status(i);
       const rec = this.state.injects[i.id];
       const t = this._timer(i.id);
-      r.status.className = `ij-badge ij-b-${st.toLowerCase()}`;
-      r.status.textContent = st;
-      r.score.textContent = rec.done && this.guided && rec.grade ? `${rec.grade.pts} / ${i.points}` : `${i.points} pts available`;
-      r.left.textContent = rec.done || !Number.isFinite(t.dueAt) ? '-' : remaining(t.dueAt - sec);
-      r.left.className = `ij-c5${!rec.done && t.dueAt - sec < 60 ? ' ij-urgent' : ''}`;
+      r.score.textContent = rec.done && this.guided && rec.grade ? `${rec.grade.pts} / ${i.points}` : String(i.points);
+      if (rec.done && !r.sub.textContent) r.sub.textContent = stamp(this.clock(), this.state.timeScale);
+      r.left.textContent = st === 'Missed' ? 'Closed' : rec.done || !Number.isFinite(t.dueAt) ? '' : remaining(t.dueAt - sec);
+      r.left.className = `ni-c6${!rec.done && t.dueAt - sec < 60 ? ' ij-urgent' : ''}`;
       r.tr.classList.toggle('ij-unread', !this.seen.has(i.id) && !rec.done);
     }
     this.empty.style.display = rel.length ? 'none' : '';
     this.table.style.display = rel.length ? '' : 'none';
-    this.team.textContent = `Team ${this.state.scenario.company ? '- ' + this.state.scenario.company : ''}`;
+    this._drawAnnouncements(sec);
     // Detail: rebuild only when selection or status class changes, never while the textarea is focused.
     if (this.selected) {
       const i = this.state.injectList.find((x) => x.id === this.selected);
@@ -104,6 +122,17 @@ export class InjectsApp {
     } else if (!this.detail.firstChild) {
       this.detail.append(h('div', { class: 'ij-hint' }, 'Select an inject above to read it and submit your deliverable.'));
     }
+  }
+
+  // White Team notices, newest first. The real portal is where the drop flag is called.
+  _drawAnnouncements(sec) {
+    const limit = this.state.scenario.clockSeconds || 900;
+    const all = [[0, 'Drop flag issued. The competition has started.'], [limit * (3 / 7), 'Lunch is available in the competition rooms.'], [limit * (6.5 / 7), 'Thirty minutes remaining. Check your open injects.']];
+    const live = all.filter(([at]) => sec >= at).reverse();
+    if (live.length === this.annCount) return;
+    this.annCount = live.length;
+    clear(this.annBody);
+    for (const [at, title] of live) this.annBody.append(h('tr', {}, h('td', {}, h('a', { href: '#', onclick: (e) => e.preventDefault() }, title)), h('td', { class: 'ni-pub' }, stamp(at, this.state.timeScale))));
   }
 
   _updateDetailLive(i) {

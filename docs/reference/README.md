@@ -11,6 +11,15 @@ All files come from Wikimedia Commons (free licences; see each file page for aut
 | windows-event-viewer.png | Windows Event Viewer | https://commons.wikimedia.org/wiki/File:Event_Viewer.png |
 | kali-2021.2.png | Kali Linux 2021.2 Xfce desktop | https://commons.wikimedia.org/wiki/File:Kali_Linux_2021.2.png |
 
+These three screens are from the public Midwest team packet (2026 Regional, github.com/mubix/howtowinccdc, documents/MidWest-MWCCDC), © MWCCDC Consortium, and one image from Palo Alto Networks' own developer docs. They are here for comparison only:
+
+| File | Real tool | Source |
+|---|---|---|
+| nise-injects-2026.png | NISE team portal, main Injects page | 2026 packet p.12 |
+| netlab-ve-menu-2026.png | NETLAB+ VE top menu with the VM buttons | 2026 packet p.10 |
+| netlab-ve-vm-menu-2026.png | NETLAB+ VE per-VM menu (Undock, Revert, Power) | 2026 packet p.10 |
+| panos-security-rules.png | PAN-OS Policies > Security rule table | github.com/PaloAltoNetworks/pan.dev, products/ansible/docs/panos/tutorials/security-policy-rules.png |
+
 ## Side-by-side notes (Nov 6, 2026)
 
 - **pfSense dashboard** (ours: docs/proof/pfsense/dashboard-1366.png). Same top navbar and menus, same
