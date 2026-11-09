@@ -2,7 +2,10 @@ import Phaser from 'phaser';
 import { h, clear } from '../ui/dom.js';
 import { CPTC_LAB } from '../data/cptcLabScenario.js';
 import { CPTC_SCENARIOS } from '../data/cptcScenarios.js';
-import { newReport, runEnum, discoveredFindings, toReport, expire, score, progress, recordBest, MODES } from '../game/cptclab.js';
+import { newReport, runEnum, discoveredFindings, toReport, expire, score, progress, recordBest, rate, setExecSummary, MODES } from '../game/cptclab.js';
+import { CptcAcademyPanel } from '../ui/cptc/CptcAcademyPanel.js';
+import { studyNext, LESSONS as CPTC_LESSONS } from '../data/cptcAcademy.js';
+const LESSON_TITLES = Object.fromEntries(CPTC_LESSONS.map((l) => [l.id, l.title]));
 import { TermView } from '../ui/ccdc/TermView.js';
 import { Desktop } from '../ui/cptc/desktop.js';
 import { ReportDoc } from '../ui/cptc/report.js';
@@ -29,6 +32,7 @@ export class CptcLabScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#0b0710');
     this.sound2 = this.game.registry.get('sound');
     this.guided = true;
+    this.learn = true;
     this.phase = 'brief';
     this.deadline = 0;
     this.lastClockText = '';
@@ -65,12 +69,17 @@ export class CptcLabScene extends Phaser.Scene {
 
   clockLabel() { return `${Math.round((this.scenario.clockSeconds || 0) / 60)}-minute`; }
 
+  learnOn() { return !!this.learn; }
+
+  scenarioFor(key) { return this.scenarios.find((s) => s.id.startsWith(key)) || this.scenarios[0]; }
+
   // ---- brief: the rules-of-engagement letter -------------------------------
   briefView() {
     return renderBrief({
-      scenario: this.scenario, scenarios: this.scenarios, guided: this.guided, clockLabel: this.clockLabel(),
+      scenario: this.scenario, scenarios: this.scenarios, guided: this.guided, learn: this.learn, clockLabel: this.clockLabel(),
       onPick: (sc) => { this.scenario = sc; this.render(); },
-      onMode: (g) => { this.guided = g; this.render(); },
+      onLearn: () => { this.learn = true; this.guided = true; this.render(); },
+      onMode: (g) => { this.learn = false; this.guided = g; this.render(); },
       onBegin: () => this.start(),
       onBack: () => this.exit(),
     });
@@ -79,12 +88,14 @@ export class CptcLabScene extends Phaser.Scene {
   start() {
     this.sound2?.play('select');
     this.state = newReport(this.scenario, { mode: this.guided ? MODES.GUIDED : MODES.COMPETITION });
+    this.lineLog = [];
+    this.lastTermOut = '';
     this.termBuf = [
       { cls: 'sys', text: `Authorised engagement against ${this.scenario.client}. Simulated: nothing is executed.` },
       { cls: 'sys', text: 'Type "help" for the tools and "scope" for what is in bounds. Recon first: nmap the external range.' },
     ];
     this.cmdHist = [];
-    this.deadline = this.state.timeLimitSec ? Date.now() + this.state.timeLimitSec * 1000 : 0;
+    this.deadline = this.learnOn() ? 0 : this.state.timeLimitSec ? Date.now() + this.state.timeLimitSec * 1000 : 0;
     this.lastClockText = '';
     this.timedOut = false;
     this.phase = 'play';
@@ -117,15 +128,60 @@ export class CptcLabScene extends Phaser.Scene {
     this.refreshNotes();
     this.updateStatus();
     desk.open('term');
+    this.coach = null;
+    if (this.learnOn()) {
+      this.coach = new CptcAcademyPanel({ host: this.coachHost() });
+      this.root.classList.add('ac-on');
+      this.root.append(this.coach.el);
+    }
     setTimeout(() => this.term?.focus(), 0);
   }
 
   runLine(line) {
     const r = runEnum(this.state, line);
+    this.lineLog?.push(String(line).trim().replace(/\s+/g, ' '));
+    this.lastTermOut = (r.lines || []).map((l) => l.text).join('\n');
+    if (this.coach) setTimeout(() => this.coach?.onLine(), 0);
     if (r.clear) return { clear: true };
     this.sound2?.play(r.discovered ? 'select' : 'click');
-    if (r.discovered) { this.refreshNotes(); this.report.refresh(); this.updateStatus(); }
+    if (r.discovered) { this.refreshNotes(); this.report?.refresh(); this.updateStatus(); }
     return { lines: r.lines };
+  }
+
+  coachHost() {
+    const norm = (s) => String(s).trim().replace(/\s+/g, ' ').toLowerCase();
+    return {
+      logSize: () => this.lineLog.length,
+      showTerm: () => this.desk.open('term'),
+      showReport: () => { toReport(this.state); this.report.refresh(); this.desk.open('report'); },
+      load: (line) => { this.desk.open('term'); this.term.setInput(line); },
+      startLesson: (lesson) => this.loadLesson(lesson),
+      rate: (id, field, value) => { rate(this.state, id, field, value); this.report?.refresh(); },
+      setExec: (text) => setExecSummary(this.state, text),
+      onToggle: (hidden) => this.root.classList.toggle('ac-closed', hidden),
+      ctx: (mark) => ({
+        st: this.state,
+        ran: (want) => this.lineLog.slice(mark).some((l) => (want instanceof RegExp ? want.test(l) : norm(l).includes(norm(want)))),
+        found: (id) => !!this.state.discovered[id],
+        rated: (id) => { const r = this.state.report[id]; return !!(r && r.likelihood && r.impact); },
+        lastOut: () => this.lastTermOut || '',
+      }),
+    };
+  }
+
+  loadLesson(lesson) {
+    const sc = this.scenarioFor(lesson.sc || 'meridian');
+    this.scenario = sc;
+    this.state = newReport(sc, { mode: MODES.GUIDED });
+    this.lineLog = [];
+    this.lastTermOut = '';
+    this.termBuf.length = 0;
+    this.termBuf.push({ cls: 'sys', text: `Target: ${sc.client}. Learn mode — nothing is executed.` });
+    this.term?.redraw();
+    this.report?.refresh();
+    this.refreshNotes();
+    this.updateStatus();
+    this.desk.open('term');
   }
 
   refreshNotes() {
@@ -169,6 +225,7 @@ export class CptcLabScene extends Phaser.Scene {
   remainingMs() { return this.deadline ? Math.max(0, this.deadline - Date.now()) : 0; }
 
   tickClock() {
+    this.coach?.refresh();
     if (!this.deadline || this.phase !== 'play') return;
     const ms = this.remainingMs();
     if (ms <= 0) { this.deadline = 0; expire(this.state); this.timedOut = true; this.finish(); return; }
@@ -192,6 +249,7 @@ export class CptcLabScene extends Phaser.Scene {
   debriefView() {
     return renderDebrief({
       scenario: this.scenario, state: this.state, grade: this.grade, timedOut: this.timedOut, verdict: this.verdict(this.grade),
+      study: this.learnOn() ? studyNext(this.state, this.grade).map((x) => ({ ...x, title: (LESSON_TITLES[x.lesson] || x.lesson) })) : null,
       onAgain: () => { this.phase = 'brief'; this.render(); },
       onDone: () => this.exit(),
     });
