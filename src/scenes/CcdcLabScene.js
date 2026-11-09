@@ -4,13 +4,18 @@ import { h, clear, placeOnCanvas } from '../ui/dom.js';
 import { CCDC_LAB } from '../data/ccdcLabScenario.js';
 import { CCDC_SCENARIOS } from '../data/ccdcScenarios.js';
 import {
-  newGame, runLine, answerInject, runRedTeam, expire, score, recordBest,
+  newGame, runLine, answerInject, runRedTeam, expire, score, recordBest, requestRevert,
   rolesFor, devicesForRole, injectsForRole, ROLES, MODES,
 } from '../game/ccdcLab.js';
 import { attachEngine, tickTo, notePasswordRotated, notePcrFiled } from '../game/ccdcEngine.js';
 import { createSiem } from '../game/siemGen.js';
 import { STORIES as SIEM_STORIES } from '../data/siemStories.js';
 import { liveTeamScore, standings, roster } from '../game/ccdcTeams.js';
+import { ROUND_LENGTHS, DAY_SECONDS } from '../game/ccdcRound.js';
+import { gameTime, redLogSpecs } from '../game/ccdcRed.js';
+import { DEFAULT_PASSWORD } from '../game/ccdcBox.js';
+import { submitIncident } from '../game/ccdcIncident.js';
+import { IncidentApp } from '../ui/ccdc/IncidentApp.js';
 import { JumpBox } from '../ui/ccdc/JumpBox.js';
 import { PuttyApp } from '../ui/ccdc/PuttyApp.js';
 import { SiemApp } from '../ui/ccdc/SiemApp.js';
@@ -43,6 +48,7 @@ export class CcdcLabScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#000000');
     this.sound2 = this.game.registry.get('sound');
     this.guided = true;
+    this.lengthId = 'short';
     this.role = ROLES.ALL;
     this.phase = 'brief';
     this.deadline = 0;
@@ -108,7 +114,7 @@ export class CcdcLabScene extends Phaser.Scene {
           h('div', {}, h('div', { class: 'ccx-doc-org' }, 'Collegiate Cyber Defense Competition — Practice Round'), h('h1', {}, 'Blue Team Packet')),
           h('table', { class: 'ccx-doc-meta' }, h('tbody', {},
             h('tr', {}, h('th', {}, 'Team'), h('td', {}, this.tn())),
-            h('tr', {}, h('th', {}, 'Round'), h('td', {}, `${Math.round((sc.clockSeconds || 900) / 60)} min`)),
+            h('tr', {}, h('th', {}, 'Round'), h('td', {}, `${ROUND_LENGTHS[this.lengthId].seconds / 60} min (09:00 to 16:00 on the competition clock)`)),
             h('tr', {}, h('th', {}, 'Classification'), h('td', {}, 'Competitor')))))),
       h('div', { class: 'ccx-page ccx-doc' },
         h('h2', {}, '1. Scenario'),
@@ -123,24 +129,29 @@ export class CcdcLabScene extends Phaser.Scene {
             h('td', {}, d.host), h('td', { class: 'mono' }, d.ip), h('td', {}, d.os),
             h('td', {}, d.kind === 'pwsh' ? 'RDP (3389)' : d.kind === 'firewall' ? `https://${d.ip}/ · SSH` : 'SSH (22)'), h('td', {}, d.role))))),
         h('h2', {}, '3. Scored services'),
-        h('p', {}, 'The scoring engine (198.51.100.9) checks each service every 30 seconds. Three failed checks in a row is an SLA violation. Do not change the IP addresses of scored hosts.'),
+        h('p', {}, 'The scoring engine checks each service every 30 seconds. Do not change the IP addresses of scored hosts. Your only view is your own team\'s service status: no running score and no comparison with other teams during the competition.'),
+        h('p', {}, `All accounts start with the password `, h('code', {}, DEFAULT_PASSWORD), '.'),
         h('table', { class: 'ccx-tbl' },
           h('thead', {}, h('tr', {}, ['Service', 'Host', 'Port(s)', 'Check', 'Points'].map((t) => h('th', {}, t)))),
           h('tbody', {}, sc.services.map((s) => h('tr', {},
             h('td', {}, s.name), h('td', { class: 'mono' }, `${s.host} (${s.ip})`), h('td', { class: 'mono' }, `${s.proto}/${s.ports.join(',')}`), h('td', {}, s.check || ''), h('td', { class: 'num' }, s.points))))),
         h('h2', {}, '4. Rules of the round'),
         h('ol', {},
-          h('li', {}, 'Score = service uptime + inject points − SLA violations − Red Team compromises. You are ranked against the other teams live on the scoring engine.'),
-          h('li', {}, 'The Red Team attacks in waves throughout the round. A foothold left open at the next wave becomes a confirmed compromise.'),
+          h('li', {}, 'Scoring: about 40% service uptime, 40% injects, 20% Red Team. Final standings are published after the competition.'),
+          h('li', {}, 'Red Team is active from the drop flag. Expect disruption from 12:00 and destructive activity after 14:30.'),
           h('li', {}, 'Injects arrive through the inject portal with deadlines. Late deliverables score zero.'),
+          h('li', {}, 'Incident reports can be filed at any time. A report with evidence, timestamps, remediation and prevention can win back the points that activity cost.'),
+          h('li', {}, 'Tech Support can revert a virtual machine to its original state. Each revert costs points and undoes your work on that machine.'),
           h('li', {}, 'Changing the password of a scored account without a Password Change Request breaks scoring for that service.'),
           h('li', {}, 'All team logs are forwarded to Splunk. Use it to find out how the attacker got in.')),
         h('h2', {}, '5. Your seat and round type'),
         h('div', { class: 'ccx-form-row ccx-seats' }, h('span', { class: 'ccx-form-label' }, 'Seat:'),
           seats.map((r) => radio('ccx-seat', this.role === r.id, () => { this.role = r.id; this.render(); }, r.name, this.seatBoxes(r.id)))),
+        h('div', { class: 'ccx-form-row', 'data-length': '' }, h('span', { class: 'ccx-form-label' }, 'Length:'),
+          Object.values(ROUND_LENGTHS).map((l) => radio('ccx-length', this.lengthId === l.id, () => { this.lengthId = l.id; this.render(); }, `${l.label} · ${l.seconds / 60} min`, l.pool ? 'The whole day: 30 injects, Red Team over a full hour.' : 'The same day compressed: 5 injects, Red Team moves fast.'))),
         h('div', { class: 'ccx-form-row' }, h('span', { class: 'ccx-form-label' }, 'Round:'),
           radio('ccx-mode', this.guided, () => { this.guided = true; this.render(); }, 'Practice', 'No buzzer. A playbook with every step is on the desktop. Injects have no deadline.'),
-          radio('ccx-mode', !this.guided, () => { this.guided = false; this.render(); }, `Competition · ${Math.round((sc.clockSeconds || 900) / 60)}:00 clock`, 'Live clock, injects with deadlines, no playbook. At 0:00 the round ends.')),
+          radio('ccx-mode', !this.guided, () => { this.guided = false; this.render(); }, 'Competition', 'Live clock and deadlines. No playbook and no hints: the terminals print only what the real commands print.')),
         h('div', { class: 'ccx-doc-actions' },
           h('button', { type: 'button', class: 'ccx-btn primary', onclick: () => this.startRound() }, `Log in to TEAM${this.tn()}-WS01`),
           h('button', { type: 'button', class: 'ccx-btn', onclick: () => this.exit() }, 'Back')))));
@@ -159,16 +170,17 @@ export class CcdcLabScene extends Phaser.Scene {
   startRound() {
     this.sound2?.play('select');
     const sc = this.scenario;
-    this.state = newGame(sc, { seed: this.seed, mode: this.guided ? MODES.GUIDED : MODES.COMPETITION, role: this.role });
+    this.state = newGame(sc, { seed: this.seed, mode: this.guided ? MODES.GUIDED : MODES.COMPETITION, role: this.role, length: this.lengthId });
+    const scale = DAY_SECONDS / ROUND_LENGTHS[this.lengthId].seconds;
+    this.siem = createSiem(sc, { seed: this.state.seed, liveRate: 60 / scale });
     // Both round types run the live scoring engine (the scoreboard and the other teams need a clock). Practice
     // has no buzzer and no inject deadlines; ending the round fast-forwards the remaining checks and red-team
     // waves against the boxes as they are, exactly like competition mode.
-    attachEngine(this.state);
+    attachEngine(this.state, typeof this.siem.attacker === 'string' ? this.siem.attacker : undefined);
     if (this.guided) {
-      this.state.timeLimitSec = sc.clockSeconds || 900;
+      this.state.timeLimitSec = this.state.scenario.clockSeconds;
       for (const t of Object.values(this.state.engine.injectTimers)) { t.released = true; t.releaseAt = 0; t.dueAt = Infinity; }
     }
-    this.siem = createSiem(sc, { seed: this.state.seed });
     this.story = { hunt: this.siem.hunt || SIEM_STORIES[sc.id]?.hunt || [] };
     this.huntAnswers = {};
     this.sessions = {};
@@ -179,6 +191,14 @@ export class CcdcLabScene extends Phaser.Scene {
     this.lastSec = -1;
     this.phase = 'play';
     this.render();
+  }
+
+  gameElapsed() { return this.elapsed() * (this.state?.timeScale || 1); }
+
+  revert(id) {
+    requestRevert(this.state, id);
+    this.sound2?.play('click');
+    this.jb?.refresh();
   }
 
   elapsed() {
@@ -194,8 +214,8 @@ export class CcdcLabScene extends Phaser.Scene {
     const e = res.effects || {};
     if (this.guided && e.why) res.lines = [...res.lines, { cls: 'note', text: `Coach: ${e.why}` }];
     if (e.pcrRotated) notePasswordRotated(this.state);
-    if ((e.dropped && e.dropped.length) || e.trapId) this.jb?.toast({ app: 'Scoring Engine', title: 'Service check failing', text: `${(e.dropped || []).join(', ') || 'a service'} stopped answering after that change.`, cls: 'bad', open: 'score' });
-    this.sound2?.play(e.fixed ? 'select' : (e.dropped && e.dropped.length) || e.trapId ? 'error' : 'click');
+    if (this.guided && ((e.dropped && e.dropped.length) || e.trapId)) this.jb?.toast({ app: 'Scoring Engine', title: 'Service check failing', text: `${(e.dropped || []).join(', ') || 'a service'} stopped answering after that change.`, cls: 'bad', open: 'score' });
+    this.sound2?.play(!this.guided ? 'click' : e.fixed ? 'select' : (e.dropped && e.dropped.length) || e.trapId ? 'error' : 'click');
     return res;
   }
 
@@ -204,15 +224,17 @@ export class CcdcLabScene extends Phaser.Scene {
     const sc = this.scenario;
     const wins = [];
     const fw = st.deviceList.find((d) => d.kind === 'firewall');
-    wins.push({ id: 'score', kind: 'browser', icon: 'score', pinned: true, desktop: 'Scoring Engine', title: 'Scoring Engine', short: 'Scoreboard', tabLabel: 'Overview · Scoring Engine', url: 'https://scoring.ccdc.local/overview',
-      create: () => new ScoreboardApp({ state: st, clock: () => this.elapsed() }) });
+    wins.push({ id: 'score', kind: 'browser', icon: 'score', pinned: true, desktop: 'Scoring Engine', title: 'Scoring Engine', short: 'Scoreboard', tabLabel: this.guided ? 'Overview · Scoring Engine' : 'Services · Scoring Engine', url: `https://scoring.ccdc.local/${this.guided ? 'overview' : 'services'}`,
+      create: () => new ScoreboardApp({ state: st, clock: () => this.elapsed(), full: this.guided, onRevert: (id) => this.revert(id) }) });
     if (st.injectList.length) {
       wins.push({ id: 'injects', kind: 'browser', icon: 'inject', pinned: true, desktop: 'Inject Portal', title: 'Inject Portal', short: 'Injects', tabLabel: `Injects · Team ${this.tn()}`, url: `https://injects.ccdc.local/team/${this.tn()}`,
         badge: () => (this.jb?.app('injects')?.unreadCount?.() ?? this.unreleasedUnread()),
         create: () => new InjectsApp({ state: st, guided: this.guided, clock: () => this.elapsed(), onSubmit: (id, text) => this.submitInject(id, text) }) });
     }
+    wins.push({ id: 'ir', kind: 'browser', icon: 'inject', pinned: true, desktop: 'Incident Reports', title: 'Incident Reports', short: 'Incidents', tabLabel: `Incident Reports · Team ${this.tn()}`, url: `https://injects.ccdc.local/team/${this.tn()}/incidents`,
+      create: () => new IncidentApp({ state: st, guided: this.guided, onSubmit: (report) => submitIncident(st, report) }) });
     wins.push({ id: 'siem', kind: 'browser', icon: 'splunk', pinned: true, desktop: 'Splunk', title: 'Splunk', short: 'Splunk', tabLabel: 'Search | Splunk 9.2.1', url: `https://siem.${sc.id.split('-')[0]}.local:8000/en-US/app/search/search`,
-      create: () => new SiemApp({ siem: this.siem, hunt: this.story?.hunt || [], clock: () => this.elapsed(), onHuntAnswer: (qid, text) => this.huntAnswer(qid, text) }) });
+      create: () => new SiemApp({ siem: this.siem, hunt: this.story?.hunt || [], clock: () => this.gameElapsed(), onHuntAnswer: (qid, text) => this.huntAnswer(qid, text) }) });
     if (fw) {
       wins.push({ id: 'pf', kind: 'browser', icon: 'pf', pinned: true, desktop: 'pfSense', title: `${fw.host} - pfSense`, short: 'pfSense', tabLabel: `${fw.host}.localdomain - Firewall: Rules: WAN`, url: `https://${fw.ip}/firewall_rules.php?if=wan`,
         create: () => new PfSenseApp({ state: st, dev: fw, clock: () => this.elapsed(), run: (l) => this.run(fw.id, l) }) });
@@ -269,12 +291,15 @@ export class CcdcLabScene extends Phaser.Scene {
     if (first) this.jb.open(first.kind === 'pwsh' ? `rdp-${first.id}` : first.kind === 'firewall' ? 'pf' : `ssh-${first.id}`);
     this.jb.open('score');
     if (this.guided) this.jb.open('playbook');
-    this.jb.toast({ app: 'Discord', title: 'Captain', text: this.guided ? 'Practice round. Playbook is on the desktop. Scoreboard is live.' : 'Clock is running. Check the scoreboard, then get on your boxes.', open: 'chat' });
+    this.jb.toast({ app: 'Discord', title: 'Captain', text: this.guided ? 'Practice round. Playbook is on the desktop. Scoreboard is live.' : 'Drop flag. Change the default passwords, then get the firewall up.', open: 'chat' });
   }
 
   trayInfo() {
     const st = this.state;
     if (!st?.engine) return {};
+    const left0 = this.guided ? null : Math.max(0, this.deadline - Date.now());
+    const wall = gameTime(st, this.elapsed());
+    if (!this.guided) return { time: wall, clock: `${Math.ceil(left0 / 60000)} min left`, low: left0 <= 120000 };
     let rank = '';
     let pts = '';
     try {
@@ -294,7 +319,7 @@ export class CcdcLabScene extends Phaser.Scene {
     if (sec === this.lastSec) return;
     this.lastSec = sec;
     tickTo(this.state, sec);
-    this.siem?.liveAt?.(sec);
+    this.siem?.liveAt?.(sec * this.state.timeScale);
     this.drainEvents();
     if (!this.guided && Date.now() >= this.deadline) { this.deadline = 0; expire(this.state); this.timedOut = true; this.finishRound(); return; }
     this.jb?.refresh();
@@ -306,17 +331,19 @@ export class CcdcLabScene extends Phaser.Scene {
     for (; this.seenEvents < evs.length; this.seenEvents++) {
       const e = evs[this.seenEvents];
       if (e.cls === 'inject') this.jb?.toast({ app: 'Inject Portal', title: 'New inject released', text: e.text, open: 'injects' });
-      else if (e.cls === 'bad' && /SLA/.test(e.text)) this.jb?.toast({ app: 'Scoring Engine', title: 'SLA violation', text: e.text, cls: 'bad', open: 'score' });
-      else if (e.cls === 'bad' && /Compromise/.test(e.text)) this.jb?.toast({ app: 'Discord', title: 'Linux lead', text: 'Something is very wrong on one of our boxes — check Splunk.', cls: 'bad', open: 'siem' });
-      else if (e.cls === 'red') this.jb?.toast({ app: 'Splunk', title: 'Alert: spike in authentication failures', text: 'Inbound attack traffic is rising. Search the last 15 minutes.', cls: 'warn', open: 'siem' });
+      else if (this.guided && e.cls === 'bad' && /SLA/.test(e.text)) this.jb?.toast({ app: 'Scoring Engine', title: 'SLA violation', text: e.text, cls: 'bad', open: 'score' });
+      else if (this.guided && e.cls === 'redop') this.jb?.toast({ app: 'Coach', title: 'Red Team activity', text: e.text, cls: 'warn', open: 'siem' });
     }
-    // Feed every probe/compromise into the SIEM so the red team's work is findable in the logs.
-    const probes = this.state.engine.probes;
-    this.fedProbes = this.fedProbes || {};
-    for (const [fid, outcome] of Object.entries(probes)) {
-      if (this.fedProbes[fid] === outcome) continue;
-      this.fedProbes[fid] = outcome;
-      try { this.siem?.onWave?.(fid, this.state.engine.clock, outcome); } catch (err) { console.error(err); }
+    // Feed Red Team's work into Splunk, so it can be found by searching.
+    const red = this.state.engine.red.events;
+    const scale = this.state.timeScale;
+    for (this.fedRed = this.fedRed || 0; this.fedRed < red.length; this.fedRed++) {
+      const ev = red[this.fedRed];
+      try {
+        const at = ev.at * scale;
+        if (ev.findingId) this.siem?.onWave?.(ev.findingId, at, 'compromised');
+        this.siem?.addLines?.(redLogSpecs(this.state, ev, this.siem.epochOfClock(at)), at);
+      } catch (err) { console.error(err); }
     }
   }
 
@@ -380,7 +407,8 @@ export class CcdcLabScene extends Phaser.Scene {
             g.serviceMax ? row(['Service uptime', `+${g.servicePts}`, `of ${g.serviceMax}, earned check by check`]) : null,
             g.injectMax ? row(['Injects', `+${g.injectPts}`, `of ${g.injectMax}, graded against the rubric`]) : null,
             g.serviceMax ? row(['SLA violations', g.slaPenalty ? `−${g.slaPenalty}` : '0', `${g.slaCount} SLA violation(s): 3 missed checks in a row each`], g.slaPenalty ? 'bad' : '') : null,
-            g.findingsTotal ? row(['Red Team compromises', g.compromisePenalty ? `−${g.compromisePenalty}` : '0', `${g.compromises.length} breach(es)`], g.compromisePenalty ? 'bad' : '') : null,
+            g.findingsTotal ? row(['Red Team', `+${g.redKept}`, `of ${g.redPool}. Red Team got in ${g.compromises.length} way${g.compromises.length === 1 ? '' : 's'}${g.recovered ? `, ${g.recovered} points won back by incident reports` : ''}`], g.compromisePenalty ? 'bad' : '') : null,
+            g.revertPenalty ? row(['Reverts', `−${g.revertPenalty}`, `${st.reverts.length} virtual machine(s) reverted by Tech Support`], 'bad') : null,
             this.hunt.total ? row(['Threat hunt (Splunk)', `${this.hunt.got}/${this.hunt.total}`, `questions answered from the logs (${this.hunt.pts}/${this.hunt.max} bonus, not in the letter grade)`]) : null,
             h('tr', { class: 'total' }, h('td', {}, 'Total'), h('td', {}, String(g.raw)), h('td', {}, `of ${g.max} · ${g.pct}%`)))),
         h('p', {}, this.verdict(g)),
@@ -402,7 +430,11 @@ export class CcdcLabScene extends Phaser.Scene {
         g.compromises.length ? h('div', {}, h('h2', {}, '4. Red Team compromises'),
           h('table', { class: 'ccx-tbl' },
             h('thead', {}, h('tr', {}, ['Finding', 'Impact', 'Penalty'].map((t) => h('th', {}, t)))),
-            h('tbody', {}, g.compromises.map((c) => h('tr', { class: 'bad' }, h('td', {}, c.title), h('td', {}, c.impact + (c.halved ? ' (halved: covered by an on-time incident report)' : '')), h('td', { class: 'num' }, `−${c.charged ?? c.penalty}`)))))) : null,
+            h('tbody', {}, g.compromises.map((c) => h('tr', { class: 'bad' }, h('td', {}, c.title), h('td', {}, c.impact), h('td', { class: 'num' }, `−${c.charged ?? c.penalty}`)))))) : null,
+        st.engine?.red?.events?.length ? h('div', { 'data-red-activity': '' }, h('h2', {}, '4a. What Red Team did'),
+          h('table', { class: 'ccx-tbl' },
+            h('thead', {}, h('tr', {}, ['Time', 'Host', 'Activity', 'Cost', 'Won back'].map((t) => h('th', {}, t)))),
+            h('tbody', {}, st.engine.red.events.map((e) => h('tr', {}, h('td', { class: 'mono' }, gameTime(st, e.at)), h('td', { class: 'mono' }, e.host), h('td', {}, e.text), h('td', { class: 'num' }, `−${e.charged}`), h('td', { class: 'num' }, e.recovered ? `+${e.recovered}` : ''))))) ) : null,
         g.injectResults.length ? h('div', {}, h('h2', {}, '5. Injects as the judges graded them'),
           g.injectResults.map((r) => {
             const inj = st.injectList.find((x) => x.id === r.id);
@@ -429,20 +461,18 @@ export class CcdcLabScene extends Phaser.Scene {
                 h('td', {}, fixed ? 'Hardened' : breached ? 'Breached' : 'Left open'), h('td', {}, f.fix.why));
             })))) : null,
         st.engine?.events?.length ? h('div', {}, h('h2', {}, '8. Round timeline'),
-          h('table', { class: 'ccx-tbl ccx-timeline' }, h('tbody', {}, st.engine.events.map((e) => h('tr', { class: e.cls }, h('td', { class: 'mono' }, this.fmt(e.at)), h('td', {}, e.text)))))) : null,
+          h('table', { class: 'ccx-tbl ccx-timeline' }, h('tbody', {}, st.engine.events.map((e) => h('tr', { class: e.cls }, h('td', { class: 'mono' }, gameTime(st, e.at)), h('td', {}, e.text)))))) : null,
         h('div', { class: 'ccx-doc-actions' },
           h('button', { type: 'button', class: 'ccx-btn primary', onclick: () => this.replay() }, 'Run the round again'),
           h('button', { type: 'button', class: 'ccx-btn', onclick: () => this.exit() }, 'Done')))));
   }
-
-  fmt(sec) { return `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, '0')}`; }
 
   verdict(g) {
     if (!g.findingsTotal) return g.pct >= 90 ? 'Captain-grade write-ups: every inject hit what the judges look for.' : 'Injects are graded item by item. Read what each one was missing below, then write them again.';
     if (g.pct >= 90) return 'Competition-ready. You hardened the boxes and kept the services serving.';
     if (g.pct >= 75) return 'Strong round. The finding you left open or the service you dropped is the gap to first place.';
     if (g.pct >= 60) return 'A real first attempt. The Red Team got in somewhere, or a service went down. Read the review and run it again.';
-    return 'Rough round — exactly why teams practise. Work the boxes in order and watch the scoreboard after every risky change.';
+    return 'Rough round — exactly why teams practise. Work the boxes in order and check your services after every risky change.';
   }
 
   replay() { this.sound2?.play('click'); this.phase = 'brief'; this.state = null; this.seed = null; this.render(); }

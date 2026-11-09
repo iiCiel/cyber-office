@@ -12,9 +12,9 @@ Sources:
 
 ## Moments the sim should reproduce
 1. Minute 0: everyone scrambling, captain asks for status and inventory. (teamFeed t=60, inject 1 at t=0)
-2. Scoreboard is a table of OTHER teams; your rank moves every check even when you do nothing.
+2. During a Competition round you see only your own services. Standings come out in the debrief (national rules: no running totals). Practice rounds keep the full board.
 3. A service flips red on the board before you know why ("who touched apache?"). Chat reacts.
-4. Red team waves land on a schedule (180/450/720 s) and other teams tank and recover too.
+4. Red Team is live from drop flag: persistence until 12:00, recoverable takedowns from 12:00, destructive after 14:30 (src/game/ccdcRed.js).
 5. Injects pile up with a countdown; late = zero; some teams skip them.
 6. SLA violations appear after repeated misses and are visible on the Overview.
 7. Captain/seat leads talk in #general, #linux, #windows, #network, #injects.

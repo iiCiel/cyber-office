@@ -2,15 +2,16 @@
 // Splunk over millions of lines / inject portal / scoreboard vs other teams / chat → end round → after-action.
 //   node scripts/verify-ccdcsim.mjs [url] [outDir]
 import { chromium } from 'playwright-core';
+const chromePath = process.env.CHROME_PATH;
 import fs from 'node:fs';
 const url = process.argv[2] || 'http://localhost:5194/cyber-office/';
 const out = process.argv[3] || 'docs/proof/ccdc-sim';
 fs.mkdirSync(out, { recursive: true });
 
-const browser = await chromium.launch({ channel: 'chrome', headless: true });
+const browser = await chromium.launch(chromePath ? { executablePath: chromePath, headless: true } : { channel: 'chrome', headless: true });
 let fails = 0, n = 0;
 const check = (name, ok, info = '') => { n++; if (!ok) fails++; console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${info ? `  (${info})` : ''}`); };
-const GOOD_HR = 'Create a standard domain user with New-ADUser, a temporary password with change at next logon, add them only to the Shipping group. Least privilege: not a Domain Admin, no admin rights.';
+const GOOD_HR = 'To: HR\nFrom: IT\nSubject: New hire\n\nCreate a standard domain user with New-ADUser, a temporary password with change at next logon, add them only to the Shipping group. Least privilege: not a Domain Admin, no admin rights.';
 const scene = (page, fn, arg) => page.evaluate(([src, a]) => { const sc = window.__game.scene.getScene('CcdcLab'); return new Function('sc', 'a', src)(sc, a); }, [fn, arg]);
 
 async function toLab(page) {
@@ -47,24 +48,19 @@ for (const [tag, viewport] of [['1366', { width: 1366, height: 800 }], ['390', {
   await scene(page, 'sc.startedAt = Date.now() - 200000;');
   await page.waitForTimeout(1300);
   await openWin(page, 'score');
-  const cells = await win(page, 'score').locator('td').count();
-  check(`[${tag}] scoring engine overview grid has team × service cells`, cells >= 30, `${cells} cells`);
-  const tray = await page.locator('.jb-tray-score').innerText().catch(() => '');
-  check(`[${tag}] tray shows live rank + score`, /#\d+\/\d+/.test(tray), tray.replace(/\s+/g, ' '));
+  const scoreText = await win(page, 'score').innerText();
+  check(`[${tag}] competition portal shows only our own services`, /Services/.test(scoreText) && !/Current Score|Leader|Scoreboard/.test(scoreText));
+  check(`[${tag}] no live rank or score in the tray`, await page.locator('.jb-tray-score').count() === 0);
   await page.screenshot({ path: `${out}/scoreboard-${tag}.png` });
 
   // ---- the round moves on its own: rival scores, red-team waves, injects over time ----
   const snap = () => scene(page, `return { clock: sc.state.engine.clock,
-    waves: sc.state.engine.events.filter(e => e.cls === 'red').length, injects: Object.values(sc.state.engine.injectTimers).filter(t => t.released).length };`);
-  // Rival scores as the scoring-engine page shows them (works on the built site too, no source imports).
-  const scores = async () => { await openWin(page, 'score'); await page.waitForTimeout(1100);
-    return page.evaluate(() => { const row = [...document.querySelectorAll('.jb-win[data-win="score"] tr')].find((tr) => /Current Score/.test(tr.textContent)); return row ? [...row.querySelectorAll('td')].map((td) => td.textContent.trim()) : []; }); };
-  const a = await snap(); const sa = await scores();
+    waves: sc.state.engine.red.events.length, injects: Object.values(sc.state.engine.injectTimers).filter(t => t.released).length };`);
+  const a = await snap();
   await scene(page, 'sc.startedAt -= 330000;');
   await page.waitForTimeout(1500);
-  const b = await snap(); const sb = await scores();
-  check(`[${tag}] rival team scores move as the clock runs`, sa.join() !== sb.join(), `${sa.slice(0, 3)} → ${sb.slice(0, 3)}`);
-  check(`[${tag}] red-team waves fire during the round`, b.waves > a.waves || b.waves >= 2, `${a.waves} → ${b.waves} waves by ${b.clock}s`);
+  const b = await snap();
+  check(`[${tag}] Red Team works through the round`, b.waves > a.waves, `${a.waves} → ${b.waves} operations by ${b.clock}s`);
   check(`[${tag}] injects arrive over time`, b.injects > a.injects, `${a.injects} → ${b.injects} released`);
   await openWin(page, 'score');
   await page.screenshot({ path: `${out}/scoreboard-later-${tag}.png` });
@@ -81,6 +77,8 @@ for (const [tag, viewport] of [['1366', { width: 1366, height: 800 }], ['390', {
   await ssh.locator('.tv-input').press('Enter');
   const webFixed = await scene(page, "return Object.entries(sc.state.findings).filter(([k,v]) => v.status==='fixed' && sc.state.findingList.find(f=>f.id===k).host==='web01').length;");
   check(`[${tag}] typed rm + crontab -r in PuTTY fixes the web shell`, webFixed >= 1, `${webFixed} fixed`);
+  const ptext = await ssh.innerText();
+  check(`[${tag}] terminal shows no answer messages`, !/Hardened|Scored service|Step done/.test(ptext));
   await page.screenshot({ path: `${out}/putty-web01-${tag}.png` });
 
   // ---- inject portal: draft survives the per-second refresh ----

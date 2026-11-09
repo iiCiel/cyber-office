@@ -132,6 +132,26 @@ export function applyEdit(fs, rawLine, { stdin, cwd, ctx } = {}) {
     return out(removed.map((t) => `removed ‘${t}’`).join('\n'));
   }
 
+  // --- cp / mv ---------------------------------------------------------------
+  if (cmd === 'cp' || cmd === 'mv') {
+    const recursive = toks.slice(1).some((t) => /^-[a-z]*[ra]/i.test(t));
+    const args = toks.slice(1).filter((t) => !t.startsWith('-')).map(P);
+    if (args.length < 2) return out(`${cmd}: missing file operand`, true);
+    const [src, dstRaw] = [args[0], args[args.length - 1]];
+    const copy = (from, to) => { fs[to] = fs[from]; if (cmd === 'mv') delete fs[from]; };
+    if (fs[src] !== undefined) {
+      const intoDir = isDir(fs, dstRaw) || /\/$/.test(toks[toks.length - 1]);
+      copy(src, intoDir ? `${dstRaw}/${src.split('/').pop()}` : dstRaw);
+      return out('');
+    }
+    if (isDir(fs, src)) {
+      if (cmd === 'cp' && !recursive) return out(`cp: -r not specified; omitting directory '${src}'`, true);
+      for (const k of Object.keys(fs)) if (k.startsWith(`${src}/`)) copy(k, `${dstRaw}${k.slice(src.length)}`);
+      return out('');
+    }
+    return out(`${cmd}: cannot stat '${src}': No such file or directory`, true);
+  }
+
   // --- sed -i ----------------------------------------------------------------
   if (cmd === 'sed' && toks.some((t) => t === '-i' || t.startsWith('-i'))) {
     const args = toks.slice(1).filter((t) => t !== '-e');
@@ -203,7 +223,7 @@ export function isEdit(rawLine) {
   // Unbalanced quotes: still route editing commands to applyEdit so it prints the shell error (and never throws).
   try { toks = tokenize(line); } catch { return /^(rm|tee|truncate|sed\s+-i|echo|printf|:)(?=\s|$)/.test(line); }
   const cmd = toks[0];
-  if (['rm', 'tee', 'truncate'].includes(cmd)) return true;
+  if (['rm', 'tee', 'truncate', 'cp', 'mv'].includes(cmd)) return true;
   if (cmd === 'sed' && toks.some((t) => t === '-i' || t.startsWith('-i'))) return true;
   if (['nano', 'vi', 'vim', 'emacs'].includes(cmd)) return true;
   if (/\s(>>|>)\s*\S+\s*$/.test(line) && /^(echo|printf|:)(?=\s|$)/.test(line)) return true;

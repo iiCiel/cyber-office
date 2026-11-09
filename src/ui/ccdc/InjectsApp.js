@@ -6,8 +6,8 @@ import { h, clear } from '../dom.js';
 import './injects.css';
 
 const stripTitle = (t) => String(t).replace(/^Inject\s+\d+\s*[—–-]\s*/i, '');
-const clockText = (sec) => {
-  const t = 9 * 3600 + Math.max(0, Math.floor(sec));
+const clockText = (sec, scale = 1) => {
+  const t = 9 * 3600 + Math.max(0, Math.floor(sec * scale));
   return `${String(Math.floor(t / 3600)).padStart(2, '0')}:${String(Math.floor((t % 3600) / 60)).padStart(2, '0')}`;
 };
 const remaining = (sec) => {
@@ -83,7 +83,7 @@ export class InjectsApp {
       r.status.className = `ij-badge ij-b-${st.toLowerCase()}`;
       r.status.textContent = st;
       r.score.textContent = rec.done && this.guided && rec.grade ? `${rec.grade.pts} / ${i.points}` : `${i.points} pts available`;
-      r.left.textContent = rec.done ? '-' : remaining(t.dueAt - sec);
+      r.left.textContent = rec.done || !Number.isFinite(t.dueAt) ? '-' : remaining(t.dueAt - sec);
       r.left.className = `ij-c5${!rec.done && t.dueAt - sec < 60 ? ' ij-urgent' : ''}`;
       r.tr.classList.toggle('ij-unread', !this.seen.has(i.id) && !rec.done);
     }
@@ -108,7 +108,7 @@ export class InjectsApp {
 
   _updateDetailLive(i) {
     const d = this.detail.querySelector('.ij-due-live');
-    if (d) d.textContent = remaining(this._timer(i.id).dueAt - this.clock());
+    if (d) d.textContent = Number.isFinite(this._timer(i.id).dueAt) ? remaining(this._timer(i.id).dueAt - this.clock()) : '';
   }
 
   _buildDetail(i) {
@@ -121,8 +121,8 @@ export class InjectsApp {
       h('table', { class: 'ij-hdr' }, h('tbody', {},
         h('tr', {}, h('th', {}, 'From:'), h('td', {}, i.from)),
         h('tr', {}, h('th', {}, 'To:'), h('td', {}, 'Blue Team (all seats)')),
-        h('tr', {}, h('th', {}, 'Date:'), h('td', {}, `Competition day, ${clockText(t.releaseAt)}`)),
-        h('tr', {}, h('th', {}, 'Due:'), h('td', {}, `${clockText(t.dueAt)}  `, rec.done ? '' : h('span', { class: 'ij-due-live ij-urgent-soft' }, remaining(t.dueAt - this.clock())))),
+        h('tr', {}, h('th', {}, 'Date:'), h('td', {}, `Competition day, ${clockText(t.releaseAt, this.state.timeScale)}`)),
+        h('tr', {}, h('th', {}, 'Due:'), h('td', {}, `${Number.isFinite(t.dueAt) ? clockText(t.dueAt, this.state.timeScale) : 'no deadline'}  `, rec.done || !Number.isFinite(t.dueAt) ? '' : h('span', { class: 'ij-due-live ij-urgent-soft' }, remaining(t.dueAt - this.clock())))),
         h('tr', {}, h('th', {}, 'Subject:'), h('td', { class: 'ij-subj' }, stripTitle(i.title))),
         h('tr', {}, h('th', {}, 'Worth:'), h('td', {}, `${i.points} points`)))),
       h('div', { class: 'ij-body' }, i.prompt),
