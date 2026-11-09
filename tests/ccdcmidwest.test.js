@@ -108,7 +108,9 @@ test('firewalld: a permanent rule does nothing until reload, and reload discards
 test('old package repositories fail the way they do on the day', () => {
   const st = game();
   assert.match(text(runLine(st, 'ecom', 'yum update -y')), /Cannot find a valid baseurl/);
-  assert.match(text(runLine(st, 'web', 'apt-get update')), /404/);
+  assert.match(text(runLine(st, 'dns', 'apt-get update')), /404/);
+  assert.match(text(runLine(st, 'mail', 'yum update')), /metalink/);
+  runLine(st, 'web', 'ls');
 });
 
 test('POP3 depends on the domain controller', () => {

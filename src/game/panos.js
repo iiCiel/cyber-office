@@ -270,6 +270,23 @@ function natTable(fw) {
   return out;
 }
 
+function trafficRows(fw, api) {
+  const rows = (fw.spec.nat || []).slice(0, 7).map((n, i) => ({ src: `172.31.0.${25 + i}`, dst: n.public, dport: [443, 53, 80, 389, 8000, 80, 25][i] }));
+  for (const ip of api.attackers?.() || []) rows.unshift({ src: ip, dst: fw.spec.nat[0].public, dport: 3389 }, { src: ip, dst: fw.spec.nat[2].public, dport: 22 });
+  return rows.map((r) => { const hit = matchFlow({ rules: fw.rules, services: fw.running.services, addresses: fw.running.addresses }, { from: 'Core', to: 'any', src: r.src, dst: r.dst, port: r.dport, proto: 'tcp', app: APP_BY_PORT[r.dport] || 'not-applicable' }); return { ...r, rule: hit.name, action: hit.action }; });
+}
+
+function trafficLog(fw, api) {
+  const out = ['Time                 App             From    Src Port  Source             To      Dst Port  Destination        Rule               Action'];
+  for (const r of trafficRows(fw, api)) out.push(`2026/11/14 08:14:22  ${(APP_BY_PORT[r.dport] || 'incomplete').padEnd(16)}Core    ${String(40000 + r.dport).padEnd(10)}${r.src.padEnd(19)}any     ${String(r.dport).padEnd(10)}${r.dst.padEnd(19)}${r.rule.padEnd(19)}${r.action}`);
+  return out;
+}
+
+function sessionTable(fw, api) {
+  const rows = trafficRows(fw, api).filter((r) => r.action === 'allow');
+  return ['ID       Application  State   Type  Flag  Src[Sport]/Zone/Proto  (translated)', '         Dst[Dport]/Zone  (translated)', '--------------------------------------------------------------------------------', ...rows.flatMap((r, i) => [`${100 + i}      ${(APP_BY_PORT[r.dport] || 'undecided').padEnd(13)}ACTIVE  FLOW  NS    ${r.src}[${40000 + r.dport}]/Core/6`, `         ${r.dst}[${r.dport}]`])];
+}
+
 function jobTable(fw) {
   const rows = fw.jobs.map((j) => `${fw.spec.date || '2026/11/14 08:00:00'}  ${String(j.id).padStart(5)}  ${j.type.padEnd(10)} ${j.status}  ${j.result.padEnd(5)} ${j.status === 'FIN' ? '100%' : '55%'}`);
   return ['Enqueued             Dequeued         ID  Type       Status Result Completed', '------------------------------------------------------------------------------', ...(rows.length ? rows : ['(no jobs)'])];
@@ -295,6 +312,8 @@ export function panosLine(fw, rawLine, api = {}) {
       if (line === 'show running nat-policy') return OK(natTable(fw));
       if (/^show jobs( all)?$/.test(line) || /^show jobs (id \d+|processed|pending)$/.test(line)) return OK(jobTable(fw));
       if (line === 'show admins') return OK(['Admin           From            Client   Session-start        Idle-for', '----------------------------------------------------------------------', 'admin           Console         CLI      11/14 08:02:11       00:00:00s']);
+      if (/^show session (all|info)/.test(line)) return OK(sessionTable(fw, api));
+      if (/^show log traffic/.test(line)) return OK(trafficLog(fw, api));
       if (line === 'show clock') return OK([fw.spec.date || 'Sat Nov 14 08:00:00 CST 2026']);
       if (/^show config (running|candidate)/.test(line)) return OK(candidateBlock(/running/.test(line) ? fw.rules : fw.candidate.rules));
       return ERR('Invalid syntax.');

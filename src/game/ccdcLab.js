@@ -22,7 +22,7 @@ import { rng, freshSeed } from './shuffle.js';
 import { liveCompromises, tickTo } from './ccdcEngine.js';
 import { initHostState, applyHostChange, applyAdChange } from './hostState.js';
 import { makePanos } from './panos.js';
-import { REVERT_PENALTY, REVERT_SECS, missingCommand, runPanos, applyBoxCommand, applyUfwExtras, boxCommands, continuePending, dirOf, initBox, passwordInLine, passwordStrong, syncServices } from './ccdcBox.js';
+import { immutableRefusal, REVERT_PENALTY, REVERT_SECS, missingCommand, runPanos, applyBoxCommand, applyUfwExtras, boxCommands, continuePending, dirOf, initBox, passwordInLine, passwordStrong, syncServices } from './ccdcBox.js';
 import { RED_POOL, redCharged, redForgetBox } from './ccdcRed.js';
 import { prepareScenario } from './ccdcRound.js';
 
@@ -199,6 +199,8 @@ function executeLine(state, deviceId, rawLine) {
   ds.history.push(line);
   const missing = missingCommand(dev, line);
   if (missing) return { lines: [{ cls: 'err', text: missing }], effects: {} };
+  const refused = dev.kind === 'bash' && isEdit(line) ? immutableRefusal(ds, line) : null;
+  if (refused) return { lines: [{ cls: 'err', text: refused }], effects: {} };
 
   // Firewall is a rule editor, not a shell.
   if (dev.kind === 'firewall') return runFirewallLine(state, dev, ds, line);

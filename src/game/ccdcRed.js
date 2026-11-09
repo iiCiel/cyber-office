@@ -11,7 +11,7 @@
 //   path 'local' needs a foothold on that box already.
 
 import { hash01 } from './ccdcHash.js';
-import { AUTH_KEYS, PASSWD, authLogOf, dirOf, weakAccounts } from './ccdcBox.js';
+import { AUTH_KEYS, PASSWD, authLogOf, dirOf, panosEgressOpen, weakAccounts } from './ccdcBox.js';
 import { clockAt, dayOf } from './ccdcRound.js';
 import { plantRule } from './panos.js';
 
@@ -109,7 +109,8 @@ function vectorsOf(state, dev) {
 
 function reachable(state, r, dev, v) {
   if (state.devState[dev.id]?.live?.bricked) return false;
-  if (v.path === 'beacon' || v.path === 'web') return true;
+  if (v.path === 'beacon') return panosEgressOpen(state, dev);
+  if (v.path === 'web') return true;
   if (v.path === 'local') return !!r.access[dev.id];
   if (!edgeClosed(state)) return true;
   return Object.keys(r.access).some((id) => id !== dev.id && state.deviceList.find((d) => d.id === id)?.kind !== 'firewall');

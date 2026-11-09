@@ -2,6 +2,8 @@
 // really happened. Progress is kept per browser; the game plays correctly without it.
 import { h, clear } from '../dom.js';
 import { LESSONS, SHEET, sheetHtml } from '../../data/ccdcAcademy.js';
+import { EXAMS } from '../../data/ccdcAcademyMore.js';
+import { QUIZ } from '../../data/ccdcQuiz.js';
 import { gradeInject } from '../../game/ccdcLab.js';
 import './academy.css';
 
@@ -31,9 +33,11 @@ export class AcademyPanel {
   }
 
   draw() {
-    clear(this.tabs).append(...[['lessons', 'Lessons'], ['sheet', 'Cheat sheet']].map(([id, t]) => h('button', { type: 'button', class: `ac-tab${this.tab === id ? ' on' : ''}`, 'data-actab': id, onclick: () => { this.tab = id; this.draw(); } }, t)));
+    clear(this.tabs).append(...[['lessons', 'Lessons'], ['exams', 'Exams'], ['quiz', 'Quiz'], ['sheet', 'Sheet']].map(([id, t]) => h('button', { type: 'button', class: `ac-tab${this.tab === id ? ' on' : ''}`, 'data-actab': id, onclick: () => { this.tab = id; this.draw(); } }, t)));
     clear(this.body);
     if (this.tab === 'sheet') this.drawSheet();
+    else if (this.tab === 'exams') { if (this.exam) this.drawExam(); else this.drawExams(); }
+    else if (this.tab === 'quiz') this.drawQuiz();
     else if (this.lesson) this.drawStep();
     else this.drawList();
   }
@@ -135,7 +139,7 @@ export class AcademyPanel {
   }
 
   drawWrite(s) {
-    const inj = this.state.injectList.find((i) => i.id === s.write.injectId);
+    const inj = s.write.inject || this.state.injectList.find((i) => i.id === s.write.injectId);
     if (this.draft == null) this.draft = s.write.starter;
     const ta = h('textarea', { class: 'ac-ta', 'aria-label': 'Your memo', 'data-memo': '', oninput: () => { this.draft = ta.value; } }, this.draft);
     ta.value = this.draft;
@@ -164,7 +168,93 @@ export class AcademyPanel {
     w.print();
   }
 
+  // ---- exams ---------------------------------------------------------------------------------------------------
+  drawExams() {
+    this.body.append(h('p', { class: 'ac-intro' }, 'No hints and no commands. The clock runs. Machines reset when you start. Beat the target for your seat, then do the others.'));
+    for (const x of EXAMS) {
+      const best = this.progress[`best-${x.id}`];
+      this.body.append(h('button', { type: 'button', class: 'ac-item', 'data-exam': x.id, onclick: () => this.startExam(x) }, h('span', {}, x.title, h('br'), h('small', {}, x.blurb)), h('small', {}, best ? `best ${this.mmss(best)}` : `target ${x.minutes} min`)));
+    }
+    this.body.append(h('p', { class: 'ac-intro' }, 'The full test is a Competition round: Red Team, injects and the clock together.'));
+  }
+
+  mmss(s) { return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`; }
+
+  startExam(x) {
+    this.exam = x;
+    this.examStart = Date.now();
+    this.examDone = null;
+    this.logMark = this.host.logSize();
+    this.host.startLesson(x);
+    x.setup?.(this.state);
+    this.host.showVm(x.vms[0]);
+    this.draw();
+  }
+
+  examGoals() {
+    const c = this.ctx();
+    return this.exam.goals.map((g) => { let ok = false; try { ok = !!g.done(c); } catch { /* not there yet */ } return { text: g.text, ok }; });
+  }
+
+  drawExam() {
+    const x = this.exam;
+    const goals = this.examGoals();
+    const n = goals.filter((g) => g.ok).length;
+    const sec = this.examDone ?? (Date.now() - this.examStart) / 1000;
+    this.examKey = goals.map((g) => (g.ok ? 1 : 0)).join('');
+    this.examClock = h('div', { class: 'ac-clock', 'data-exam-clock': '' }, `${this.mmss(sec)} / ${x.minutes}:00`);
+    this.body.append(h('button', { type: 'button', class: 'ac-back', onclick: () => { this.exam = null; this.draw(); } }, '< All exams'), h('h3', {}, x.title), this.examClock,
+      h('div', { class: 'ac-progtext' }, `${n} of ${goals.length}`),
+      h('ul', { class: 'ac-goals' }, goals.map((g) => h('li', { class: g.ok ? 'ok' : '' }, g.text))));
+    if (n === goals.length && this.examDone == null) {
+      this.examDone = sec;
+      const key = `best-${x.id}`;
+      if (!this.progress[key] || sec < this.progress[key]) { this.progress[key] = sec; save(this.progress); }
+      this.body.append(h('p', { class: 'ac-after', 'data-exam-done': '' }, sec <= x.minutes * 60 ? 'Passed inside the target.' : 'All done, but past the target. Run it again.'));
+    } else if (this.examDone != null) this.body.append(h('p', { class: 'ac-after', 'data-exam-done': '' }, 'Finished.'));
+  }
+
+  // ---- quiz ----------------------------------------------------------------------------------------------------
+  pickQuiz() {
+    const seen = this.progress.quiz || {};
+    const score = (x) => (seen[x.q]?.ok || 0) - 2 * (seen[x.q]?.bad || 0) + Math.random();
+    const pool = [...QUIZ].filter((x) => x !== this.quizItem).sort((a, b) => score(a) - score(b));
+    this.quizItem = pool[0];
+    this.quizResult = null;
+  }
+
+  drawQuiz() {
+    if (!this.quizItem) this.pickQuiz();
+    const x = this.quizItem;
+    const seen = this.progress.quiz || {};
+    const known = QUIZ.filter((i) => (seen[i.q]?.ok || 0) > (seen[i.q]?.bad || 0)).length;
+    const input = h('input', { class: 'ac-input', 'aria-label': 'Your answer', 'data-quiz-answer': '', onkeydown: (e) => { e.stopPropagation(); if (e.key === 'Enter') (this.quizResult ? next : go)(); } });
+    const go = () => {
+      const ok = x.a.test(input.value.trim());
+      const all = (this.progress.quiz ||= {});
+      const r = (all[x.q] ||= { ok: 0, bad: 0 });
+      if (ok) r.ok += 1; else r.bad += 1;
+      save(this.progress);
+      this.quizResult = ok ? 'ok' : 'no';
+      this.draw();
+    };
+    const next = () => { this.pickQuiz(); this.draw(); };
+    this.body.append(h('p', { class: 'ac-intro' }, `Mistakes come back more often. ${known} of ${QUIZ.length} known.`), h('p', { class: 'ac-tag' }, x.tag), h('p', { class: 'ac-q' }, x.q));
+    if (this.quizResult) {
+      this.body.append(h('p', { class: this.quizResult === 'ok' ? 'ac-after' : 'ac-bad' }, this.quizResult === 'ok' ? 'Right.' : `Answer: ${x.sample}`), x.why ? h('p', {}, x.why) : null, h('button', { type: 'button', class: 'ac-next', 'data-quiz-next': '', onclick: next }, 'Next'));
+      return;
+    }
+    this.body.append(input, h('button', { type: 'button', class: 'ac-check', 'data-quiz-check': '', onclick: go }, 'Check'));
+    setTimeout(() => input.focus(), 0);
+  }
+
   refresh() {
+    if (this.tab === 'exams' && this.exam) {
+      const key = this.examGoals().map((g) => (g.ok ? 1 : 0)).join('');
+      if (key !== this.examKey && this.examDone == null) this.draw();
+      else if (this.examDone == null && this.examClock) this.examClock.textContent = `${this.mmss((Date.now() - this.examStart) / 1000)} / ${this.exam.minutes}:00`;
+      return;
+    }
     if (!this.lesson || this.tab !== 'lessons' || this.complete) return;
     if (this.check()) this.drawStep();
   }

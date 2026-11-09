@@ -47,3 +47,12 @@
 @media (max-width: 900px) { .ac { width: 280px; font-size: 13px; } .jb.ac-on .jb-desk { right: 280px; } }
 .ac-sheet td:first-child { width: 50%; overflow-wrap: anywhere; }
 .ac-sheet code { word-break: normal; overflow-wrap: anywhere; }
+.ac-tab { padding: 3px 6px; }
+.ac-clock { font: 700 22px Consolas, 'DejaVu Sans Mono', monospace; margin-bottom: 4px; }
+.ac-goals { margin: 0; padding: 0; list-style: none; font: 13px/1.35 Arial, sans-serif; }
+.ac-goals li { padding: 3px 0 3px 18px; border-bottom: 1px solid #ddd8c8; position: relative; }
+.ac-goals li::before { content: '\2610'; position: absolute; left: 0; }
+.ac-goals li.ok { color: #1f5a30; }
+.ac-goals li.ok::before { content: '\2611'; }
+.ac-tag { margin: 0 0 2px !important; font: 11px Arial, sans-serif; text-transform: uppercase; color: #7a7464; }
+.ac-item small { display: inline-block; }

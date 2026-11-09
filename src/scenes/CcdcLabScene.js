@@ -29,6 +29,8 @@ import { NetlabApp } from '../ui/ccdc/NetlabApp.js';
 import { PanosApp } from '../ui/ccdc/PanosApp.js';
 import { SupportApp, DocsApp } from '../ui/ccdc/SupportApp.js';
 import { AcademyPanel } from '../ui/ccdc/AcademyPanel.js';
+import { studyNext } from '../data/ccdcAcademyMore.js';
+import { LESSONS } from '../data/ccdcAcademy.js';
 import '../ui/screen.css';
 import '../ui/competitions.css';
 import '../ui/ccdc/ccdcdoc.css';
@@ -263,7 +265,9 @@ export class CcdcLabScene extends Phaser.Scene {
       create: () => new NetlabApp({
         state: st, scenario: sc, team: this.tn(), sessions: this.sessions, clock: () => this.elapsed(), locked: () => this.awaitingDrop,
         clockLabel: () => { const [hh, mm] = gameTime(st, this.elapsed()).split(':').map(Number); return { time: `${((hh + 11) % 12) + 1}:${String(mm).padStart(2, '0')} ${hh < 12 ? 'AM' : 'PM'}`, date: `${dayOf(sc).date}/2026` }; },
-        run: (id, l) => this.run(id, l), onBrowser: (u, id, line) => { this.lineLog?.push({ vm: id, line: String(line).trim().replace(/\s+/g, ' ') }); if (this.coach) setTimeout(() => this.coach?.onLine(), 0); return this.onBrowser(u); },
+        run: (id, l) => this.run(id, l),
+        noteLine: (id, line) => { this.lineLog?.push({ vm: id, line: String(line).trim().replace(/\s+/g, ' ') }); if (this.coach) setTimeout(() => this.coach?.onLine(), 0); },
+        onBrowser: (u, id, line) => { this.lineLog?.push({ vm: id, line: String(line).trim().replace(/\s+/g, ' ') }); if (this.coach) setTimeout(() => this.coach?.onLine(), 0); return this.onBrowser(u); },
         onPower: (id, on) => { setPower(st, id, on); this.jb.refresh(); },
         undock: (id) => this.jb.open(`undock-${id}`), closeUndock: (id) => this.jb.minimize(`undock-${id}`),
       }) });
@@ -530,6 +534,7 @@ export class CcdcLabScene extends Phaser.Scene {
           h('div', { class: `ccx-grade g${g.letter}` }, g.letter)),
         this.timedOut ? h('p', { class: 'ccx-note' }, 'Time expired. Whatever was still open at 0:00 is what the Red Team walked through.') : null,
         me ? h('p', { class: 'ccx-rank' }, `Final standing: ${me.rank} of ${this.finalStandings.length} teams.`) : null,
+        this.scenario.netlab ? this.studyBlock(g) : null,
         h('h2', {}, '1. Score summary'),
         h('table', { class: 'ccx-tbl ccx-tally' },
           h('thead', {}, h('tr', {}, ['Category', 'Points', 'Detail'].map((t) => h('th', {}, t)))),
@@ -596,6 +601,14 @@ export class CcdcLabScene extends Phaser.Scene {
         h('div', { class: 'ccx-doc-actions' },
           h('button', { type: 'button', class: 'ccx-btn primary', onclick: () => this.replay() }, 'Run the round again'),
           h('button', { type: 'button', class: 'ccx-btn', onclick: () => this.exit() }, 'Done')))));
+  }
+
+  studyBlock(g) {
+    const list = studyNext(this.state, g);
+    if (!list.length) return h('div', { 'data-study': '' }, h('h2', {}, 'What to study next'), h('p', {}, 'Nothing obvious. Try a longer round.'));
+    return h('div', { 'data-study': '' }, h('h2', {}, 'What to study next'),
+      h('table', { class: 'ccx-tbl' }, h('thead', {}, h('tr', {}, ['Lesson', 'Why'].map((t) => h('th', {}, t)))),
+        h('tbody', {}, list.map((x) => h('tr', {}, h('td', {}, LESSONS.find((l) => l.id === x.lesson)?.title || x.lesson), h('td', {}, x.why))))));
   }
 
   verdict(g) {

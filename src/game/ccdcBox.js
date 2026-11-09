@@ -10,7 +10,7 @@
 import { evalFirewall } from './ccdcFirewall.js';
 import { makeDirectory } from './directory.js';
 import { systemctlStatus } from './hostState.js';
-import { finishCommit, panosEval, panosLine, startCommit } from './panos.js';
+import { finishCommit, matchFlow, panosEval, panosLine, startCommit } from './panos.js';
 
 export const REBOOT_SECS = 60; // sim seconds a rebooted box stays off the network (two scored checks)
 export const REVERT_SECS = 60;
@@ -69,6 +69,7 @@ export function initBox(dev, ds) {
     L.ipt = { policy: 'ACCEPT', rules: [] };
     L.ufw.default = 'allow';
     L.boots = 0;
+    L.immutable = [...(dev.live?.immutable || [])];
     if (dev.fwtool) L.ufw.enabled = false; // only an Ubuntu box has ufw, and even there it ships inactive
     if (dev.fwtool === 'firewalld') { L.units.firewalld = 'active'; L.fwd = { running: fwdZone(dev.fwdOpen), permanent: fwdZone(dev.fwdOpen) }; }
     const fs = ds.fs;
@@ -80,7 +81,7 @@ export function initBox(dev, ds) {
   } else {
     for (const u of L.localUsers) if (u.Enabled) ds.creds[lc(u.Name)] = acct();
     if (/domain controller/i.test(dev.name || '')) ds.creds.administrator = acct();
-    L.runKeys = [];
+    L.runKeys = JSON.parse(JSON.stringify(dev.live?.runKeys || []));
     L.winFw = { default: 'Allow', rules: [] };
     L.audit = {};
     L.boots = 0;
@@ -189,6 +190,15 @@ function fwdZone(open = []) { return { zone: 'public', services: open.filter((x)
 function fwdAllows(z, port) {
   if (z.zone !== 'public') return false;
   return z.ports.some((p) => p.split('/')[0] === String(port)) || z.services.some((s) => FWD_SERVICES[s] === Number(port));
+}
+
+/** Can this box reach the internet? Only a Palo Alto scenario models outbound. */
+export function panosEgressOpen(state, dev) {
+  const edge = state.deviceList.find((d) => d.panos);
+  if (!edge || !dev.zone) return true;
+  const fw = state.devState[edge.id].firewall;
+  const cfg = { rules: fw.rules, services: fw.running.services, addresses: fw.running.addresses };
+  return matchFlow(cfg, { from: dev.zone, to: 'Core', src: dev.ip, dst: '203.0.113.10', port: 443, proto: 'tcp', app: 'ssl' }).action === 'allow';
 }
 
 function firewallCmd(L, line) {
@@ -378,7 +388,7 @@ function linuxCommand(state, dev, ds, line, toks) {
       return out(`Redirecting to /bin/systemctl ${lc(toks[2])} ${toks[1]}.service`);
     }
     case 'firewall-cmd': return firewallCmd(L, line);
-    case 'apt-get': case 'apt': case 'yum': case 'dnf': return packageManager(dev, cmd, toks);
+    case 'apt-get': case 'apt': case 'yum': case 'dnf': return packageManager(state, dev, ds, cmd, toks);
     case 'ufw': {
       const verb = lc(toks[1]);
       if (verb === 'status' || !verb) return null;
@@ -410,9 +420,32 @@ function linuxCommand(state, dev, ds, line, toks) {
       }
       return null;
     }
-    case 'chmod': case 'chown': case 'chattr': return out();
+    case 'chattr': {
+      const flag = toks.find((t) => /^[+-][a-z]*i/.test(t));
+      const target = pathOn(ds, toks[toks.length - 1]);
+      if (flag?.startsWith('+') && !L.immutable.includes(target)) L.immutable.push(target);
+      if (flag?.startsWith('-')) L.immutable = L.immutable.filter((p) => p !== target);
+      return out();
+    }
+    case 'find': {
+      if (!toks.includes('-perm')) return null;
+      return out(['/usr/bin/passwd', '/usr/bin/sudo', '/bin/su', '/bin/mount', ...(dev.suid || []).filter((p) => !L.noSuid?.includes(p))]);
+    }
+    case 'chmod': {
+      if (/u-s|\b0?755\b/.test(line)) { L.noSuid = [...(L.noSuid || []), pathOn(ds, toks[toks.length - 1])]; }
+      return out();
+    }
+    case 'chown': return out();
+    case 'getenforce': return out(dev.pkg === 'apt' ? null : 'Enforcing');
+    case 'setenforce': return out();
     case 'kill': case 'pkill': case 'killall': {
       const target = toks[toks.length - 1];
+      if (toks.includes('-t')) {
+        const n = L.sessions.length;
+        L.sessions = L.sessions.filter((s) => !s.includes(`${target} `));
+        if (n !== L.sessions.length) { L.conns = []; return out(); }
+        return fail(`${cmd}: no process found`);
+      }
       const before = L.procs.length;
       L.procs = L.procs.filter((p) => String(p.pid) !== target && !p.cmd.includes(target));
       if (before === L.procs.length && cmd !== 'kill') return fail(`${cmd}: no process found`);
@@ -425,14 +458,42 @@ function linuxCommand(state, dev, ds, line, toks) {
 }
 
 // These boxes are old on purpose. Their repositories are gone, so "just patch it" fails the way it does on the day.
-function packageManager(dev, cmd, toks) {
-  const verb = lc(toks[1]);
-  if (!['update', 'upgrade', 'install', 'check-update', 'dist-upgrade'].includes(verb)) return null;
+function packageManager(state, dev, ds, cmd, toks) {
+  const verb = lc(toks.find((t, i) => i > 0 && !t.startsWith('-') && !/^Acquire::/.test(t) && toks[i - 1] !== '-o') || '');
+  if (verb === 'clean') return out('Loaded plugins: fastestmirror', 'Cleaning repos: base', 'Cleaning up everything');
+  if (!['update', 'upgrade', 'install', 'check-update', 'dist-upgrade', 'makecache'].includes(verb)) return null;
+  if (!panosEgressOpen(state, dev)) {
+    return fail(cmd === 'apt-get' || cmd === 'apt' ? 'Err http://ftp.debian.org jessie/main amd64 Packages' : 'Loaded plugins: fastestmirror', '  Could not connect to the repository (Connection timed out)', 'W: Some index files failed to download.');
+  }
+  const done = (...t) => out('Reading package lists... Done', ...t);
   if (cmd === 'yum' || cmd === 'dnf') {
+    if (/fedora/i.test(dev.os)) {
+      if (/archives\.fedoraproject\.org/.test(ds.fs['/etc/yum.repos.d/fedora.repo'] || '')) return out('Loaded plugins: langpacks', 'No packages marked for update');
+      return fail('Loaded plugins: langpacks', 'Cannot retrieve metalink for repository: fedora/21/x86_64. Please verify its path and try again');
+    }
+    if (/vault\.centos\.org/.test(ds.fs['/etc/yum.repos.d/CentOS-Base.repo'] || '')) return out('Loaded plugins: fastestmirror', 'base                                  | 3.6 kB     00:00', 'No packages marked for update');
     return fail('Loaded plugins: fastestmirror', 'Could not retrieve mirrorlist http://mirrorlist.centos.org/?release=7&arch=x86_64&repo=os error was', '14: curl#6 - "Could not resolve host: mirrorlist.centos.org; Unknown error"', '', ' One of the configured repositories failed (Unknown),', ' and yum doesn\'t have enough cached data to continue.', 'Cannot find a valid baseurl for repo: base/7/x86_64');
   }
-  const rel = /debian/i.test(dev.os) ? 'jessie' : 'trusty';
-  return fail(`Err http://archive.ubuntu.com ${rel}/main amd64 Packages`, '  404  Not Found [IP: 91.189.91.83 80]', `W: Failed to fetch http://archive.ubuntu.com/dists/${rel}/main/binary-amd64/Packages  404  Not Found`, 'E: Some index files failed to download. They have been ignored, or old ones used instead.');
+  if (/debian/i.test(dev.os)) {
+    const src = ds.fs['/etc/apt/sources.list'] || '';
+    if (!/archive\.debian\.org/.test(src)) return fail('Err http://ftp.debian.org jessie/main amd64 Packages', '  404  Not Found', 'W: Failed to fetch http://ftp.debian.org/debian/dists/jessie/main/binary-amd64/Packages  404  Not Found', 'E: Some index files failed to download. They have been ignored, or old ones used instead.');
+    if (!toks.some((t) => /Check-Valid-Until=false/i.test(t))) return fail('E: Release file for http://archive.debian.org/debian/dists/jessie/Release is expired. Updates for this repository will not be applied.');
+    return done('All packages are up to date.');
+  }
+  return done('Building dependency tree', 'All packages are up to date.');
+}
+
+const pathOn = (ds, p) => { const parts = []; for (const x of (String(p).startsWith('/') ? String(p) : `${ds.cwd}/${p}`).split('/')) { if (x === '..') parts.pop(); else if (x && x !== '.') parts.push(x); } return `/${parts.join('/')}`; };
+
+/** If this line would write a file marked immutable, the shell's refusal. */
+export function immutableRefusal(ds, line) {
+  const list = ds.live?.immutable;
+  if (!list?.length) return null;
+  const toks = words(line);
+  const hit = toks.slice(1).map((t) => pathOn(ds, t)).find((p) => list.includes(p));
+  if (!hit) return null;
+  if (lc(toks[0]) === 'sed') return `sed: couldn't open temporary file: Operation not permitted`;
+  return lc(toks[0]) === 'rm' ? `rm: cannot remove '${hit}': Operation not permitted` : `${toks[0]}: ${hit}: Operation not permitted`;
 }
 
 /** A tool this operating system does not have: the shell says so, and nothing changes on the box. */
@@ -511,6 +572,7 @@ export function runPanos(state, dev, ds, rawLine) {
   }
   const api = {
     startCommit: () => startCommit(fw, state.engine ? clock(state) + COMMIT_SECS / (state.timeScale || 1) : 0),
+    attackers: () => (state.engine?.red?.events?.length ? [state.engine.red.ip] : []),
     reboot: () => { ds.poweredOff = true; ds.restartAt = clock(state) + REBOOT_SECS; },
   };
   const gui = /^@config\s/.test(rawLine);
@@ -695,6 +757,17 @@ export function boxCommands(state, dev, ds) {
     after('netstat', (r) => `${live(r).replace(/\n$/, '')}${L.conns.length ? `\n${L.conns.join('\n')}` : ''}\n`);
     after('who', (r) => `${text(r).replace(/\n$/, '')}${L.sessions.length ? `\n${L.sessions.join('\n')}` : ''}\n`);
     wrapped.w = wrapped.who;
+    wrapped.lsattr = (args) => `${(args || []).filter((a) => !a.startsWith('-')).map((a) => `${L.immutable.includes(pathOn(ds, a)) ? '----i' : '-----'}--------e-- ${a}`).join('\n')}\n`;
+    wrapped.lsof = () => `COMMAND  PID USER FD TYPE NODE NAME\nsshd     742 root 3u IPv4 TCP *:22 (LISTEN)\n${L.conns.join('\n')}\n`;
+    const timers = Object.keys(ds.fs).filter((p) => /^\/etc\/systemd\/system\/.*\.timer$/.test(p));
+    const prevSystemctl = wrapped.systemctl;
+    wrapped.systemctl = (args, stdin, ctx) => {
+      const a = (args || []).join(' ');
+      if (/list-timers/.test(a)) return `NEXT                         LEFT     UNIT                ACTIVATES\n${timers.map((p) => `Sat 2026-11-14 08:30:00 CST  4min     ${p.split('/').pop().padEnd(20)}${p.split('/').pop().replace('.timer', '.service')}`).join('\n')}\n${timers.length} timers listed.\n`;
+      if (/list-unit-files/.test(a)) return `UNIT FILE                  STATE\n${Object.keys(ds.fs).filter((p) => /^\/etc\/systemd\/system\/[^/]+\.(service|timer)$/.test(p)).map((p) => `${p.split('/').pop().padEnd(27)}enabled`).join('\n')}\n`;
+      if (/list-units/.test(a)) return `UNIT                  LOAD   ACTIVE SUB\n${Object.entries(L.units).filter(([, s]) => s === 'active').map(([u]) => `${u}.service`.padEnd(22) + 'loaded active running').join('\n')}\n`;
+      return prevSystemctl ? prevSystemctl(args, stdin, ctx) : '';
+    };
     wrapped.crontab = (args) => {
       if ((args || []).includes('-l')) return ds.fs[ROOT_CRON] ?? 'no crontab for root\n';
       return 'usage: crontab -l | crontab -r\n';

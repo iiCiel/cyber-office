@@ -5,6 +5,7 @@
 import { h, clear } from '../dom.js';
 import { TermView } from './TermView.js';
 import { WinDesktop } from './WinDesktop.js';
+import { TermEditor } from './TermEditor.js';
 import { panosPrompt } from '../../game/panos.js';
 import './netlab.css';
 
@@ -12,8 +13,8 @@ const stop = (e) => e.stopPropagation();
 
 // A text console: tty login, then the shell. Also used for the firewall's CLI.
 class TextConsole {
-  constructor({ state, dev, run, onBrowser, session }) {
-    Object.assign(this, { state, dev, runOwner: run, onBrowser });
+  constructor({ state, dev, run, onBrowser, session, noteLine }) {
+    Object.assign(this, { state, dev, runOwner: run, onBrowser, noteLine });
     this.fw = dev.kind === 'firewall';
     this.ds = state.devState[dev.id];
     this.stage = 'login';
@@ -64,6 +65,8 @@ class TextConsole {
       return { lines: [{ cls: 'err', text: 'Login incorrect' }, { text: '' }] };
     }
     if (!this.fw && (line === 'exit' || line === 'logout') && !this.ds.pending) { this.logout(); return { lines: [] }; }
+    const ed = !this.fw && !this.ds.pending && line.match(/^(?:sudo\s+)?(nano|vim?)\s+(\S+)$/);
+    if (ed) { this.noteLine?.(this.dev.id, line); return this.openEditor(ed[1], ed[2]); }
     const fox = !this.fw && line.match(/^(?:firefox|chromium|google-chrome)\s+(\S+)/);
     if (fox) return this.dev.browser ? { lines: this.onBrowser(fox[1], this.dev.id, line) } : { lines: [{ cls: 'err', text: `bash: ${line.split(' ')[0]}: command not found` }] };
     const res = this.runOwner(line === '' && this.ds.pending ? '' : raw) || { lines: [] };
@@ -72,7 +75,33 @@ class TextConsole {
     return res;
   }
 
-  logout() { this.stage = 'login'; this.user = ''; this.ds.pending = null; if (this.ds.firewall) this.ds.firewall.mode = 'op'; this.banner(); this.term.redraw(); }
+  openEditor(tool, arg) {
+    if (tool === 'nano' && this.dev.noNano) return { lines: [{ cls: 'err', text: '-bash: nano: command not found' }] };
+    const cwd = this.ds.cwd || '/';
+    const parts = [];
+    for (const p of (arg.startsWith('/') ? arg : `${cwd}/${arg}`).split('/')) { if (p === '..') parts.pop(); else if (p && p !== '.') parts.push(p); }
+    const path = `/${parts.join('/')}`;
+    const isNew = this.ds.fs[path] === undefined;
+    const editor = new TermEditor({
+      tool: tool === 'nano' ? 'nano' : 'vi', path, text: this.ds.fs[path] ?? '', isNew,
+      onSave: (text) => {
+        if (this.ds.live.immutable?.includes(path)) return 'Operation not permitted';
+        this.ds.fs[path] = text;
+        // Hand the save to the engine as a no-op write of that file, so hardening checks read what the editor left.
+        this.runOwner(`printf '' | tee -a ${path}`);
+        return null;
+      },
+      onExit: () => this.closeEditor(),
+    });
+    this.editor = editor;
+    this.el.append(editor.el);
+    this.body.hidden = true;
+    return { lines: [] };
+  }
+
+  closeEditor() { this.editor?.el.remove(); this.editor = null; this.body.hidden = false; this.term.focus(); }
+
+  logout() { this.closeEditor(); this.stage = 'login'; this.user = ''; this.ds.pending = null; if (this.ds.firewall) this.ds.firewall.mode = 'op'; this.banner(); this.term.redraw(); }
 
   refresh() {
     const L = this.ds.live;
@@ -82,13 +111,13 @@ class TextConsole {
     else if (L?.bricked) msg = 'Welcome to emergency mode! After logging in, type "journalctl -xb" to view system logs.\nCannot open access to console, the root account is locked.\nFailed to mount /etc/fstab entries. Open a ticket with Tech Support to recover this VM.';
     else if (L && L.offlineUntil > clock) msg = 'Starting system...';
     this.notice.hidden = !msg;
-    this.body.hidden = !!msg;
+    this.body.hidden = !!msg || !!this.editor;
     if (msg) this.notice.textContent = msg;
     const boots = L?.boots || 0;
     if (boots !== this.boots) { this.boots = boots; this.logout(); }
   }
 
-  focus() { this.term.focus(); }
+  focus() { if (this.editor) this.editor.focus(); else this.term.focus(); }
   setInput(t) { this.term.setInput(t); }
   ctrlAltDel() {}
 }
@@ -179,7 +208,7 @@ export class NetlabApp {
     let c = this.consoles.get(id);
     if (!c) {
       const dev = this.vms.find((d) => d.id === id);
-      const args = { state: this.o.state, dev, session: this.o.sessions[id], run: (l) => this.o.run(id, l), clock: this.o.clock, clockLabel: this.o.clockLabel, onBrowser: (u, id, line) => this.o.onBrowser(u, id, line) };
+      const args = { state: this.o.state, dev, session: this.o.sessions[id], run: (l) => this.o.run(id, l), clock: this.o.clock, clockLabel: this.o.clockLabel, noteLine: (i, l) => this.o.noteLine?.(i, l), onBrowser: (u, id, line) => this.o.onBrowser(u, id, line) };
       c = dev.kind === 'pwsh' ? new WinConsole(args) : new TextConsole(args);
       this.consoles.set(id, c);
     }

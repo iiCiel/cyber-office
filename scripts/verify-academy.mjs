@@ -32,7 +32,7 @@ await page.locator('.ccx-btn.primary').click();
 await page.waitForSelector('[data-academy]');
 await page.screenshot({ path: `${out}/lessons.png` });
 const ids = await page.locator('[data-lesson]').evaluateAll((e) => e.map((x) => x.dataset.lesson));
-check('lessons are listed', ids.length >= 15, String(ids.length));
+check('lessons are listed', ids.length >= 29, String(ids.length));
 
 const MEMOS = {
   'rdp-request': 'We cannot open remote desktop to the internet because exposed RDP is a major ransomware and brute force risk. Instead we will set up a VPN with multi-factor authentication so that you can reach your office PC safely from the road.',
@@ -47,7 +47,29 @@ for (const id of ids) {
     const s = await scene(`const p = sc.coach; if (!p.lesson) return null; const s = p.step(); return { i: p.i, vm: s.vm, say: s.say || '', type: typeof s.type === 'function' ? s.type(sc.state) : s.type, ask: s.ask ? { sample: typeof s.ask.sample === 'function' ? s.ask.sample(sc.state) : s.ask.sample } : null, write: s.write || null, sim: typeof s.sim === 'string' ? s.sim : s.sim ? 'fn' : null, hasDone: !!s.done, tl: s.testLines || null, simWait: !!s.simWait, drill: !!s.drill, kind: sc.state.deviceList.find((d) => d.id === s.vm)?.kind, logged: s.vm ? !!sc.jb.app('netlab').loggedIn(s.vm) : false, complete: p.complete };`);
     if (!s) break;
     const where = `${id} step ${s.i + 1}`;
-    if (s.ask) { await panel.locator('[data-answer]').fill(s.ask.sample); await panel.locator('[data-check]').click(); }
+    if (s.edit) {
+      await enter(`${s.edit.tool} ${s.edit.path}`);
+      await page.waitForTimeout(120);
+      const ed = net.locator('.te-text');
+      const text = (await ed.inputValue()).replace(s.edit.find, s.edit.replace);
+      if (s.edit.tool === 'nano') {
+        await ed.fill(text);
+        if (id === 'editors' && s.i === 3) await page.screenshot({ path: `${out}/nano.png` });
+        await ed.press('Control+o');
+        await net.locator('.te-pinput').press('Enter');
+        await page.waitForTimeout(40);
+        await ed.press('Control+x');
+      } else {
+        await ed.press('i');
+        await ed.fill(text);
+        await ed.press('Escape');
+        if (id === 'editors' && s.i === 8) await page.screenshot({ path: `${out}/vi.png` });
+        await ed.press(':');
+        await net.locator('.te-pinput').fill('wq');
+        await net.locator('.te-pinput').press('Enter');
+      }
+      await page.waitForTimeout(80);
+    } else if (s.ask) { await panel.locator('[data-answer]').fill(s.ask.sample); await panel.locator('[data-check]').click(); }
     else if (s.write) { await panel.locator('[data-memo]').fill(`${await panel.locator('[data-memo]').inputValue()}${MEMOS[s.write.injectId]}`); await panel.locator('[data-grade]').click(); }
     else if (/log in as|sign in with/.test(s.say) && !s.complete) {
       if (s.kind === 'pwsh') {
@@ -87,6 +109,30 @@ for (const id of ids) {
     await page.waitForTimeout(40);
   }
   check(`lesson finished: ${id}`, await panel.locator(`[data-lesson="${id}"].done`).count() === 1);
+}
+// exams, by way of the same run() the consoles use
+for (const x of ['x-linux', 'x-windows', 'x-firewall']) {
+  await panel.locator('[data-actab="exams"]').click();
+  await panel.locator(`[data-exam="${x}"]`).click();
+  await page.waitForTimeout(100);
+  const started = await panel.locator('[data-exam-clock]').isVisible();
+  check(`exam started: ${x}`, started);
+  await scene(`const ex = sc.coach.exam; for (const id of ex.vms) { const d = sc.state.deviceList.find((z) => z.id === id); for (const raw of d.checklist) { const l = raw.replace('NEW-PASSWORD-HERE', 'Sturdy-Horse-42-Plan'); if (!/^firefox/.test(l)) sc.run(id, l); } if (sc.state.devState[id].creds.root) { sc.run(id, 'passwd root'); sc.run(id, 'Sturdy-Horse-42-Plan'); sc.run(id, 'Sturdy-Horse-42-Plan'); } }
+    if (a === 'x-firewall') { sc.run('pan', 'configure'); sc.run('pan', 'set mgt-config users admin password'); sc.run('pan', 'Sturdy-Horse-42-Plan'); sc.run('pan', 'Sturdy-Horse-42-Plan'); sc.run('pan', 'commit'); }
+    sc.startedAt -= 120000;`, x);
+  await page.waitForTimeout(2200);
+  if (x === 'x-linux') await page.screenshot({ path: `${out}/exam.png` });
+  check(`exam completes: ${x}`, await panel.locator('[data-exam-done]').count() === 1, (await panel.innerText()).replace(/\s+/g, ' ').slice(0, 200));
+  await panel.locator('.ac-back').click();
+}
+await panel.locator('[data-actab="quiz"]').click();
+for (let i = 0; i < 6; i++) {
+  const sample = await scene('return sc.coach.quizItem.sample;');
+  await panel.locator('[data-quiz-answer]').fill(sample);
+  await panel.locator('[data-quiz-check]').click();
+  check(`quiz item ${i + 1} accepts its answer`, await panel.locator('.ac-after').count() === 1);
+  if (i === 2) await page.screenshot({ path: `${out}/quiz.png` });
+  await panel.locator('[data-quiz-next]').click();
 }
 await page.reload();
 await page.waitForFunction(() => window.__game?.scene?.isActive('Title'), null, { timeout: 20000 });

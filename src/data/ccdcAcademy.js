@@ -9,28 +9,16 @@
 //   ask       { q, a: RegExp | (st) => RegExp, sample: string | (st) => string, why, seen? }
 //   write     { injectId, starter }                 setup(st)  breaks or plants something first
 //   after     shown when the step is complete       drill   hide the command until "Show me"
+//   edit      { tool, path, find, replace } a change made with nano or vi; what a test applies
 //   sim       (st) => void, what a test does for a step performed in a window rather than a console
 //
 // c = { st, ran(vm, re), loggedIn(vm), lastIncident() }
 
 import { stageAttack } from '../game/ccdcRed.js';
-import { TEAM } from './ccdcLabMidwest.js';
+import { NAT, PW, PW2, adPw, login, winLogin } from './ccdcAcademyKit.js';
+import { MORE_LESSONS } from './ccdcAcademyMore.js';
 
-const NAT = (x) => `172.25.${20 + TEAM}.${x}`;
-const PW = 'Prairie-Lantern-47-Oak';
-const PW2 = 'Copper-Thistle-92-Barn';
-const adPw = (who) => `Set-ADAccountPassword -Identity ${who} -Reset -NewPassword (ConvertTo-SecureString '${PW2}' -AsPlainText -Force)`;
-
-const login = (vm, name, user = 'root') => ({
-  vm, say: `Open the ${name} console and log in as ${user} with password Changeme123. Nothing shows while you type a password. That is normal.`,
-  done: (c) => c.loggedIn(vm), simUser: user, after: 'You are in.',
-});
-const winLogin = (vm, name) => ({
-  vm, say: `Open the ${name} console. Windows waits at a lock screen. Click the small arrow on the ${name} button, choose Send CTRL+ALT+DEL, and sign in with Changeme123. Then open PowerShell from the taskbar inside the VM (the blue icon).`,
-  done: (c) => c.loggedIn(vm), after: 'You are at the desktop.',
-});
-
-export const LESSONS = [
+const CORE = [
   {
     id: 'day', title: 'What Saturday actually is', mins: 8, vms: [],
     steps: [
@@ -290,6 +278,10 @@ export const LESSONS = [
   },
 ];
 
+const ORDER = ['day', 'concepts', 'netlab', 'linux', 'editors', 'passwords', 'services', 'hostfw', 'panos', 'pan2', 'persistence', 'deeplinux', 'evict', 'windows', 'windeep', 'scored', 'otherservices', 'patching', 'docker', 'splunk', 'splunkops', 'injects', 'injecttypes', 'incident', 'breakfix', 'redplaybook', 'otherfw', 'scripts', 'plan'];
+const ALL = [...CORE, ...MORE_LESSONS];
+export const LESSONS = ORDER.map((id) => ALL.find((l) => l.id === id));
+
 export const lessonById = (id) => LESSONS.find((l) => l.id === id);
 
 // The reference sheet: on screen in the panel, and printable (the packet allows printed notes).
@@ -305,6 +297,7 @@ export const SHEET = [
     ['Injects', 'PDF unless told otherwise. Late usually means zero'],
     ['Incident report', 'what happened, source and destination IPs, timeline, cracked passwords, what was affected, fix'],
   ]],
+  ['Editors', [['nano FILE', '^O Enter saves, ^X exits, ^K cuts a line'], ['vi FILE', 'i to type, Esc to stop'], [':wq', 'vi: save and quit'], [':q!', 'vi: quit, discard'], ['dd / u / /word', 'vi: delete line / undo / search']]],
   ['Ports', [['22', 'SSH'], ['25', 'SMTP'], ['53', 'DNS (udp and tcp)'], ['80 / 443', 'HTTP / HTTPS'], ['110', 'POP3'], ['123', 'NTP'], ['445', 'SMB'], ['3306', 'MySQL / MariaDB'], ['3389', 'RDP'], ['5985', 'WinRM']]],
   ['Linux: look', [
     ['cat /etc/issue', 'which OS'], ['ss -tulpn', 'what is listening'], ['ps aux', 'what is running'], ['who ; last', 'who is on, who was'],
@@ -316,6 +309,11 @@ export const SHEET = [
     ['sed -i \'s/old/new/\' FILE', 'edit a file'],
     ['service NAME status|restart', 'old systems (Ubuntu 14)'], ['systemctl status|restart NAME', 'newer systems'], ['curl http://localhost/', 'test the website'],
   ]],
+  ['Harder Linux backdoors', [
+    ['lsattr FILE ; chattr -i FILE', 'cannot delete as root? immutable flag'], ['cat /etc/rc.local', 'boot script'], ['systemctl list-timers', 'the newer cron'], ['cat /etc/ld.so.preload', 'should not exist'], ['cat /root/.bashrc', 'aliases, login commands'], ['find / -perm -4000', 'SUID programs'], ['ss -antp ; who', 'live connections, sessions'], ['pkill -9 -t pts/N', 'kick a session, AFTER changing the password'],
+    ['bash -i >& /dev/tcp/', 'reverse shell'], ['curl ... | bash', 'download and run'],
+  ]],
+  ['Old systems', [['/etc/apt/sources.list', 'Debian 8: use archive.debian.org'], ['apt-get -o Acquire::Check-Valid-Until=false update', 'accept the expired date'], ['/etc/yum.repos.d/CentOS-Base.repo', '#mirrorlist, baseurl=http://vault.centos.org'], ['Fedora 21', 'archives.fedoraproject.org/pub/archive/...'], ['No connection?', 'outbound blocked on the Palo Alto?']]],
   ['Host firewalls: allow first, then block', [
     ['iptables -L -n', 'list'], ['iptables -A INPUT -m state --state ESTABLISHED,RELATED -j ACCEPT', 'allow replies'], ['iptables -A INPUT -p tcp --dport 80 -j ACCEPT', 'allow a port'], ['iptables -P INPUT DROP', 'then drop the rest'],
     ['firewall-cmd --list-all', 'list'], ['firewall-cmd --permanent --add-service=http', 'save a rule'], ['firewall-cmd --permanent --remove-port=3306/tcp', 'save a removal'], ['firewall-cmd --reload', 'make saved rules live'],
@@ -326,6 +324,7 @@ export const SHEET = [
     ['set rulebase security rules NAME from Core to ZONE source any destination PUBLIC-IP application APP service application-default action allow', 'add a rule'],
     ['application [ web-browsing ssl ]', 'a list uses spaces and brackets'], ['delete rulebase security rules NAME', 'remove'], ['move rulebase security rules NAME top', 'reorder'], ['set mgt-config users admin password', 'admin password, needs commit'],
     ['commit', 'apply. Takes a while'], ['exit ; show jobs all', 'watch it: FIN and OK'], ['test security-policy-match from Core to ZONE source 8.8.8.8 destination PUBLIC-IP destination-port 80 protocol 6', 'what would happen'],
+    ['show log traffic last 50 direction equal backward', 'recent traffic'], ['set rulebase security rules X from Core to any source IP destination any application any service any action deny', 'block ONE address, then move it top'],
     ['Rule destination', 'PUBLIC address, zone AFTER NAT'], ['Apps', 'web-browsing ssl smtp pop3 dns ping'],
   ]],
   ['Windows / AD (PowerShell)', [
@@ -333,11 +332,12 @@ export const SHEET = [
     ['Set-ADAccountPassword -Identity NAME -Reset -NewPassword (ConvertTo-SecureString \'PW\' -AsPlainText -Force)', 'change an AD password'],
     ['Remove-ADGroupMember -Identity \'Domain Admins\' -Members NAME', 'remove rights'], ['Disable-ADAccount -Identity NAME', 'disable'], ['Disable-LocalUser -Name NAME', 'disable local'],
     ['Set-SmbServerConfiguration -EnableSMB1Protocol $false -Force', 'SMBv1 off'], ['Stop-Service Spooler -Force', 'stop'], ['Set-Service Spooler -StartupType Disabled', 'keep it off'], ['Get-ScheduledTask', 'look for persistence'],
+    ["Get-WinEvent -FilterHashtable @{LogName='Security'; Id=4625} -MaxEvents 5", 'read events'], ['netstat -ano ; Get-Process', 'connections, PIDs'], ['reg query HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run', 'startup'], ['setspn -Q */*', 'Kerberoast targets'], ['Reset krbtgt twice', 'kills forged tickets'],
     ['New-NetFirewallRule -DisplayName X -Direction Inbound -LocalPort N -Protocol TCP -Action Block', 'block a port'],
   ]],
   ['Splunk', [
     ['sourcetype=access_combined | stats count by src_ip | sort -count', 'busiest web clients'], ['sourcetype=linux_secure "Failed password" | stats count by src_ip', 'guessing attempts'], ['sourcetype=linux_secure "Accepted password"', 'logins that worked'],
-    ['4624 / 4625', 'Windows login worked / failed'], ['4720 / 4728', 'account created / added to a group'], ['4688', 'process started'],
+    ['4624 / 4625', 'Windows login worked / failed'], ['4720 / 4728', 'account created / added to a group'], ['4688 / 7045 / 4698 / 1102', 'process / service / task / log cleared'], ['splunk enable listen 9997', 'on the server'], ['splunk add forward-server IP:9997 ; add monitor FILE', 'on each machine'],
   ]],
   ['Something is red', [['1', 'Machine on?'], ['2', 'Service running?'], ['3', 'Listening? ss -tulpn'], ['4', 'Works from inside? curl'], ['5', 'Host firewall?'], ['6', 'Palo Alto? test security-policy-match'], ['7', 'What changed? Ask the team'], ['Last resort', 'Tech Support ticket: costs points, holes come back']]],
 ];
