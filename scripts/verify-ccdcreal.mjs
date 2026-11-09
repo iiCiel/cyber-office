@@ -29,6 +29,7 @@ for (const [length, seconds, wantInjects, tag] of [['Short', 900, 5, 'short'], [
   await page.waitForTimeout(200);
   await page.locator('.comp-card[data-mode="ccdc"]').click();
   await page.waitForFunction(() => window.__game.scene.isActive('CcdcLab'), null, { timeout: 8000 });
+  await page.locator('.ccx-radio', { hasText: 'Cedarline' }).click();
   await page.waitForTimeout(200);
   await page.locator('.ccx-radio', { hasText: `${length} ·` }).click();
   await page.locator('.ccx-radio', { hasText: 'Competition' }).click();

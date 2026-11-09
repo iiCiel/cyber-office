@@ -158,6 +158,7 @@ test('fixing everything fast leaves Red Team nothing', () => {
   for (const sc of CCDC_SCENARIOS) {
     const s = game(sc, { seed: 5 });
     for (const d of s.deviceList) for (const l of d.checklist) runLine(s, d.id, l);
+    if (sc.netlab) { s.engine.clock = 10; runLine(s, 'web', 'id'); } // a PAN-OS commit lands a few seconds later
     assert.equal(s.findingList.filter((f) => s.findings[f.id].status !== 'fixed').length, 0, sc.id);
     tickTo(s, s.timeLimitSec);
     assert.equal(s.engine.red.events.length, 0, sc.id);

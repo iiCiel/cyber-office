@@ -9,6 +9,8 @@
 
 import { evalFirewall } from './ccdcFirewall.js';
 import { makeDirectory } from './directory.js';
+import { systemctlStatus } from './hostState.js';
+import { finishCommit, panosEval, panosLine, startCommit } from './panos.js';
 
 export const REBOOT_SECS = 60; // sim seconds a rebooted box stays off the network (two scored checks)
 export const REVERT_SECS = 60;
@@ -64,6 +66,9 @@ export function initBox(dev, ds) {
     ds.creds[dev.user || 'analyst'] = acct();
     L.ipt = { policy: 'ACCEPT', rules: [] };
     L.ufw.default = 'allow';
+    L.boots = 0;
+    if (dev.fwtool) L.ufw.enabled = false; // only an Ubuntu box has ufw, and even there it ships inactive
+    if (dev.fwtool === 'firewalld') { L.units.firewalld = 'active'; L.fwd = { running: fwdZone(dev.fwdOpen), permanent: fwdZone(dev.fwdOpen) }; }
     const fs = ds.fs;
     fs[PASSWD] = fs[PASSWD] || `${[passwdLine('root', 0), 'daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin', 'www-data:x:33:33:www-data:/var/www:/usr/sbin/nologin', passwdLine(dev.user || 'analyst', 1000)].join('\n')}\n`;
     fs[AUTH_KEYS] = fs[AUTH_KEYS] ?? '';
@@ -76,6 +81,7 @@ export function initBox(dev, ds) {
     L.runKeys = [];
     L.winFw = { default: 'Allow', rules: [] };
     L.audit = {};
+    L.boots = 0;
   }
 }
 
@@ -95,6 +101,8 @@ function setPassword(ds, user, pw) {
   ds.creds[name] = { pw, strong: passwordStrong(pw, name), def: pw === DEFAULT_PASSWORD };
 }
 
+const isDcBox = (dev) => dev.kind === 'pwsh' && /domain controller/i.test(dev.name || '');
+
 /** Accounts on this box that still open the door: default or weak password, not locked or disabled. */
 export function weakAccounts(dev, ds) {
   const res = [];
@@ -102,11 +110,14 @@ export function weakAccounts(dev, ds) {
     if (c.strong || c.locked) continue;
     if (dev.kind === 'pwsh') {
       const local = ds.live?.localUsers?.find((u) => lc(u.Name) === name);
+      const domain = isDcBox(dev) ? dirOf(dev, ds)?.lookup(name) : null;
+      if (!local && !domain && name !== 'administrator') continue; // the account no longer exists
+      if (domain && domain.enabled === false) continue;
       if (local && !local.Enabled && name !== 'administrator') continue;
     }
     res.push(name);
   }
-  if (dev.kind === 'pwsh' && /domain controller/i.test(dev.name || '')) {
+  if (isDcBox(dev)) {
     const dir = dirOf(dev, ds);
     for (const u of dir?.all || []) {
       if (u.type !== 'user' || u.enabled === false || u.created === 'redteam') continue;
@@ -168,6 +179,37 @@ function srcCovers(src, ip) {
   return Math.floor(ipNum(ip) / size) === Math.floor(ipNum(base) / size);
 }
 
+// firewalld: the runtime and the permanent config are separate things, and --reload throws the runtime away.
+const FWD_SERVICES = { ssh: 22, http: 80, https: 443, smtp: 25, pop3: 110, imap: 143, dns: 53, mysql: 3306, ntp: 123 };
+function fwdZone(open = []) { return { zone: 'public', services: open.filter((x) => !/\//.test(x)), ports: open.filter((x) => /\//.test(x)) }; }
+function fwdAllows(z, port) {
+  if (z.zone !== 'public') return false;
+  return z.ports.some((p) => p.split('/')[0] === String(port)) || z.services.some((s) => FWD_SERVICES[s] === Number(port));
+}
+
+function firewallCmd(L, line) {
+  const f = L.fwd;
+  const perm = /--permanent\b/.test(line);
+  const z = perm ? f.permanent : f.running;
+  const add = (list, v) => { if (list.includes(v)) return out('Warning: ALREADY_ENABLED', 'success'); list.push(v); return out('success'); };
+  const rem = (list, v) => { const i = list.indexOf(v); if (i < 0) return out('Warning: NOT_ENABLED', 'success'); list.splice(i, 1); return out('success'); };
+  let m;
+  if (/--state\b/.test(line)) return L.units.firewalld === 'active' ? out('running') : fail('not running');
+  if (L.units.firewalld !== 'active') return fail('FirewallD is not running');
+  if (/--reload\b/.test(line)) { f.running = JSON.parse(JSON.stringify(f.permanent)); return out('success'); }
+  if ((m = line.match(/--add-port=(\S+)/))) return add(z.ports, m[1]);
+  if ((m = line.match(/--remove-port=(\S+)/))) return rem(z.ports, m[1]);
+  if ((m = line.match(/--add-service=(\S+)/))) return add(z.services, m[1]);
+  if ((m = line.match(/--remove-service=(\S+)/))) return rem(z.services, m[1]);
+  if ((m = line.match(/--set-default-zone=(\S+)/))) { f.running.zone = m[1]; f.permanent.zone = m[1]; return out('success'); }
+  if (/--get-default-zone\b/.test(line)) return out(f.running.zone);
+  if (/--list-ports\b/.test(line)) return out(z.ports.join(' '));
+  if (/--list-services\b/.test(line)) return out(z.services.join(' '));
+  if (/--add-rich-rule|--remove-rich-rule/.test(line)) return out('success');
+  if (/--list-all\b/.test(line)) return out(`${z.zone} (active)`, '  target: default', '  icmp-block-inversion: no', '  interfaces: eth0', '  sources: ', `  services: ${z.services.join(' ')}`, `  ports: ${z.ports.join(' ')}`, '  protocols: ', '  masquerade: no', '  forward-ports: ', '  source-ports: ', '  icmp-blocks: ', '  rich rules: ');
+  return fail('usage: see firewall-cmd --help');
+}
+
 /** Does the host's own firewall let the scoring engine in on this port? */
 function hostAllows(L, ports, scorer) {
   for (const port of ports) {
@@ -191,6 +233,7 @@ function hostAllows(L, ports, scorer) {
       }
       if ((verdict ? verdict === 'ALLOW' || verdict === 'LIMIT' : L.ufw.default !== 'deny') === false) return false;
     }
+    if (L.fwd && L.units.firewalld === 'active' && !fwdAllows(L.fwd.running, port)) return false;
     if (L.winFw) {
       const rule = L.winFw.rules.find((r) => String(r.port) === String(port));
       if (rule ? rule.action !== 'Allow' : L.winFw.default === 'Block') return false;
@@ -208,6 +251,7 @@ export function serviceProblem(state, svc, { lanOnly = false } = {}) {
     const edge = state.devState[fwFinding.host];
     if (edge?.firewall && evalFirewall(edge.firewall, fwFinding.fw).down.includes(svc.id)) return 'blocked at the edge firewall';
   }
+  if (fwFinding && state.devState[fwFinding.host]?.poweredOff) return 'the firewall is powered off';
   const ds = state.devState[svc.host];
   if (!ds?.live) return null;
   const L = ds.live;
@@ -219,6 +263,12 @@ export function serviceProblem(state, svc, { lanOnly = false } = {}) {
     if (!s || s.Status !== 'Running') return `${n} service is not running`;
   }
   for (const f of svc.files || []) if (ds.fs?.[f] === undefined) return `${f} is missing`;
+  for (const n of svc.needs || []) {
+    const other = state.devState[n.host];
+    if (!other) continue; // that box is not on this seat
+    if (!other.live || other.live.bricked || other.live.offlineUntil > clock(state)) return `${n.host} is unreachable`;
+    if (n.winService && other.live.winServices?.find((x) => lc(x.Name) === lc(n.winService))?.Status !== 'Running') return `${n.winService} on ${n.host} is not running`;
+  }
   if (svc.content && !svc.content.re.test(ds.fs?.[svc.content.file] || '')) return 'page content is wrong';
   if (svc.healthy && !svc.healthy(ds.fs || {})) return 'configuration is broken';
   const scorer = fwFinding?.fw?.scoringIp || '198.51.100.9';
@@ -228,6 +278,7 @@ export function serviceProblem(state, svc, { lanOnly = false } = {}) {
 
 /** Recompute every scored service from the boxes. Returns the ids that changed state in each direction. */
 export function syncServices(state) {
+  panosTick(state);
   const dropped = [];
   const restored = [];
   const services = Object.values(state.services);
@@ -264,6 +315,7 @@ function linuxUserDel(ds, name) {
 
 function goOffline(state, dev, ds) {
   ds.live.offlineUntil = clock(state) + REBOOT_SECS;
+  ds.live.boots = (ds.live.boots || 0) + 1;
   return out(`Connection to ${dev.ip} closed by remote host.`);
 }
 
@@ -312,7 +364,16 @@ function linuxCommand(state, dev, ds, line, toks) {
       if (L.units[unit] === undefined) return fail(`Failed to ${verb} ${unit}.service: Unit ${unit}.service not found.`);
       return out();
     }
-    case 'service': return toks[2] ? out() : null;
+    case 'service': {
+      if (!toks[2]) return null;
+      const u = lc(toks[1]).replace(/^sshd$/, 'ssh');
+      if (L.units[u] === undefined) return fail(`${toks[1]}: unrecognized service`);
+      if (lc(toks[2]) === 'status') return dev.init === 'upstart' ? out(L.units[u] === 'active' ? ` * ${toks[1]} is running` : ` * ${toks[1]} is not running`) : out(systemctlStatus(L, u).replace(/\n$/, '').split('\n'));
+      if (dev.init === 'upstart') return out(` * Restarting ${toks[1]}...`, '   ...done.');
+      return out(`Redirecting to /bin/systemctl ${lc(toks[2])} ${toks[1]}.service`);
+    }
+    case 'firewall-cmd': return firewallCmd(L, line);
+    case 'apt-get': case 'apt': case 'yum': case 'dnf': return packageManager(dev, cmd, toks);
     case 'ufw': {
       const verb = lc(toks[1]);
       if (verb === 'status' || !verb) return null;
@@ -356,6 +417,103 @@ function linuxCommand(state, dev, ds, line, toks) {
     case 'nano': case 'vi': case 'vim': return null;
     default: return null;
   }
+}
+
+// These boxes are old on purpose. Their repositories are gone, so "just patch it" fails the way it does on the day.
+function packageManager(dev, cmd, toks) {
+  const verb = lc(toks[1]);
+  if (!['update', 'upgrade', 'install', 'check-update', 'dist-upgrade'].includes(verb)) return null;
+  if (cmd === 'yum' || cmd === 'dnf') {
+    return fail('Loaded plugins: fastestmirror', 'Could not retrieve mirrorlist http://mirrorlist.centos.org/?release=7&arch=x86_64&repo=os error was', '14: curl#6 - "Could not resolve host: mirrorlist.centos.org; Unknown error"', '', ' One of the configured repositories failed (Unknown),', ' and yum doesn\'t have enough cached data to continue.', 'Cannot find a valid baseurl for repo: base/7/x86_64');
+  }
+  const rel = /debian/i.test(dev.os) ? 'jessie' : 'trusty';
+  return fail(`Err http://archive.ubuntu.com ${rel}/main amd64 Packages`, '  404  Not Found [IP: 91.189.91.83 80]', `W: Failed to fetch http://archive.ubuntu.com/dists/${rel}/main/binary-amd64/Packages  404  Not Found`, 'E: Some index files failed to download. They have been ignored, or old ones used instead.');
+}
+
+/** A tool this operating system does not have: the shell says so, and nothing changes on the box. */
+export function missingCommand(dev, line) {
+  if (dev.kind !== 'bash' || !dev.init) return null;
+  const cmd = lc(line.replace(/^sudo\s+/, '').split(/\s+/)[0]);
+  const absent = (dev.init === 'upstart' && cmd === 'systemctl')
+    || (cmd === 'ufw' && dev.fwtool !== 'ufw')
+    || (cmd === 'firewall-cmd' && dev.fwtool !== 'firewalld')
+    || (['apt', 'apt-get', 'dpkg'].includes(cmd) && dev.pkg !== 'apt')
+    || (cmd === 'yum' && dev.pkg !== 'yum')
+    || (cmd === 'dnf' && dev.pkg !== 'dnf');
+  if (!absent) return null;
+  return dev.pkg === 'yum' || dev.pkg === 'dnf' ? `-bash: ${cmd}: command not found` : `${cmd}: command not found`;
+}
+
+/** Red Team or an admin pressed the power button. Powering on does not undo anything that was done to the box. */
+export function setPower(state, devId, on) {
+  const ds = state.devState[devId];
+  if (!ds) return;
+  if (!ds.live) { ds.poweredOff = !on; syncServices(state); return; }
+  const L = ds.live;
+  if (on) {
+    if (!L.off) return;
+    L.off = false;
+    L.offlineUntil = L.bricked ? Infinity : clock(state) + REBOOT_SECS;
+    L.boots = (L.boots || 0) + 1;
+  } else { L.off = true; L.offlineUntil = Infinity; }
+  syncServices(state);
+}
+
+// ---- PAN-OS ---------------------------------------------------------------------------------------------------
+
+const COMMIT_SECS = 90; // competition-clock seconds a commit job takes on a PA-VM
+
+function panosApplied(state, dev, ds, res) {
+  const fw = ds.firewall;
+  if (res.pw) ds.creds.admin = { pw: res.pw, strong: passwordStrong(res.pw, 'admin'), def: res.pw === DEFAULT_PASSWORD };
+  for (const f of state.findingList.filter((x) => x.host === dev.id && x.fw)) {
+    const v = panosEval(fw, f.fw);
+    state.findings[f.id].status = v.fixed ? 'fixed' : 'open';
+    const violation = (id, text) => {
+      state.ruleViolations = state.ruleViolations || [];
+      if (state.ruleViolations.some((x) => x.id === id)) return;
+      state.ruleViolations.push({ id, text, at: clock(state) });
+      state.engine?.events.push({ at: clock(state), cls: 'bad', text: `White Team rule violation: ${text}` });
+    };
+    if (!v.icmp) violation('icmp', 'ICMP was blocked on a public address.');
+    if (v.filtered.length) violation('source', 'A public service was restricted by source address.');
+  }
+}
+
+export function panosTick(state) {
+  for (const dev of state.deviceList) {
+    if (!dev.panos) continue;
+    const ds = state.devState[dev.id];
+    if (ds.restartAt && clock(state) >= ds.restartAt) { ds.restartAt = 0; ds.poweredOff = false; }
+    const p = ds.firewall.pendingCommit;
+    if (p && clock(state) >= p.at) panosApplied(state, dev, ds, finishCommit(ds.firewall));
+  }
+}
+
+/** One typed line at the firewall console, or one action from the web interface (prefix "@config "). */
+export function runPanos(state, dev, ds, rawLine) {
+  const fw = ds.firewall;
+  const lines = (r) => r.lines.map((text) => ({ cls: r.error ? 'err' : '', text }));
+  if (ds.pending?.kind === 'panpw') {
+    const p = ds.pending;
+    if (p.first === null) { p.first = rawLine; return { lines: [{ cls: '', text: 'Confirm password :' }], effects: {} }; }
+    ds.pending = null;
+    if (p.first !== rawLine) return { lines: [{ cls: 'err', text: 'Passwords do not match' }], effects: {} };
+    fw.candidate.adminPw = rawLine;
+    fw.dirty = true;
+    return { lines: [], effects: {} };
+  }
+  const api = {
+    startCommit: () => startCommit(fw, state.engine ? clock(state) + COMMIT_SECS / (state.timeScale || 1) : 0),
+    reboot: () => { ds.poweredOff = true; ds.restartAt = clock(state) + REBOOT_SECS; },
+  };
+  const gui = /^@config\s/.test(rawLine);
+  const before = fw.mode;
+  if (gui) fw.mode = 'config';
+  const r = panosLine(fw, gui ? rawLine.replace(/^@config\s+/, '') : rawLine, api);
+  if (gui) fw.mode = before;
+  if (r.pending) ds.pending = r.pending;
+  return { lines: lines(r), effects: { ...(r.logout ? { logout: true } : {}) } };
 }
 
 function winServiceOf(L, name) { return L.winServices.find((s) => lc(s.Name) === lc(name)); }

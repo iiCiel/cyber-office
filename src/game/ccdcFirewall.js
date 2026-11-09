@@ -6,6 +6,8 @@
 // Rule shape: { action:'pass'|'block', proto:'tcp'|'udp'|'any', dst:'<host-or-any>', port:'<n|n-n|any>',
 //               from:'<host-or-any>' }. Everything is fiction (RFC 5737 / RFC 1918 hosts); nothing is applied.
 
+import { panosEval } from './panos.js';
+
 const HELP = [
   'Edge firewall (pfSense-style) — WAN inbound rule editor. Simulated; nothing is applied.',
   'Commands:',
@@ -163,6 +165,7 @@ function exposure(fw, spec) {
  *   - down lists scored services the current rules would cut off.
  */
 export function evalFirewall(fw, fwSpec) {
+  if (fw.panos) return panosEval(fw, fwSpec);
   const svcById = Object.fromEntries((fwSpec.services || []).map((s) => [s.id, s]));
   const down = [];
   for (const id of fwSpec.scored) {

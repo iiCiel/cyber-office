@@ -5,6 +5,7 @@ import { contextMenu, dialog } from './winWidgets.js';
 import { createAduc, createServices, createTasks, createLusr, createExplorer } from './winApps.js';
 import { createEvents, createServerManager } from './winApps2.js';
 import { initHostState } from '../../game/hostState.js';
+import { dirOf } from '../../game/ccdcBox.js';
 import { adModel, isAdLine, hasAdGui, isServerOs, securityEvents, systemEvents, applicationEvents, ROUND_START, fmtClock, cmd } from '../../game/winGuiMap.js';
 import './windesktop.css';
 
@@ -33,8 +34,9 @@ const APPS = {
 };
 
 export class WinDesktop {
-  constructor({ state, dev, run, termBuffer, termHistory, clock }) {
+  constructor({ state, dev, run, termBuffer, termHistory, clock, consoleMode = false, clockLabel = null }) {
     installWinIcons();
+    this.consoleMode = consoleMode; this.clockLabel = clockLabel;
     this.state = state; this.dev = dev; this.runOwner = run; this.clock = clock || (() => 0);
     this.ds = state.devState[dev.id];
     this.buffer = termBuffer || []; this.history = termHistory || [];
@@ -71,7 +73,7 @@ export class WinDesktop {
     return {
       dev: this.dev, host: this.host, isServer: this.isServer,
       live: () => this.ds.live,
-      model: () => { const k = `ad:${this.cmdLog.length}`; if (!this.cache.has(k)) { this.cache.set(k, adModel(this.dev.ctx.dir, this.cmdLog.map((c) => c.line).filter(isAdLine))); } return this.cache.get(k); },
+      model: () => { const k = `ad:${this.cmdLog.length}`; if (!this.cache.has(k)) { this.cache.set(k, adModel(dirOf(this.dev, this.ds) || this.dev.ctx.dir, this.cmdLog.map((c) => c.line).filter(isAdLine))); } return this.cache.get(k); },
       events: (log) => this.events(log),
       act: (line) => this.act(line),
       openApp: (id) => this.openApp(id),
@@ -115,7 +117,7 @@ export class WinDesktop {
     this.taskbar = h('div', { class: 'wd-taskbar' },
       this.startBtn, search, h('button', { type: 'button', class: 'wd-tvbtn', 'aria-label': 'Task View' }, h('i', { class: 'wd-taskview' })), this.taskApps,
       h('div', { class: 'wd-tray' }, h('span', { class: 'wd-tray-i chev' }), h('span', { class: 'wd-tray-i net' }), h('span', { class: 'wd-tray-i vol' }), this.clockEl, h('span', { class: 'wd-showdesk', title: 'Show desktop', onclick: () => this.minimiseAll() })));
-    this.root.append(this.rdp, this.desk, this.taskbar);
+    this.root.append(...(this.consoleMode ? [] : [this.rdp]), this.desk, this.taskbar);
   }
   deskIcon(label, icon, open) {
     return h('div', { class: 'wd-dicon', tabindex: '0', ondblclick: open, onclick: (e) => { this.icons.querySelectorAll('.sel').forEach((n) => n.classList.remove('sel')); e.currentTarget.classList.add('sel'); }, onkeydown: (e) => { if (e.key === 'Enter') open(); } },
@@ -289,7 +291,7 @@ export class WinDesktop {
   refresh() {
     if (this.destroyed) return;
     this.layout();
-    const c = fmtClock(this.clock());
+    const c = this.clockLabel ? this.clockLabel() : fmtClock(this.clock());
     if (this._clk !== c.time + c.date) { this._clk = c.time + c.date; clear(this.clockEl).append(h('div', {}, c.time), h('div', {}, c.date)); }
     this.refreshApps(false);
   }

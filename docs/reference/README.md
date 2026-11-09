@@ -71,3 +71,16 @@ These three screens are from the public Midwest team packet (2026 Regional, gith
   serviceSource, mitreTechniques, evidence[] of device/process/file evidence), sourcetype `ms365:defender:incident:alerts`.
 - Sysmon Event ID 1: XmlWinEventLog with the real Data names (Image, CommandLine, Hashes, ParentImage, ParentCommandLine).
 - Proof: `docs/proof/logs/day5-{soc,mde,filterlog,sysmon}.png` from `scripts/shot-daylogs.mjs` (0 console errors).
+
+## Midwest invitational round
+
+| File | Shows | Used for |
+|---|---|---|
+| panos-policy-list.png | PAN-OS Policies > Security | PanosApp rule table |
+| panos-commit.png | PAN-OS Commit dialog | PanosApp commit |
+| panos-rule-general.png | Security Policy Rule, General tab | PanosApp rule dialog |
+| panos-login.png | PAN-OS login | PanosApp login |
+| support-services-2026.png | Support Services "My applications", 2026 Midwest regional packet | SupportApp launcher |
+
+The PAN-OS images are from Palo Alto's public pan.dev documentation repository. No reference exists yet for the NETLAB+ topology page, the ticket form or a Windows login inside NETLAB+.
+

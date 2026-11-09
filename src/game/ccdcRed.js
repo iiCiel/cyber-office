@@ -12,12 +12,15 @@
 
 import { hash01 } from './ccdcHash.js';
 import { AUTH_KEYS, AUTH_LOG, PASSWD, dirOf, weakAccounts } from './ccdcBox.js';
+import { clockAt, dayOf } from './ccdcRound.js';
+import { plantRule } from './panos.js';
 
 export const RED_POOL = 200;
 export const FINDING_POOL = 140;
 export const OPS = 28; // Red Team actions per round, whatever its length
-export const TAKEDOWN_FROM = 12; // game hour
-export const DESTROY_FROM = 14.5;
+// Fractions of the competition day: on a 09:00-16:00 day these land at 12:00 and 14:30.
+export const TAKEDOWN_AT = 3 / 7;
+export const DESTROY_AT = 5.5 / 7;
 const PTS = { creds: 8, persist: 3, takedown: 8, destroy: 15, reentry: 5, edge: 10 };
 
 const LINUX_NAMES = ['apt-compat2', 'dbus-sync', 'logrotated', 'snap-refreshd', 'motd-news2', 'pkgcache'];
@@ -26,12 +29,14 @@ const WIN_TASKS = ['MicrosoftEdgeUpdateCore2', 'OneDriveStandaloneSync', 'Window
 const WIN_USERS = ['svc_monitor', 'helpdesk2', 'scan_admin', 'svc_wsus'];
 const WIN_RUN = ['OneDriveHelper', 'RealtekAudioSvc', 'SyncHost'];
 
-export function gameHour(state, sec) { return 9 + (sec * (state.timeScale || 28)) / 3600; }
+const dayOfState = (state) => dayOf(state.scenario);
+export function gameHour(state, sec) { return dayOfState(state).start + (sec * (state.timeScale || 28)) / 3600; }
+/** Clock hour at which Red Team moves to the given fraction of the day. */
+export const phaseHour = (state, frac) => dayOfState(state).start + dayOfState(state).hours * frac;
 
 /** 'HH:MM' on the competition clock for a sim-seconds value. */
 export function gameTime(state, sec) {
-  const t = 9 * 3600 + Math.floor(sec * (state.timeScale || 28));
-  return `${String(Math.floor(t / 3600)).padStart(2, '0')}:${String(Math.floor((t % 3600) / 60)).padStart(2, '0')}`;
+  return clockAt(state.scenario, sec * (state.timeScale || 28));
 }
 
 const seedOf = (state) => {
@@ -102,7 +107,7 @@ export function implantAlive(state, im) {
     case 'localuser': return L.localUsers.some((u) => u.Name === im.artifact && u.Enabled);
     case 'aduser': { const u = dirOf(dev, ds)?.lookup(im.artifact); return !!u && u.enabled !== false && u.memberOf.includes('Domain Admins'); }
     case 'runkey': return L.runKeys.some((k) => k.name === im.artifact);
-    case 'fwrule': return ds.firewall.rules.some((x) => x.from === im.artifact);
+    case 'fwrule': return ds.firewall.rules.some((x) => (ds.firewall.panos ? x.source.includes(im.artifact) : x.from === im.artifact));
     default: return false;
   }
 }
@@ -237,7 +242,10 @@ function act(state, r, dev, sec) {
   const ds = state.devState[dev.id];
   if (dev.kind === 'firewall') {
     if (!r.implants.some((i) => i.dev === dev.id && implantAlive(state, i))) {
-      ds.firewall.rules.unshift({ action: 'pass', proto: 'any', dst: 'any', port: 'any', from: r.ip });
+      if (ds.firewall.panos) {
+        plantRule(ds.firewall, 'allow-updates', r.ip);
+        for (const f of state.findingList) if (f.host === dev.id && f.fw) state.findings[f.id].status = 'open';
+      } else ds.firewall.rules.unshift({ action: 'pass', proto: 'any', dst: 'any', port: 'any', from: r.ip });
       const im = { kind: 'fwrule', artifact: r.ip, tag: 'rule', dev: dev.id, at: sec };
       r.implants.push(im);
       record(state, r, sec, { type: 'persist', host: dev.id, artifact: r.ip, text: `added a WAN pass rule for ${r.ip}.`, charged: PTS.edge, implant: im, keywords: [r.ip] });
@@ -247,13 +255,13 @@ function act(state, r, dev, sec) {
   if (ds.live.bricked || ds.live.offlineUntil > sec) return;
   const alive = r.implants.filter((i) => i.dev === dev.id && implantAlive(state, i)).length;
   const hour = gameHour(state, sec);
-  if (hour < TAKEDOWN_FROM || alive < 1) { if (alive < 2) plant(state, r, dev, ds, sec); return; }
+  if (hour < phaseHour(state, TAKEDOWN_AT) || alive < 1) { if (alive < 2) plant(state, r, dev, ds, sec); return; }
   const up = state.serviceList.filter((s) => s.host === dev.id && state.services[s.id]?.state === 'up');
   const cooled = (r.lastHit[dev.id] ?? -99) <= r.n - 2;
   if (!up.length || !cooled) { if (alive < 3) plant(state, r, dev, ds, sec); return; }
   const svc = pick(state, r, up, 11);
   r.lastHit[dev.id] = r.n;
-  if (hour >= DESTROY_FROM && roll(state, r, 12) < 0.5) destroy(state, r, dev, ds, svc, sec);
+  if (hour >= phaseHour(state, DESTROY_AT) && roll(state, r, 12) < 0.5) destroy(state, r, dev, ds, svc, sec);
   else takedown(state, r, dev, ds, svc, sec);
 }
 
@@ -290,7 +298,7 @@ function runOp(state, sec) {
       record(state, r, sec, { type: 'foothold', host: dev.id, account: v.account, title: `Weak password on ${v.account}@${dev.host}`, impact: 'Red Team logged in with a default or weak password.', text: `logged in as ${v.account} with a default or weak password.`, charged: PTS.creds, keywords: [v.account] });
       if (ds.live && ds.fs) {
         ds.fs[AUTH_LOG] += `sshd[${1000 + r.n}]: Accepted password for ${v.account} from ${r.ip} port ${40000 + r.n} ssh2\n`;
-        ds.live.sessions.push(`${v.account}  pts/7        2026-10-31 09:${String(10 + r.n).padStart(2, '0')} (${r.ip})`);
+        ds.live.sessions.push(`${v.account}  pts/7        ${dayOf(state.scenario).iso} ${gameTime(state, sec)} (${r.ip})`);
       }
     }
   }

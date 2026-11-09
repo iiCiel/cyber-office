@@ -18,6 +18,7 @@ for (const [tag, viewport] of [['1366', { width: 1366, height: 800 }], ['390', {
   await page.waitForTimeout(200);
   await page.locator('.comp-card[data-mode="ccdc"]').click();
   await page.waitForFunction(() => window.__game.scene.isActive('CcdcLab'));
+  await page.locator('.ccx-radio', { hasText: 'Cedarline' }).click();
   await page.waitForTimeout(200);
   await page.locator('.ccx-radio', { hasText: 'Long ·' }).click();
   await page.locator('.ccx-radio', { hasText: 'Competition' }).click();

@@ -32,7 +32,7 @@ export function roster(state) {
   const sd = seedNum(state.seed);
   const others = 9 + Math.floor(hash01(sd, 1) * 3);
   const total = others + 1;
-  const youNo = 1 + Math.floor(hash01(sd, 2) * total);
+  const youNo = state.scenario?.teamNumber || 1 + Math.floor(hash01(sd, 2) * total);
   const teams = [];
   for (let n = 1; n <= total; n++) {
     const you = n === youNo;

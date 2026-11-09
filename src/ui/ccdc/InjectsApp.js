@@ -4,24 +4,20 @@
 //
 //   const ij = new InjectsApp({ state, clock, guided, team, onNav, onSubmit: (id, text) => ({ ok, error?, late?, grade? }) })
 import { h, clear } from '../dom.js';
+import { clockAt, dayOf } from '../../game/ccdcRound.js';
 import './injects.css';
 
 const stripTitle = (t) => String(t).replace(/^Inject\s+\d+\s*[—–-]\s*/i, '');
-const clockText = (sec, scale = 1) => {
-  const t = 9 * 3600 + Math.max(0, Math.floor(sec * scale));
-  return `${String(Math.floor(t / 3600)).padStart(2, '0')}:${String(Math.floor((t % 3600) / 60)).padStart(2, '0')}`;
-};
-// Portal timestamps look like the real ones: 10/31 9:09.
-const stamp = (sec, scale = 1) => {
-  const t = 9 * 3600 + Math.max(0, Math.floor(sec * scale));
-  return `10/31 ${Math.floor(t / 3600)}:${String(Math.floor((t % 3600) / 60)).padStart(2, '0')}`;
-};
 const remaining = (sec) => {
   const s = Math.max(0, Math.floor(sec));
   return `0d ${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m ${s % 60}s`;
 };
 
 export class InjectsApp {
+  clockOf(sec) { return clockAt(this.state.scenario, sec * this.state.timeScale); }
+  // Portal timestamps look like the real ones: 10/31 9:09.
+  stamp(sec) { return `${dayOf(this.state.scenario).date} ${this.clockOf(sec).replace(/^0/, '')}`; }
+
   constructor({ state, onSubmit, guided = false, clock, team = '', onNav = null }) {
     this.state = state;
     this.team = team;
@@ -92,15 +88,15 @@ export class InjectsApp {
           title: h('td', { class: 'ni-c0' }, h('a', { href: '#', onclick: (e) => { e.preventDefault(); this.select(i.id); } }, stripTitle(i.title))),
         };
         const t0 = this._timer(i.id);
-        const due = Number.isFinite(t0.dueAt) ? stamp(t0.dueAt, this.state.timeScale) : '';
-        r.tr.append(r.title, h('td', { class: 'ni-c1' }, stamp(t0.releaseAt, this.state.timeScale)), h('td', { class: 'ni-c2' }, due), h('td', { class: 'ni-c3' }, due), r.score, r.sub, r.left);
+        const due = Number.isFinite(t0.dueAt) ? this.stamp(t0.dueAt) : '';
+        r.tr.append(r.title, h('td', { class: 'ni-c1' }, this.stamp(t0.releaseAt)), h('td', { class: 'ni-c2' }, due), h('td', { class: 'ni-c3' }, due), r.score, r.sub, r.left);
         this.tbody.append(r.tr);
       }
       const st = this._status(i);
       const rec = this.state.injects[i.id];
       const t = this._timer(i.id);
       r.score.textContent = rec.done && this.guided && rec.grade ? `${rec.grade.pts} / ${i.points}` : String(i.points);
-      if (rec.done && !r.sub.textContent) r.sub.textContent = stamp(this.clock(), this.state.timeScale);
+      if (rec.done && !r.sub.textContent) r.sub.textContent = this.stamp(this.clock());
       r.left.textContent = st === 'Missed' ? 'Closed' : rec.done || !Number.isFinite(t.dueAt) ? '' : remaining(t.dueAt - sec);
       r.left.className = `ni-c6${!rec.done && t.dueAt - sec < 60 ? ' ij-urgent' : ''}`;
       r.tr.classList.toggle('ij-unread', !this.seen.has(i.id) && !rec.done);
@@ -132,7 +128,7 @@ export class InjectsApp {
     if (live.length === this.annCount) return;
     this.annCount = live.length;
     clear(this.annBody);
-    for (const [at, title] of live) this.annBody.append(h('tr', {}, h('td', {}, h('a', { href: '#', onclick: (e) => e.preventDefault() }, title)), h('td', { class: 'ni-pub' }, stamp(at, this.state.timeScale))));
+    for (const [at, title] of live) this.annBody.append(h('tr', {}, h('td', {}, h('a', { href: '#', onclick: (e) => e.preventDefault() }, title)), h('td', { class: 'ni-pub' }, this.stamp(at))));
   }
 
   _updateDetailLive(i) {
@@ -150,8 +146,8 @@ export class InjectsApp {
       h('table', { class: 'ij-hdr' }, h('tbody', {},
         h('tr', {}, h('th', {}, 'From:'), h('td', {}, i.from)),
         h('tr', {}, h('th', {}, 'To:'), h('td', {}, 'Blue Team (all seats)')),
-        h('tr', {}, h('th', {}, 'Date:'), h('td', {}, `Competition day, ${clockText(t.releaseAt, this.state.timeScale)}`)),
-        h('tr', {}, h('th', {}, 'Due:'), h('td', {}, `${Number.isFinite(t.dueAt) ? clockText(t.dueAt, this.state.timeScale) : 'no deadline'}  `, rec.done || !Number.isFinite(t.dueAt) ? '' : h('span', { class: 'ij-due-live ij-urgent-soft' }, remaining(t.dueAt - this.clock())))),
+        h('tr', {}, h('th', {}, 'Date:'), h('td', {}, `Competition day, ${this.clockOf(t.releaseAt)}`)),
+        h('tr', {}, h('th', {}, 'Due:'), h('td', {}, `${Number.isFinite(t.dueAt) ? this.clockOf(t.dueAt) : 'no deadline'}  `, rec.done || !Number.isFinite(t.dueAt) ? '' : h('span', { class: 'ij-due-live ij-urgent-soft' }, remaining(t.dueAt - this.clock())))),
         h('tr', {}, h('th', {}, 'Subject:'), h('td', { class: 'ij-subj' }, stripTitle(i.title))),
         h('tr', {}, h('th', {}, 'Worth:'), h('td', {}, `${i.points} points`)))),
       h('div', { class: 'ij-body' }, i.prompt),

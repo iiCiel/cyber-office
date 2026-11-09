@@ -23,6 +23,7 @@ async function toLab(page) {
   await page.waitForTimeout(200);
   await page.locator('.comp-card[data-mode="ccdc"]').click();
   await page.waitForFunction(() => window.__game.scene.isActive('CcdcLab'), null, { timeout: 8000 });
+  await page.locator('.ccx-radio', { hasText: 'Cedarline' }).click();
   await page.waitForTimeout(200);
 }
 const openWin = async (page, id) => { await page.locator(`.jb-tb-app[data-open="${id}"]`).click(); await page.waitForTimeout(250); };

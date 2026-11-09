@@ -10,6 +10,7 @@ await page.keyboard.press('t');
 await page.waitForFunction(() => window.__game.scene.isActive('Competitions'));
 await page.locator('.comp-card[data-mode="ccdc"]').click();
 await page.waitForFunction(() => window.__game.scene.isActive('CcdcLab'));
+  await page.locator('.ccx-radio', { hasText: 'Cedarline' }).click();
 await page.locator('.ccx-radio', { hasText: 'Competition' }).click();
 await page.locator('.ccx-btn.primary').click();
 await page.waitForSelector('.jb-taskbar');

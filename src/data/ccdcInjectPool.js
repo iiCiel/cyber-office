@@ -25,7 +25,7 @@ export function injectPool(sc) {
     { id: 'p-blockip', title: 'Block an abusive address', from: 'SOC vendor', window: 60,
       prompt: `Our SOC vendor reports abuse from ${badIp}. Block it at the edge firewall and reply with the rule you added.`,
       model: `A block rule for ${badIp} placed above the pass rules on the WAN.`,
-      rubric: [{ label: `${badIp} is blocked on ${edge?.host}`, verify: (st) => (st.devState[edge?.id]?.firewall?.rules || []).some((r) => r.action === 'block' && r.from === badIp) }, { ...has(new RegExp(badIp.replace(/\./g, '\\.'))), label: 'names the address' }, { ...has(/block|deny|drop/i), label: 'describes the rule' }] },
+      rubric: [{ label: `${badIp} is blocked on ${edge?.host}`, verify: (st) => (st.devState[edge?.id]?.firewall?.rules || []).some((r) => (r.action === 'block' && r.from === badIp) || (['deny', 'drop'].includes(r.action) && r.source?.includes(badIp))) }, { ...has(new RegExp(badIp.replace(/\./g, '\\.'))), label: 'names the address' }, { ...has(/block|deny|drop/i), label: 'describes the rule' }] },
     { id: 'p-backup', title: 'Back up the website', from: 'Operations Manager', window: 75,
       prompt: `Before any more changes, take a copy of the ${web.host} site into /var/backups and tell Operations what was saved.`,
       model: 'A copy of the site files under /var/backups, with the path and time.',

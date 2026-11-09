@@ -4,6 +4,7 @@
 //
 //   const chat = new ChatApp({ state, clock }); host.append(chat.el); chat.refresh() each second; chat.unreadCount()
 import { h, clear } from '../dom.js';
+import { clockAt } from '../../game/ccdcRound.js';
 import './chat.css';
 
 export const CHANNELS = ['general', 'linux', 'windows', 'network', 'injects'];
@@ -40,10 +41,6 @@ const BANTER = [
   { at: 780, who: 'captain', ch: 'general', text: 'Last stretch. Do not make big changes now. Verify, do not break.' },
 ];
 
-const fmtTs = (sec, scale = 1) => {
-  const t = 9 * 3600 + Math.floor(sec * scale);
-  return `${String(Math.floor(t / 3600)).padStart(2, '0')}:${String(Math.floor((t % 3600) / 60)).padStart(2, '0')}`;
-};
 
 export class ChatApp {
   constructor({ state, clock }) {
@@ -200,10 +197,10 @@ export class ChatApp {
         const u = m.who === 'me' ? ME : TEAMMATES[m.who];
         const cont = prev && prev.who === m.who && m.at - prev.at < 120;
         this.msgs.append(cont
-          ? h('div', { class: 'ch-msg ch-cont' }, h('span', { class: 'ch-ts' }, fmtTs(m.at)), h('div', { class: 'ch-text' }, m.text))
+          ? h('div', { class: 'ch-msg ch-cont' }, h('span', { class: 'ch-ts' }, clockAt(this.state.scenario, m.at * this.state.timeScale)), h('div', { class: 'ch-text' }, m.text))
           : h('div', { class: 'ch-msg' },
             h('span', { class: 'ch-avatar', style: { background: u.color === '#dbdee1' ? '#4e5058' : u.color } }, u.label[0]),
-            h('div', { class: 'ch-body' }, h('div', { class: 'ch-line' }, h('span', { class: 'ch-user', style: { color: u.color } }, u.name), u.role ? h('span', { class: 'ch-role' }, u.role) : null, h('span', { class: 'ch-time' }, `Today at ${fmtTs(m.at)}`)), h('div', { class: 'ch-text' }, m.text))));
+            h('div', { class: 'ch-body' }, h('div', { class: 'ch-line' }, h('span', { class: 'ch-user', style: { color: u.color } }, u.name), u.role ? h('span', { class: 'ch-role' }, u.role) : null, h('span', { class: 'ch-time' }, `Today at ${clockAt(this.state.scenario, m.at * this.state.timeScale)}`)), h('div', { class: 'ch-text' }, m.text))));
         prev = m;
       }
       if (!all.length) this.msgs.append(h('div', { class: 'ch-empty' }, `This is the start of #${this.current}.`));

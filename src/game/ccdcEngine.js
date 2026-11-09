@@ -10,7 +10,7 @@
 // and the engine is attached to a game only when the scene drives a clock. Everything is simulated.
 
 import { SERVICE_STATE } from './ccdcLab.js';
-import { syncServices } from './ccdcBox.js';
+import { panosTick, syncServices } from './ccdcBox.js';
 import { attachRed, redAdvance } from './ccdcRed.js';
 
 // One scored check every CHECK_INTERVAL game-seconds (CCDC engines poll ~60 s; we use 30 so a short practice
@@ -112,6 +112,7 @@ export function tickTo(state, sec) {
 function stepTo(state, sec) {
   const eng = state.engine;
   eng.clock = sec;
+  panosTick(state);
 
   // Inject release + deadline.
   for (const i of state.injectList) {
