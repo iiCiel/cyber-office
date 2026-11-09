@@ -46,9 +46,15 @@ const RESOLV = 'nameserver 172.20.240.20\nsearch driftless.local\n';
 const issue = (t) => `${t}\n\n`;
 const SSHD = (root) => `Port 22\nProtocol 2\nPermitRootLogin ${root}\nPasswordAuthentication yes\nX11Forwarding yes\nUsePAM yes\n`;
 
+const LISTENERS = { 22: 'sshd', 25: 'master', 53: 'named', 80: 'httpd', 110: 'dovecot', 443: 'httpd', 3306: 'mysqld', 8000: 'splunkd', 8089: 'splunkd' };
+const listen = (ports, web) => ports.map((p) => `LISTEN  0  128  0.0.0.0:${p}  users:(("${(p === 80 || p === 443) && web ? web : LISTENERS[p]}",pid=${900 + p},fd=4))`).join('\n');
 const linux = (d) => ({
   kind: 'bash', user: 'sysadmin', cwd: '/root', prompt: `root@${d.host}:~#`, ...d,
-  ctx: { user: 'root', host: d.host, cwd: '/root', history: [], ...d.ctx, fs: { '/etc/resolv.conf': RESOLV, ...d.ctx.fs } },
+  ctx: {
+    user: 'root', host: d.host, cwd: '/root', history: [], ...d.ctx,
+    fs: { '/etc/resolv.conf': RESOLV, ...d.ctx.fs },
+    commands: { who: () => 'root     tty1         2026-11-14 08:01\n', last: () => `root     tty1                      Sat Nov 14 08:01   still logged in\nsysadmin tty1                      Fri Nov 13 16:41 - 16:58  (00:17)\n\nwtmp begins Mon Mar  2 09:11:04 2026\n`, ...(d.ctx.commands || {}) },
+  },
 });
 
 const fwFlows = [
@@ -140,7 +146,7 @@ export const CCDC_MIDWEST = {
     },
     linux({
       id: 'dns', name: 'DNS / NTP server', host: 'dns', tab: 'Debian', ip: '172.20.240.20', os: 'Debian 8.5', role: 'linux', init: 'systemd', fwtool: 'iptables', pkg: 'apt', nat: NAT(20), zone: 'Internal',
-      live: { units: ['bind9', 'ntp'] },
+      live: { units: ['bind9', 'ntp'] }, recon: { listen: listen([22, 53]) },
       brief: 'BIND recurses for anyone, and root can log in over SSH. Scored: lookups in driftless.local. There is no ufw or firewalld here, only iptables.',
       checklist: ['grep -n recursion /etc/bind/named.conf.options', "sed -i 's/allow-recursion { any; };/allow-recursion { 172.20.0.0\\/16; };/' /etc/bind/named.conf.options", 'systemctl reload bind9', "sed -i 's/PermitRootLogin yes/PermitRootLogin no/' /etc/ssh/sshd_config", 'systemctl restart ssh'],
       ctx: { fs: {
@@ -153,7 +159,7 @@ export const CCDC_MIDWEST = {
     }),
     linux({
       id: 'web', name: 'Web server', host: 'web', tab: 'Ubuntu Srv', ip: '172.20.242.10', os: 'Ubuntu 14.04', role: 'webdb', init: 'upstart', fwtool: 'ufw', pkg: 'apt', nat: NAT(23), zone: 'User',
-      live: { units: ['apache2'] },
+      live: { units: ['apache2'] }, recon: { listen: listen([22, 80], 'apache2') },
       brief: 'Public website. Scored on page content, so do not touch index.html. A PHP web shell sits in uploads/ and there is a second UID 0 account. Ubuntu 14.04 has no systemctl: use service.',
       checklist: ['find /var/www -name "*.php"', 'cat /var/www/html/uploads/thumb.php', 'rm /var/www/html/uploads/thumb.php', 'grep ":0:" /etc/passwd', 'userdel webmaint'],
       ctx: { fs: {
@@ -202,7 +208,7 @@ export const CCDC_MIDWEST = {
     linux({
       id: 'splunk', name: 'Splunk server', host: 'splunk', tab: 'Splunk', ip: '172.20.241.20', os: 'Oracle Linux 9 (Splunk Enterprise)', role: 'linux', init: 'systemd', fwtool: 'firewalld', pkg: 'dnf', nat: NAT(9), zone: 'Public',
       fwdOpen: ['ssh', '8000/tcp', '8089/tcp', '9997/tcp'],
-      live: { units: ['splunk'] },
+      live: { units: ['splunk'] }, recon: { listen: listen([22, 8000, 8089]) },
       brief: 'Log server. The Splunk admin account still has the install password.',
       checklist: ['/opt/splunk/bin/splunk edit user admin -password NEW-PASSWORD-HERE -auth admin:changeme'],
       ctx: { fs: { '/etc/issue': issue('Oracle Linux Server 9\\nKernel \\r on an \\m'), '/opt/splunk/etc/system/local/user-seed.conf': '[user_info]\nUSERNAME = admin\nPASSWORD = changeme\n', '/etc/ssh/sshd_config': SSHD('yes') } },
@@ -210,7 +216,7 @@ export const CCDC_MIDWEST = {
     linux({
       id: 'ecom', name: 'E-commerce server', host: 'ecomm', tab: 'CentOS', ip: '172.20.241.30', os: 'CentOS 7', role: 'webdb', init: 'systemd', fwtool: 'firewalld', pkg: 'yum', nat: NAT(11), zone: 'Public', prompt: '[root@ecomm ~]#',
       fwdOpen: ['ssh', 'http', 'https', '3306/tcp'],
-      live: { units: ['httpd', 'mariadb'] },
+      live: { units: ['httpd', 'mariadb'] }, recon: { listen: listen([22, 80, 443, 3306]) },
       brief: 'Parts store on Apache and MariaDB. The database port is open to every network, the store admin password is admin, and a cron job phones home. firewalld: a change without --permanent is lost on reload, and a --permanent change does nothing until you --reload.',
       checklist: ['firewall-cmd --list-all', 'firewall-cmd --permanent --remove-port=3306/tcp', 'firewall-cmd --reload', "sed -i \"s/ADMIN_PASSWORD', 'admin'/ADMIN_PASSWORD', 'NEW-PASSWORD-HERE'/\" /var/www/html/config.php", 'cat /etc/cron.d/sysstat-upd', 'rm /etc/cron.d/sysstat-upd', 'rm /usr/local/sbin/sysstat-upd'],
       ctx: { fs: {
@@ -228,7 +234,7 @@ export const CCDC_MIDWEST = {
     linux({
       id: 'mail', name: 'Webmail / WebApps server', host: 'mail', tab: 'Fedora', ip: '172.20.241.40', os: 'Fedora 21', role: 'linux', init: 'systemd', fwtool: 'firewalld', pkg: 'yum', nat: NAT(39), zone: 'Public', prompt: '[root@mail ~]#',
       fwdOpen: ['ssh', 'http', 'smtp', 'pop3'],
-      live: { units: ['postfix', 'dovecot', 'httpd'] },
+      live: { units: ['postfix', 'dovecot', 'httpd'] }, recon: { listen: listen([22, 25, 80, 110]) },
       brief: 'Postfix and Dovecot, with users from AD. The relay accepts mail from anyone, and the webmail installer was left in place.',
       checklist: ['postconf mynetworks', "postconf -e 'mynetworks = 127.0.0.0/8 172.20.0.0/16'", 'systemctl reload postfix', 'rm -rf /var/www/html/webmail/installer'],
       ctx: { fs: {

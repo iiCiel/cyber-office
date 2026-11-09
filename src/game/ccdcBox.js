@@ -43,6 +43,8 @@ const clock = (state) => state.engine?.clock || 0;
 
 export const PASSWD = '/etc/passwd';
 export const AUTH_LOG = '/var/log/auth.log';
+/** Red Hat family systems log logins to /var/log/secure. */
+export const authLogOf = (dev) => (dev.pkg === 'yum' || dev.pkg === 'dnf' ? '/var/log/secure' : AUTH_LOG);
 export const AUTH_KEYS = '/root/.ssh/authorized_keys';
 export const ROOT_CRON = '/var/spool/cron/crontabs/root';
 
@@ -72,7 +74,7 @@ export function initBox(dev, ds) {
     const fs = ds.fs;
     fs[PASSWD] = fs[PASSWD] || `${[passwdLine('root', 0), 'daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin', 'www-data:x:33:33:www-data:/var/www:/usr/sbin/nologin', passwdLine(dev.user || 'analyst', 1000)].join('\n')}\n`;
     fs[AUTH_KEYS] = fs[AUTH_KEYS] ?? '';
-    fs[AUTH_LOG] = fs[AUTH_LOG] ?? '';
+    fs[authLogOf(dev)] = fs[authLogOf(dev)] ?? '';
     fs['/etc/crontab'] = fs['/etc/crontab'] || 'SHELL=/bin/sh\n17 *\t* * *\troot\tcd / && run-parts --report /etc/cron.hourly\n';
     fs['/etc/fstab'] = fs['/etc/fstab'] || 'UUID=4e1f2a7c / ext4 defaults 0 1\n';
   } else {
@@ -146,6 +148,8 @@ function iptRule(toks) {
 }
 
 function applyIptables(L, toks, line) {
+  // Conntrack and loopback rules carry replies, not new connections: listed, but not a verdict on a scored port.
+  if (toks.includes('-A') && (toks.includes('--state') || toks.includes('--ctstate') || (toks.includes('-i') && toks[toks.indexOf('-i') + 1] === 'lo'))) { L.ipt.rules.push({ dport: null, src: null, proto: 'all', target: 'ACCEPT', stateful: true }); return out(); }
   if (toks.includes('-L') || toks.includes('-S')) return null;
   if (toks.includes('-F')) { L.ipt.rules = []; return out(); }
   if (toks.includes('-P')) {
@@ -216,6 +220,7 @@ function hostAllows(L, ports, scorer) {
     if (L.ipt) {
       let verdict = null;
       for (const r of L.ipt.rules) {
+        if (r.stateful) continue;
         if (r.dport && String(r.dport) !== String(port)) continue;
         if (r.src && !srcCovers(r.src, scorer)) continue;
         verdict = r.target;
@@ -476,6 +481,7 @@ function panosApplied(state, dev, ds, res) {
       state.engine?.events.push({ at: clock(state), cls: 'bad', text: `White Team rule violation: ${text}` });
     };
     if (!v.icmp) violation('icmp', 'ICMP was blocked on a public address.');
+    if (fw.rules.some((r) => r.action !== 'allow' && r.source.some((s) => /\/(\d|[12]\d|3[01])$/.test(s)))) violation('subnet', 'A whole subnet was blocked.');
     if (v.filtered.length) violation('source', 'A public service was restricted by source address.');
   }
 }

@@ -11,7 +11,7 @@
 //   path 'local' needs a foothold on that box already.
 
 import { hash01 } from './ccdcHash.js';
-import { AUTH_KEYS, AUTH_LOG, PASSWD, dirOf, weakAccounts } from './ccdcBox.js';
+import { AUTH_KEYS, PASSWD, authLogOf, dirOf, weakAccounts } from './ccdcBox.js';
 import { clockAt, dayOf } from './ccdcRound.js';
 import { plantRule } from './panos.js';
 
@@ -66,6 +66,29 @@ function record(state, r, sec, ev) {
   return e;
 }
 
+function authLine(state, dev, sec, n, account, ip) {
+  const [, mm, dd] = dayOf(state.scenario).iso.split('-');
+  const month = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][Number(mm) - 1];
+  return `${month} ${dd} ${gameTime(state, sec)}:${String(n % 60).padStart(2, '0')} ${dev.host} sshd[${1000 + n}]: Accepted password for ${account} from ${ip} port ${40000 + n} ssh2\n`;
+}
+
+/** Learn mode: Red Team logs in to a box and leaves something behind, right now. */
+export function stageAttack(state, devId, { tag = 'cron', account = 'root' } = {}) {
+  const r = state.engine.red;
+  const dev = state.deviceList.find((d) => d.id === devId);
+  const ds = state.devState[devId];
+  const sec = state.engine.clock;
+  r.n += 1;
+  r.access[devId] = true;
+  ds.fs[authLogOf(dev)] += authLine(state, dev, sec, r.n, account, r.ip);
+  ds.live.sessions.push(`${account}  pts/7        ${dayOf(state.scenario).iso} ${gameTime(state, sec)} (${r.ip})`);
+  record(state, r, sec, { type: 'foothold', host: devId, account, title: `Weak password on ${account}@${dev.host}`, impact: 'Red Team logged in.', text: `logged in as ${account}.`, charged: PTS.creds, keywords: [account] });
+  const im = plantLinux(state, r, dev, ds, sec, tag);
+  r.implants.push(im);
+  record(state, r, sec, { type: 'persist', host: devId, artifact: im.artifact, text: `planted ${im.text}.`, charged: PTS.persist, implant: im, keywords: [im.artifact] });
+  return im;
+}
+
 // ---- reachability --------------------------------------------------------------------------------------------
 
 function edgeClosed(state) {
@@ -118,12 +141,12 @@ function addProc(ds, r, state, cmd) {
   ds.live.conns.push(`ESTAB  0  0  ${state.deviceList.find((d) => ds === state.devState[d.id]).ip}:${40000 + (pid % 20000)}  ${r.ip}:443  users:(("${cmd.split('/').pop()}",pid=${pid},fd=3))`);
 }
 
-function plantLinux(state, r, dev, ds, sec) {
+function plantLinux(state, r, dev, ds, sec, force = null) {
   const tried = new Set(r.implants.filter((i) => i.dev === dev.id).map((i) => i.tag));
   const webroot = state.serviceList.find((s) => s.host === dev.id && s.content)?.content.file.replace(/\/[^/]*$/, '');
   const options = ['cron', 'key', 'user', 'unit', ...(webroot ? ['webshell'] : [])].filter((k) => !tried.has(k));
   if (!options.length) return null;
-  const tag = pick(state, r, options, 1);
+  const tag = force || pick(state, r, options, 1);
   const name = pick(state, r, LINUX_NAMES, 2);
   let im;
   if (tag === 'cron') {
@@ -297,7 +320,7 @@ function runOp(state, sec) {
     } else {
       record(state, r, sec, { type: 'foothold', host: dev.id, account: v.account, title: `Weak password on ${v.account}@${dev.host}`, impact: 'Red Team logged in with a default or weak password.', text: `logged in as ${v.account} with a default or weak password.`, charged: PTS.creds, keywords: [v.account] });
       if (ds.live && ds.fs) {
-        ds.fs[AUTH_LOG] += `sshd[${1000 + r.n}]: Accepted password for ${v.account} from ${r.ip} port ${40000 + r.n} ssh2\n`;
+        ds.fs[authLogOf(dev)] += authLine(state, dev, sec, r.n, v.account, r.ip);
         ds.live.sessions.push(`${v.account}  pts/7        ${dayOf(state.scenario).iso} ${gameTime(state, sec)} (${r.ip})`);
       }
     }

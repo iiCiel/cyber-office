@@ -1,0 +1,49 @@
+/* Learn mode coach: a plain working panel, the game's own, not imitating any real tool. */
+.ac { position: absolute; top: 0; right: 0; bottom: 40px; width: 360px; display: flex; flex-direction: column; background: #f5f3ec; color: #24211c; border-left: 1px solid #8d8778; font: 14px/1.45 Georgia, 'Times New Roman', serif; z-index: 8000; }
+.jb.ac-on .jb-desk { right: 360px; }
+.jb.ac-on.ac-closed .jb-desk { right: 28px; }
+.ac.ac-hidden { width: 28px; }
+.ac.ac-hidden .ac-body, .ac.ac-hidden .ac-head b, .ac.ac-hidden .ac-tabs { display: none; }
+.ac-head { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: #2c2a25; color: #f5f3ec; }
+.ac-head b { font-size: 15px; }
+.ac-tabs { margin-left: auto; display: flex; gap: 2px; }
+.ac button { cursor: pointer; }
+.ac-tab { padding: 3px 8px; background: none; border: 1px solid #6b665a; color: #d8d3c5 !important; font: 12px Arial, sans-serif !important; }
+.ac-tab.on { background: #f5f3ec; color: #24211c !important; }
+.ac-collapse { width: 18px; padding: 0; background: none; border: 0; color: #f5f3ec !important; font: 700 13px Arial, sans-serif !important; }
+.ac-body { flex: 1; overflow-y: auto; padding: 12px 14px 20px; }
+.ac-body h3 { margin: 2px 0 10px; font-size: 18px; line-height: 1.2; }
+.ac-body h4 { margin: 12px 0 3px; font: 700 12px Arial, sans-serif; text-transform: uppercase; letter-spacing: .03em; }
+.ac-body p { margin: 0 0 9px; white-space: pre-line; }
+.ac-intro { color: #5a5548; }
+.ac-prog { height: 8px; background: #ddd8c8; }
+.ac-prog i { display: block; height: 100%; background: #2f6b3f; }
+.ac-progtext { margin: 3px 0 9px; font: 12px Arial, sans-serif; color: #5a5548; }
+.ac-list { margin: 0; padding: 0 0 0 22px; }
+.ac-list li { margin: 0 0 2px; }
+.ac-item { width: 100%; display: flex; justify-content: space-between; gap: 8px; padding: 5px 4px; background: none; border: 0; border-bottom: 1px solid #ddd8c8; text-align: left; font: 14px Georgia, serif !important; color: #24211c !important; }
+.ac-item:hover { background: #ebe7d9; }
+.ac-item small { flex: none; color: #7a7464; font: 11px Arial, sans-serif; }
+.ac-item.done small { color: #2f6b3f; font-weight: 700; }
+.ac-crumb { display: flex; justify-content: space-between; font: 12px Arial, sans-serif; color: #7a7464; margin-bottom: 4px; }
+.ac-back { background: none; border: 0; padding: 0; color: #24519a !important; font: 12px Arial, sans-serif !important; }
+.ac-cmdlabel { margin-top: 4px; font: 700 11px Arial, sans-serif; text-transform: uppercase; color: #7a7464; }
+.ac-cmd { display: block; margin: 3px 0 8px; padding: 7px 8px; background: #1b1a17; color: #e8e4d4; font: 12.5px/1.4 Consolas, 'DejaVu Sans Mono', monospace; word-break: break-word; user-select: all; }
+.ac-parts { width: 100%; margin-bottom: 8px; border-collapse: collapse; font: 12px/1.3 Arial, sans-serif; }
+.ac-parts td { padding: 2px 4px; border-bottom: 1px solid #ddd8c8; vertical-align: top; }
+.ac-parts td:first-child { font-family: Consolas, 'DejaVu Sans Mono', monospace; word-break: break-word; width: 44%; }
+.ac-load, .ac-show { display: block; margin-bottom: 8px; padding: 3px 8px; background: none; border: 1px solid #8d8778; color: #24211c !important; font: 12px Arial, sans-serif !important; }
+.ac-look { padding: 6px 8px; background: #efe9d5; }
+.ac-q { font-weight: 700; }
+.ac-input, .ac-ta { width: 100%; padding: 5px 6px; border: 1px solid #8d8778; background: #fff; color: #000; font: 13px Arial, sans-serif; }
+.ac-ta { height: 200px; resize: vertical; }
+.ac-check, .ac-next { margin-top: 7px; padding: 6px 16px; background: #2c2a25; border: 0; color: #f5f3ec !important; font: 700 13px Arial, sans-serif !important; }
+.ac-after { color: #1f5a30; font-weight: 700; }
+.ac-bad { color: #9c2a1c; font-weight: 700; }
+.ac-wait { color: #7a7464; font-style: italic; }
+.ac-sheet { width: 100%; border-collapse: collapse; font: 11.5px/1.3 Arial, sans-serif; }
+.ac-sheet td { padding: 2px 3px; border-bottom: 1px solid #ddd8c8; vertical-align: top; }
+.ac-sheet code { font: 11px Consolas, 'DejaVu Sans Mono', monospace; word-break: break-word; }
+@media (max-width: 900px) { .ac { width: 280px; font-size: 13px; } .jb.ac-on .jb-desk { right: 280px; } }
+.ac-sheet td:first-child { width: 50%; overflow-wrap: anywhere; }
+.ac-sheet code { word-break: normal; overflow-wrap: anywhere; }

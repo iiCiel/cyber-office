@@ -4,7 +4,7 @@ import { h, clear, placeOnCanvas } from '../ui/dom.js';
 import { CCDC_LAB } from '../data/ccdcLabScenario.js';
 import { CCDC_SCENARIOS } from '../data/ccdcScenarios.js';
 import {
-  newGame, runLine, answerInject, runRedTeam, expire, score, recordBest, requestRevert,
+  newGame, runLine, answerInject, runRedTeam, expire, score, recordBest, requestRevert, resetBoxes,
   rolesFor, devicesForRole, injectsForRole, ROLES, MODES,
 } from '../game/ccdcLab.js';
 import { attachEngine, tickTo, notePasswordRotated, notePcrFiled } from '../game/ccdcEngine.js';
@@ -28,6 +28,7 @@ import { PlaybookApp } from '../ui/ccdc/PlaybookApp.js';
 import { NetlabApp } from '../ui/ccdc/NetlabApp.js';
 import { PanosApp } from '../ui/ccdc/PanosApp.js';
 import { SupportApp, DocsApp } from '../ui/ccdc/SupportApp.js';
+import { AcademyPanel } from '../ui/ccdc/AcademyPanel.js';
 import '../ui/screen.css';
 import '../ui/competitions.css';
 import '../ui/ccdc/ccdcdoc.css';
@@ -51,6 +52,7 @@ export class CcdcLabScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#000000');
     this.sound2 = this.game.registry.get('sound');
     this.guided = true;
+    this.learn = true;
     this.lengthId = 'short';
     this.role = ROLES.ALL;
     this.phase = 'brief';
@@ -166,10 +168,11 @@ export class CcdcLabScene extends Phaser.Scene {
         h('div', { class: 'ccx-form-row', 'data-length': '' }, h('span', { class: 'ccx-form-label' }, 'Length:'),
           Object.values(ROUND_LENGTHS).filter((l) => !l.realTime || sc.netlab).map((l) => radio('ccx-length', this.lengthId === l.id, () => { this.lengthId = l.id; this.render(); }, `${l.label} · ${roundSeconds(l, sc) / 60} min`, l.realTime ? 'The real thing: the whole block at real speed.' : l.pool ? 'The whole day: every inject, Red Team over a full hour.' : 'The same day compressed: 5 injects, Red Team moves fast.'))),
         h('div', { class: 'ccx-form-row' }, h('span', { class: 'ccx-form-label' }, 'Round:'),
-          radio('ccx-mode', this.guided, () => { this.guided = true; this.render(); }, 'Practice', 'No buzzer. A playbook with every step is on the desktop. Injects have no deadline.'),
-          radio('ccx-mode', !this.guided, () => { this.guided = false; this.render(); }, 'Competition', 'Live clock and deadlines. No playbook and no hints: the terminals print only what the real commands print.')),
+          sc.netlab ? radio('ccx-mode', this.learn, () => { this.learn = true; this.guided = true; this.render(); }, 'Learn', 'Start here. Step-by-step lessons on the real consoles. No clock, no Red Team until a lesson brings one.') : null,
+          radio('ccx-mode', this.guided && !this.learnOn(), () => { this.learn = false; this.guided = true; this.render(); }, 'Practice', 'No buzzer. A playbook with every step is on the desktop. Injects have no deadline.'),
+          radio('ccx-mode', !this.guided, () => { this.learn = false; this.guided = false; this.render(); }, 'Competition', 'Live clock and deadlines. No playbook and no hints: the terminals print only what the real commands print.')),
         h('div', { class: 'ccx-doc-actions' },
-          h('button', { type: 'button', class: 'ccx-btn primary', onclick: () => this.startRound() }, sc.netlab ? 'Open the competition portals' : `Log in to TEAM${this.tn()}-WS01`),
+          h('button', { type: 'button', class: 'ccx-btn primary', onclick: () => this.startRound() }, this.learnOn() ? 'Start learning' : sc.netlab ? 'Open the competition portals' : `Log in to TEAM${this.tn()}-WS01`),
           h('button', { type: 'button', class: 'ccx-btn', onclick: () => this.exit() }, 'Back')))));
   }
 
@@ -182,11 +185,14 @@ export class CcdcLabScene extends Phaser.Scene {
     return [...ds, inj ? `${inj} injects` : null].filter(Boolean).join(', ');
   }
 
+  learnOn() { return !!this.learn && !!this.scenario.netlab; }
+
   // ---- round lifecycle -------------------------------------------------------------------------------------
   startRound() {
     this.sound2?.play('select');
     const sc = this.scenario;
-    this.state = newGame(sc, { seed: this.seed, mode: this.guided ? MODES.GUIDED : MODES.COMPETITION, role: this.role, length: this.lengthId });
+    const learning = this.learnOn();
+    this.state = newGame(sc, { seed: this.seed, mode: this.guided ? MODES.GUIDED : MODES.COMPETITION, role: learning ? ROLES.ALL : this.role, length: learning ? 'long' : this.lengthId });
     this.siem = createSiem(sc, { seed: this.state.seed, liveRate: 60 / this.state.timeScale });
     // Both round types run the live scoring engine (the scoreboard and the other teams need a clock). Practice
     // has no buzzer and no inject deadlines; ending the round fast-forwards the remaining checks and red-team
@@ -201,7 +207,9 @@ export class CcdcLabScene extends Phaser.Scene {
     this.sessions = {};
     for (const d of this.state.deviceList) this.sessions[d.id] = { buffer: [], history: [] };
     this.startedAt = Date.now();
-    this.awaitingDrop = this.state.injectList.some((i) => i.welcome);
+    this.awaitingDrop = !learning && this.state.injectList.some((i) => i.welcome);
+    this.lineLog = [];
+    if (learning) { this.state.engine.red.next = Infinity; this.state.timeLimitSec = 1e7; }
     this.deadline = this.guided || this.awaitingDrop ? 0 : Date.now() + this.state.timeLimitSec * 1000;
     this.seenEvents = 0;
     this.lastSec = -1;
@@ -255,7 +263,7 @@ export class CcdcLabScene extends Phaser.Scene {
       create: () => new NetlabApp({
         state: st, scenario: sc, team: this.tn(), sessions: this.sessions, clock: () => this.elapsed(), locked: () => this.awaitingDrop,
         clockLabel: () => { const [hh, mm] = gameTime(st, this.elapsed()).split(':').map(Number); return { time: `${((hh + 11) % 12) + 1}:${String(mm).padStart(2, '0')} ${hh < 12 ? 'AM' : 'PM'}`, date: `${dayOf(sc).date}/2026` }; },
-        run: (id, l) => this.run(id, l), onBrowser: (u) => this.onBrowser(u),
+        run: (id, l) => this.run(id, l), onBrowser: (u, id, line) => { this.lineLog?.push({ vm: id, line: String(line).trim().replace(/\s+/g, ' ') }); if (this.coach) setTimeout(() => this.coach?.onLine(), 0); return this.onBrowser(u); },
         onPower: (id, on) => { setPower(st, id, on); this.jb.refresh(); },
         undock: (id) => this.jb.open(`undock-${id}`), closeUndock: (id) => this.jb.minimize(`undock-${id}`),
       }) });
@@ -286,9 +294,11 @@ export class CcdcLabScene extends Phaser.Scene {
     let res;
     try { res = runLine(this.state, devId, line); } catch (err) { res = { lines: [{ cls: 'err', text: `${err?.message || 'error'}` }], effects: {} }; }
     const e = res.effects || {};
-    if (this.guided && e.why) res.lines = [...res.lines, { cls: 'note', text: `Coach: ${e.why}` }];
+    this.lineLog?.push({ vm: devId, line: String(line).trim().replace(/\s+/g, ' ') });
+    if (this.coach) setTimeout(() => this.coach?.onLine(), 0);
+    if (this.guided && !this.learnOn() && e.why) res.lines = [...res.lines, { cls: 'note', text: `Coach: ${e.why}` }];
     if (e.pcrRotated) notePasswordRotated(this.state);
-    if (this.guided && ((e.dropped && e.dropped.length) || e.trapId)) this.jb?.toast({ app: 'Scoring Engine', title: 'Service check failing', text: `${(e.dropped || []).join(', ') || 'a service'} stopped answering after that change.`, cls: 'bad', open: 'score' });
+    if (this.guided && !this.learnOn() && ((e.dropped && e.dropped.length) || e.trapId)) this.jb?.toast({ app: 'Scoring Engine', title: 'Service check failing', text: `${(e.dropped || []).join(', ') || 'a service'} stopped answering after that change.`, cls: 'bad', open: 'score' });
     this.sound2?.play(!this.guided ? 'click' : e.fixed ? 'select' : (e.dropped && e.dropped.length) || e.trapId ? 'error' : 'click');
     return res;
   }
@@ -368,6 +378,14 @@ export class CcdcLabScene extends Phaser.Scene {
       onQuit: () => this.exit(),
     });
     this.root.append(this.jb.el);
+    this.coach = null;
+    if (this.learnOn()) {
+      this.jb.open('netlab');
+      this.coach = new AcademyPanel({ state: this.state, host: this.coachHost() });
+      this.jb.el.classList.add('ac-on');
+      this.jb.el.append(this.coach.el);
+      return;
+    }
     if (this.scenario.netlab) {
       this.jb.open('netlab');
       this.jb.open('injects');
@@ -383,8 +401,27 @@ export class CcdcLabScene extends Phaser.Scene {
     this.jb.toast({ app: 'Discord', title: 'Captain', text: this.guided ? 'Practice round. Playbook is on the desktop. Scoreboard is live.' : 'Drop flag. Change the default passwords, then get the firewall up.', open: 'chat' });
   }
 
+  coachHost() {
+    const norm = (s) => String(s).trim().replace(/\s+/g, ' ');
+    return {
+      logSize: () => this.lineLog.length,
+      showVm: (id) => { this.jb.open('netlab'); this.jb.app('netlab').openVm(id); },
+      showWin: (id) => { this.jb.open(id); },
+      load: (id, line) => this.loadCommand(this.state.deviceList.find((d) => d.id === id), line),
+      startLesson: (lesson) => { resetBoxes(this.state, lesson.vms); this.jb.refresh(); },
+      onToggle: (hidden) => this.jb.el.classList.toggle('ac-closed', hidden),
+      ctx: (mark) => ({
+        st: this.state,
+        ran: (vm, want) => this.lineLog.slice(mark).some((l) => l.vm === vm && (want instanceof RegExp ? want.test(l.line) : l.line === norm(want))),
+        loggedIn: (vm) => !!this.jb.app('netlab')?.loggedIn(vm),
+        lastIncident: () => this.state.incidents?.[this.state.incidents.length - 1],
+      }),
+    };
+  }
+
   trayInfo() {
     const st = this.state;
+    if (this.learnOn()) return { time: 'Learn', clock: 'no clock' };
     if (!st?.engine) return {};
     if (this.awaitingDrop) return { time: 'Before', clock: 'drop flag' };
     const left0 = this.guided ? null : Math.max(0, this.deadline - Date.now());
@@ -413,6 +450,7 @@ export class CcdcLabScene extends Phaser.Scene {
     this.drainEvents();
     if (!this.guided && Date.now() >= this.deadline) { this.deadline = 0; expire(this.state); this.timedOut = true; this.finishRound(); return; }
     this.jb?.refresh();
+    this.coach?.refresh();
   }
 
   // New engine events become what a real team would notice: toasts, Splunk lines for red-team activity.
@@ -421,6 +459,7 @@ export class CcdcLabScene extends Phaser.Scene {
     for (; this.seenEvents < evs.length; this.seenEvents++) {
       const e = evs[this.seenEvents];
       if (e.cls === 'inject') this.jb?.toast({ app: 'NISE', title: 'New inject released', text: e.text, open: 'injects' });
+      else if (this.learnOn()) continue;
       else if (this.guided && e.cls === 'bad' && /SLA/.test(e.text)) this.jb?.toast({ app: 'Scoring Engine', title: 'SLA violation', text: e.text, cls: 'bad', open: 'score' });
       else if (this.guided && e.cls === 'redop') this.jb?.toast({ app: 'Coach', title: 'Red Team activity', text: e.text, cls: 'warn', open: 'siem' });
     }

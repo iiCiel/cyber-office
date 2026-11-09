@@ -65,7 +65,7 @@ class TextConsole {
     }
     if (!this.fw && (line === 'exit' || line === 'logout') && !this.ds.pending) { this.logout(); return { lines: [] }; }
     const fox = !this.fw && line.match(/^(?:firefox|chromium|google-chrome)\s+(\S+)/);
-    if (fox) return this.dev.browser ? { lines: this.onBrowser(fox[1]) } : { lines: [{ cls: 'err', text: `bash: ${line.split(' ')[0]}: command not found` }] };
+    if (fox) return this.dev.browser ? { lines: this.onBrowser(fox[1], this.dev.id, line) } : { lines: [{ cls: 'err', text: `bash: ${line.split(' ')[0]}: command not found` }] };
     const res = this.runOwner(line === '' && this.ds.pending ? '' : raw) || { lines: [] };
     if (res.effects?.clear) return { clear: true, ...res };
     if (res.effects?.logout) { setTimeout(() => this.logout(), 0); }
@@ -169,11 +169,17 @@ export class NetlabApp {
 
   locked() { return !!this.o.locked?.(); }
 
+  /** Is someone signed in at this console? */
+  loggedIn(id) {
+    const c = this.consoles.get(id);
+    return !!c && (c.stage === 'shell' || c.stage === 'desktop');
+  }
+
   console(id) {
     let c = this.consoles.get(id);
     if (!c) {
       const dev = this.vms.find((d) => d.id === id);
-      const args = { state: this.o.state, dev, session: this.o.sessions[id], run: (l) => this.o.run(id, l), clock: this.o.clock, clockLabel: this.o.clockLabel, onBrowser: (u) => this.o.onBrowser(u) };
+      const args = { state: this.o.state, dev, session: this.o.sessions[id], run: (l) => this.o.run(id, l), clock: this.o.clock, clockLabel: this.o.clockLabel, onBrowser: (u, id, line) => this.o.onBrowser(u, id, line) };
       c = dev.kind === 'pwsh' ? new WinConsole(args) : new TextConsole(args);
       this.consoles.set(id, c);
     }

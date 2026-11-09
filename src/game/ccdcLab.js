@@ -124,6 +124,22 @@ export function newGame(baseScenario, opts = {}) {
   };
 }
 
+/** Learn mode: put boxes back the way they started, with no penalty and no record of it. */
+export function resetBoxes(state, ids) {
+  for (const id of ids) {
+    const dev = state.deviceList.find((d) => d.id === id);
+    if (!dev) continue;
+    const ds = state.devState[id];
+    for (const k of Object.keys(ds)) delete ds[k];
+    Object.assign(ds, makeDevState(dev));
+    for (const f of state.findingList) if (f.host === id) state.findings[f.id] = { status: 'open', triggeredTraps: {}, steps: {} };
+    redForgetBox(state, id);
+    const pcr = state.engine?.pcr;
+    if (pcr && pcr.host === id) { pcr.rotated = false; pcr.breaking = false; pcr.filed = false; }
+  }
+  syncServices(state);
+}
+
 /** Tech Support restores a box to how it started: backdoors gone, but so are your fixes, and it costs points. */
 export function requestRevert(state, deviceId) {
   const dev = state.deviceList.find((d) => d.id === deviceId);

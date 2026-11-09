@@ -48,7 +48,7 @@ export function prepareScenario(base, lengthId = 'short', seed = 1) {
     if (i.id === 'inv-memo') { copy.format = 'table'; copy.rubric = [inventoryItem(base), ...i.rubric.slice(2)]; }
     return copy;
   });
-  const extra = len.pool ? injectPool(base).slice(0, base.poolLimit ?? Infinity).map((p, k) => {
+  const extra = len.pool ? injectPool(base).filter((p) => !base.injects.some((o) => o.title === p.title)).slice(0, base.poolLimit ?? Infinity).map((p, k) => {
     // About a fifth land together at lunch, as real competitions do on purpose.
     const atLunch = hash01(num, 70, k) < 0.2;
     const frac = atLunch ? LUNCH + hash01(num, 71, k) * 0.03 : 0.04 + hash01(num, 72, k) * 0.86;
