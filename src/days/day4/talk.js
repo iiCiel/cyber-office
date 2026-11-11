@@ -5,7 +5,7 @@ export const CARLA_CALL = {
     say: [
       ['Carla Reyes (Finance)', [
         'Hi, Carla in AP. Did my email come through?',
-        'Northwind sent a remit-to change. New bank, signed letter on their letterhead, and no external-sender warning on it.',
+        'Northwind sent a remit-to change. New bank, signed letter on their letterhead. It has the external banner, but every vendor email does.',
         'Invoice NW-7781, $48,200, due today, and the wire cut-off is 2 PM. Can I update the vendor master and pay it?',
       ]],
     ],

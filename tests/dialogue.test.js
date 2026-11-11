@@ -56,3 +56,12 @@ test('each coworker sounds different: no line is shared between two speakers on 
     assert.equal(new Set(all).size, all.length, `day ${d} repeats a line`);
   }
 });
+
+test('Carla agrees with what the inbox shows: the Northwind email carries the external banner', async () => {
+  const { EMAILS } = await import('../src/days/day4/emails.js');
+  const bec = EMAILS.find((e) => e.id === 'bec-bank');
+  assert.equal(bec.external, true, 'the Northwind email is external, so MailApp shows the CAUTION banner');
+  const said = CARLA_CALL.start.say.flatMap(([, l]) => l).join(' ');
+  assert.ok(!/no external/i.test(said), 'Carla must not say the email had no external warning');
+  assert.match(said, /external banner/i);
+});
