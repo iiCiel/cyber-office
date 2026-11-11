@@ -6,7 +6,6 @@ import fs from 'node:fs';
 
 const url = process.argv[2] || 'http://localhost:5194/cyber-office/';
 const out = process.argv[3] || 'docs/proof/visual';
-const classic = url.includes('art=classic');
 fs.mkdirSync(out, { recursive: true });
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -42,13 +41,12 @@ for (const [label, vp, mobile] of [['desktop', { width: 1366, height: 860 }, fal
     return keys.every((k) => s.textures.exists(k));
   });
   check(`${label}: office textures loaded`, ok);
-  if (!classic) {
-    const hd = await page.evaluate(() => {
-      const s = window.__game.scene.getScene('Office');
-      return { tiles: !!s.hdLayers?.floor, props: s.textures.exists('hd-desk-soc'), chars: s.player.scaleX < 1 };
-    });
-    check(`${label}: HD tiles and props in use`, hd.tiles && hd.props, JSON.stringify(hd));
-  }
+  // The Codex HD art was retired (art-src/codex-hd/); the office must use the original 16px pixel art.
+  const px = await page.evaluate(() => {
+    const s = window.__game.scene.getScene('Office');
+    return { hdTex: s.textures.getTextureKeys().filter((k) => k.startsWith('hd-') || k === 'tiles-hd').length, playerScale: s.player.scaleX };
+  });
+  check(`${label}: original pixel art in use (no HD textures, player at 1x)`, px.hdTex === 0 && px.playerScale === 1, JSON.stringify(px));
   await page.screenshot({ path: `${out}/${label}-3-floor.png` });
   check(`${label}: no console/network errors`, errors.length === 0, errors.slice(0, 3).join(' | '));
   errCount += errors.length;
