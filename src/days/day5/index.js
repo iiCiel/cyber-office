@@ -90,13 +90,19 @@ function prepare(c) {
     emails: [shiftHandoff(5, c), ...emailsFor(c)],
     npcLines: {
       priya: {
-        talk: ['Morning. Friday. We made it to Friday.', numberMatch, svc, 'Check your inbox. I pinned the incident runbook in your Terminal. Just in case.'].filter(Boolean),
-        again: ['Inbox. And if it all goes sideways: isolate, investigate, recover.'],
+        talk: [
+          'Morning. Friday. We made it to Friday.',
+          numberMatch,
+          svc,
+          'Ravi closed NGM-48402 overnight as benign: shadow copies deleted on DC01. Read that handoff very carefully. I do not like that ticket.',
+          "I pinned the IR runbook in your Terminal. If it kicks off, you have authority to isolate hosts without asking me first. Isolate, then tell me.",
+        ].filter(Boolean),
+        again: ['If it goes sideways: isolate, investigate, recover. Write down every action with the time. Legal will ask.'],
       },
-      dana: { talk: [c.d4BackupFixed ? 'Test restore passed this morning! We actually have backups!' : 'Still fighting the backup server. Send coffee.'], again: ['Busy.'] },
+      dana: { talk: [c.d4BackupFixed ? 'Test restore passed at 8:12! Pulled a file back off BACKUP01 and it opened. We actually have backups!' : "Still fighting BACKUP01. Last good full is Sunday. Send coffee."], again: [c.d4BackupFixed ? 'Restore log is attached to INC0004580. Closing it with a smile.' : 'Busy. Pray nothing breaks today.'] },
       mike: { talk: ['TGIF. Nothing can go wrong on a Friday, right?'], again: ['...right?'] },
-      theo: { talk: ['Portal\'s holding. Quiet week for me, loud week for you.'], again: ['Shipping.'] },
-      carla: { talk: [c.d4Paid ? 'Still sick about that wire to Riga.' : 'Thanks again for catching the Northwind thing.'], again: ['Crunching numbers.'] },
+      theo: { talk: ["Portal's holding. Zero 942100 hits since the hotfix. Quiet week for me, loud week for you."], again: ['Doing the post-incident review doc. Riveting.'] },
+      carla: { talk: [c.d4Paid ? "Still sick about that wire to Riga. The bank opened a recall, but they said don't get our hopes up." : 'Thanks again for the Northwind catch. We added a callback step for every remit-to change now.'], again: ['Month-end close. Crunching numbers.'] },
     },
     terminal: terminalFor(c),
   };

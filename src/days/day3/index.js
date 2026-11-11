@@ -129,15 +129,16 @@ function prepare(c) {
     npcLines: {
       priya: {
         talk: [
-          'Morning. Your Terminal access finally came through: ticket #4471. Server logs are mirrored under /var/log/remote/.',
+          'Morning. Your shell access finally got approved, RITM0004471. Server logs are mirrored under /var/log/remote/ on your Terminal.',
           mfa,
-          'Theo ships portal release 4.2 today. Inbox first, and keep the Terminal handy.',
+          "Ravi handed over NGM-48288 as a P2, WAF hits on WEB01. Read his handoff before you do anything else. P2 or not, I want your own read on it.",
+          'Also, Theo ships portal 4.2 today, so expect him to come asking for things. Any change to the WAF goes through change management. No exceptions.',
         ],
-        again: ['Inbox first. Then, if the SIEM pings, the Terminal and the SOC console.'],
+        again: ['Handoff first, then the Terminal. grep the access log before you trust anyone\'s summary, including Ravi\'s.'],
       },
-      dana: { talk: ['Laptops are done. I can feel my soul again.'], again: ['Need a laptop? Too bad, they are all gone.'] },
-      theo: { talk: ['Release day. Do not talk to me about scope.'], again: ['Still releasing.'] },
-      mike: { talk: c.d2MikeSupported ? ['Hey! I hit Deny on two weird pushes this week. Felt good.'] : ['Morning.'], again: ['Busy busy.'] },
+      dana: { talk: ['Laptop builds are done. All 14. I can feel my soul again.', 'Queue is down to 11 open. Nobody touch anything.'], again: ['Need a laptop? There are zero spares. Put in a RITM and pray.'] },
+      theo: { talk: ['Release day. 4.2 goes to prod at 11 if the pipeline stays green. Please do not break the pipeline.'], again: ['Still releasing. Ask me after the window.'] },
+      mike: { talk: c.d2MikeSupported ? ['Hey! I hit Deny on two weird pushes this week, and called it in like you said. Felt good.'] : ['Morning. Busy, sorry.'], again: ['Quarter-end. Busy busy.'] },
     },
   };
 }

@@ -66,13 +66,20 @@ function prepare(c) {
   return {
     npcLines: {
       priya: {
-        talk: ['Morning.', portal, 'Two things today: Carla in Finance has a payment question, and the backup server keeps failing. It\'s in your ticket queue.', 'Inbox first.'],
-        again: ['Inbox, Carla, tickets. In that order.'],
+        talk: [
+          'Morning.',
+          portal,
+          'Ravi handed over two open items: NGM-48336, backups failing on BACKUP01, and NGM-48341, svc_backup pushing 4.5 GB to Mega at 2 AM.',
+          'He thinks that might be an offsite copy. Read his handoff and check the logs before you agree with him.',
+          "The backup failure is INC0004580 in your queue. And Carla in AP has a payment question, she'll call your desk.",
+          'Inbox first. If svc_backup is doing anything interactive, that is a P1, and you come get me.',
+        ],
+        again: ['Handoff, Carla, INC0004580. And svc_backup is a service account. It has no business doing RDP.'],
       },
-      dana: { talk: ['Pizza day. The only good news this week.'], again: ['Pineapple. I said what I said.'] },
-      carla: { talk: ['I emailed you. I\'ll call you in a bit about Northwind.'], again: ['Call incoming!'] },
-      theo: { talk: c.d3WafDisabled ? ['Thanks for the WAF thing yesterday. Priya was... not thrilled.'] : ['Portal fix is live. Parameterized queries everywhere now.'], again: ['Coding.'] },
-      mike: { talk: ['Is it Friday yet?'], again: ['No? Okay.'] },
+      dana: { talk: ["Pizza day. The only good news this week.", "Also, BACKUP01's E: drive is full. I've had the alert snoozed since Monday, which, in hindsight. It's INC0004580 if you want it."], again: ['Pineapple. I said what I said.'] },
+      carla: { talk: ["Hi! I forwarded you something from Northwind. Remit-to change. I'll call your desk in a bit, the wire cut-off is 2."], again: ['Calling you in a minute!'] },
+      theo: { talk: c.d3WafDisabled ? ['Thanks for the WAF thing yesterday. Priya wrote me up in the change log. So. Lesson learned.'] : ['Portal hotfix is live. Parameterized queries everywhere, and the 942100 exclusion is scoped to the build runner only.'], again: ['Heads-down. Post-incident review action items.'] },
+      mike: { talk: ['Is it Friday yet?'], again: ['No? Cool cool.'] },
     },
     propLines: {
       'desk-d': { name: 'Desk by the window', talk: ['The sticky note that said "pw: Spring2026!" is gone.', 'Under it, someone wrote "svc_backup" in pencil.'] },
