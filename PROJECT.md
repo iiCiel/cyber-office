@@ -1,6 +1,6 @@
 # Project: Cyber Office
 
-> Project file from the Command Center, Nov 7, 2026, 6:28 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
+> Project file from the Command Center, Nov 11, 2026, 4:48 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
 
 ## Goal
 A pixel-art browser game where you live a real day as a junior security analyst: walk the office, read real-looking email, dig through logs, deal with coworkers, and watch your choices play out. Not a quiz and not a wall of text. Built in public as a portfolio piece for internship applications.
@@ -14,8 +14,8 @@ A pixel-art browser game where you live a real day as a junior security analyst:
 D:\Projects\cyber-office
 
 ## Notes (what is done, in progress, next, issues)
-STATUS (Nov 6): PRs #9, #10, #11 MERGED. Live site https://iiciel.github.io/cyber-office/ loads the Office with 0 console/network errors.
-PR #13 is OPEN: https://github.com/iiCiel/cyber-office/pull/13 (branch feat/coworker-dialogue, head 997ed56). MUSIC REMOVED, do not re-add.
+Art decision 2026-11-11: original pixel art stays; Codex HD art is retired. Scope: only the office (floors, walls, props) and the people in it. PC, terminals, tickets, mail and SIEM keep their new look. HD files are kept unused in art-src/codex-hd/; do not wire them back in.
+STATUS (Nov 11): main has everything: PRs #9-#11, restore/old-pixel-art (d835b3f) and feat/coworker-dialogue (PR #13 + Carla external-banner fix) merged into main. MUSIC REMOVED, do not re-add.
 
 DONE in PR #13 (coworker dialogue rewrite):
 - Rewrote src/days/day1-4/talk.js (PHONE_CALL, USB_DROP, MIKE_CONFESSES, THEO_WAF, CARLA_CALL). Only the text changed: choice ids and set.outcome values are the same.
@@ -29,9 +29,9 @@ DONE in PR #13 (coworker dialogue rewrite):
 - New scripts/shot-dialogue.mjs [url] [outDir] writes 11 shots to docs/proof/dialogue/. It needs the dev server, because it imports src/ modules.
 
 NEXT:
-(1) Merge PR #13.
+(1) Check the live site after the main push redeploys.
 (2) pfSense dark theme.
-(3) Codex art for the server room and CCDC.
+(3) Server room / CCDC art in the ORIGINAL 16px pixel-art style (not Codex HD).
 (4) Reference images still missing: Server Manager, ADUC, Splunk, CCDC scoreboard.
 (5) Playthroughs of the CCDC scoreboard, red-team waves and big-log search.
 

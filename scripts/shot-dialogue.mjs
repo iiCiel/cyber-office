@@ -34,7 +34,7 @@ const SHOTS = [
   ['day3-theo', 3, 'walkup:theo', { done: BEFORE_SOC[3], at: 10 * 60 + 50, near: 'soc' }, '942100', 'Theo needs something from you'],
   ['day4-priya', 4, 'talk:priya', {}, 'NGM-48336', 'Morning briefing with Priya'],
   ['day4-carla', 4, 'phone', { done: ['priya', 'my-desk', 'inbox'], at: 9 * 60 + 12, near: 'my-desk', inbox: 'bec-bank' }, 'external banner', 'Answer your desk phone (Carla)'],
-  ['day5-priya', 5, 'talk:priya', {}, 'NGM-48402', 'Morning briefing with Priya'],
+  ['day5-priya', 5, 'talk:priya', {}, 'NGM-48402', 'Good morning, Priya'],
 ];
 
 const hhmm = (m) => `${((Math.floor(m / 60) + 11) % 12) + 1}:${String(m % 60).padStart(2, '0')}`;
@@ -114,7 +114,13 @@ for (const [file, day, how, setup, expect, objective] of SHOTS) {
       const txt = await page.locator('#screen-workstation').innerText().catch(() => '');
       check('day4-inbox-banner: Northwind email shows the CAUTION external banner', txt.includes('CAUTION: This email came from outside your organization') && txt.includes('northwindsupplies-billing.com'));
       await page.screenshot({ path: `${out}/day4-inbox-banner.png` });
-      await page.keyboard.press('Escape');
+      // Esc backs out one level at a time (mail -> desktop -> stand up), like a player would.
+      for (let i = 0; i < 4; i++) {
+        const open = await page.evaluate(() => { const s = window.__game.scene.getScene('Office'); return s.computer.isOpen || !!s.seated; });
+        if (!open) break;
+        await page.keyboard.press('Escape');
+        await page.waitForTimeout(300);
+      }
       await page.waitForFunction(() => !window.__game.scene.getScene('Office').computer.isOpen && !window.__game.scene.getScene('Office').seated, null, { timeout: 5000 }).catch(() => {});
       await page.evaluate(() => { const s = window.__game.scene.getScene('Office'); for (let i = 0; i < 10 && s.dialog.isOpen; i++) s.dialog.advance(); });
     }
