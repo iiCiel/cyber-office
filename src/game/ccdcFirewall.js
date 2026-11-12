@@ -6,6 +6,8 @@
 // Rule shape: { action:'pass'|'block', proto:'tcp'|'udp'|'any', dst:'<host-or-any>', port:'<n|n-n|any>',
 //               from:'<host-or-any>' }. Everything is fiction (RFC 5737 / RFC 1918 hosts); nothing is applied.
 
+import { panosEval } from './panos.js';
+
 const HELP = [
   'Edge firewall (pfSense-style) — WAN inbound rule editor. Simulated; nothing is applied.',
   'Commands:',
@@ -14,6 +16,7 @@ const HELP = [
   '  block <proto> to <dst> port <p> [from <src>]  explicitly block traffic',
   '  default pass | default block       set the default inbound policy (block = default-deny)',
   '  del <n>                            delete rule number n',
+  '  passwd <new-password>              change the admin password',
   '  help',
   'Scored ports: 80/443 web01 · 53 dc01 · 25/143/993 mail01 · 3306 db01 (from the scoring engine only:',
   '  pass tcp to db01 port 3306 from scoring   — the scoring engine is 198.51.100.9).',
@@ -22,7 +25,7 @@ const HELP = [
   'Win order: add the pass rules for the scored ports FIRST, then "del" the any-any rule and "default block".',
 ];
 
-export function firewallHelp() { return HELP; }
+export function firewallHelp(quiet = false) { return quiet ? HELP.filter((l) => !/^Win order|^Each pass rule|like 1-65535/.test(l)) : HELP; }
 
 const num = (p) => (p === 'any' ? 'any' : String(p));
 
@@ -162,6 +165,7 @@ function exposure(fw, spec) {
  *   - down lists scored services the current rules would cut off.
  */
 export function evalFirewall(fw, fwSpec) {
+  if (fw.panos) return panosEval(fw, fwSpec);
   const svcById = Object.fromEntries((fwSpec.services || []).map((s) => [s.id, s]));
   const down = [];
   for (const id of fwSpec.scored) {

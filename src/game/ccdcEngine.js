@@ -2,7 +2,7 @@
 //
 // Real CCDC is not graded once at the end: a scoring engine polls each service on a fixed interval (~60 s),
 // awards uptime points for every passing check, and records an SLA violation after several consecutive misses.
-// The red team does not wait for the buzzer either — it probes in waves across the round. And a scored account
+// Red Team does not wait for the buzzer either: it works the boxes all round (ccdcRed.js). And a scored account
 // whose password you rotate stops passing checks until you file a Password Change Request (PCR) with the white
 // team. This module layers all of that on top of the hands-on ccdcLab state, ticking as the clock advances.
 //
@@ -10,6 +10,8 @@
 // and the engine is attached to a game only when the scene drives a clock. Everything is simulated.
 
 import { SERVICE_STATE } from './ccdcLab.js';
+import { panosTick, syncServices } from './ccdcBox.js';
+import { attachRed, redAdvance } from './ccdcRed.js';
 
 // One scored check every CHECK_INTERVAL game-seconds (CCDC engines poll ~60 s; we use 30 so a short practice
 // round still shows the dynamic). SLA_FAILS consecutive misses = one SLA violation (the open-source CCDC engine
@@ -29,7 +31,7 @@ const DEFAULT_TEAM_FEED = [
 ];
 
 /** Attach the live engine to a ccdcLab game. Safe to call once; returns the game for chaining. */
-export function attachEngine(state) {
+export function attachEngine(state, redIp) {
   if (state.engine) return state;
   const sc = state.scenario;
   const eng = {
@@ -39,11 +41,9 @@ export function attachEngine(state) {
     checks: {}, // svcId -> { ok, fail, consec, violations }
     slaViolations: 0,
     events: [], // { at, cls, text } — the live feed + debrief timeline
-    waves: (sc.redWaves || []).map((w) => ({ ...w, fired: false })),
-    probes: {}, // findingId -> 'probed' | 'compromised'
     injectTimers: {}, // injectId -> { releaseAt, dueAt, released, overdue }
     pcr: sc.pcr ? { ...sc.pcr, rotated: false, filed: false, breaking: false } : null,
-    teamFeed: (sc.teamFeed || DEFAULT_TEAM_FEED).map((m) => ({ ...m, fired: false })),
+    teamFeed: (sc.teamFeed || DEFAULT_TEAM_FEED).map((m) => ({ ...m, at: m.at * (sc.teamFeedStretch || 1), fired: false })),
   };
   for (const s of state.serviceList) eng.checks[s.id] = { ok: 0, fail: 0, consec: 0, violations: 0 };
   for (const i of state.injectList) {
@@ -51,6 +51,7 @@ export function attachEngine(state) {
     eng.injectTimers[i.id] = { releaseAt: t, dueAt: t + (i.window || sc.injectWindow || 300), released: t === 0, overdue: false };
   }
   state.engine = eng;
+  attachRed(state, redIp);
   return state;
 }
 
@@ -111,6 +112,7 @@ export function tickTo(state, sec) {
 function stepTo(state, sec) {
   const eng = state.engine;
   eng.clock = sec;
+  panosTick(state);
 
   // Inject release + deadline.
   for (const i of state.injectList) {
@@ -126,12 +128,8 @@ function stepTo(state, sec) {
     log(eng, 'team', `[${m.who}] ${m.text}`);
   }
 
-  // Red-team waves.
-  for (const w of eng.waves) {
-    if (w.fired || sec < w.at) continue;
-    w.fired = true;
-    runWave(state, w);
-  }
+  // Red Team works the boxes the whole round.
+  redAdvance(state, sec);
 
   // Scored checks on the interval.
   while (eng.lastCheckAt + CHECK_INTERVAL <= sec) {
@@ -142,6 +140,7 @@ function stepTo(state, sec) {
 
 function runCheck(state) {
   const eng = state.engine;
+  syncServices(state);
   for (const svc of Object.values(state.services)) {
     const c = eng.checks[svc.id];
     if (serviceFailing(state, svc)) {
@@ -157,53 +156,11 @@ function runCheck(state) {
   }
 }
 
-// Red-team waves escalate: the first time a wave reaches an exploitable finding you left open, it is a PROBE (a
-// foothold you can still catch and write up in an incident report). If it is STILL open at the next wave, that
-// foothold becomes a confirmed compromise and can take the service down.
-function runWave(state, wave) {
-  const eng = state.engine;
-  log(eng, 'red', `Red team wave ${wave.n || ''}: ${wave.label || 'probing exposed services'}.`);
-  for (const f of state.findingList) {
-    if (!f.exploitable) continue;
-    if (wave.scope && !asList(wave.scope).includes(f.id)) continue;
-    if (state.findings[f.id].status === 'fixed') continue;
-    const prior = eng.probes[f.id];
-    if (!prior) {
-      eng.probes[f.id] = 'probed';
-      log(eng, 'warn', `Foothold attempt against ${f.host}: ${f.title}. Catch it with an incident report, or fix it before the next wave.`);
-    } else if (prior === 'probed') {
-      eng.probes[f.id] = 'compromised';
-      log(eng, 'bad', `Compromise confirmed on ${f.host}: ${f.title}.`);
-      for (const s of asList(f.compromise?.drops)) {
-        const svc = state.services[s];
-        if (svc) svc.state = SERVICE_STATE.DOWN;
-      }
-    }
-  }
-}
-
-/**
- * The buzzer: the red team fires one last wave (anything it already has a foothold in and you never closed is
- * confirmed), then returns every confirmed compromise. This is what the end-of-round scorer charges — so fixing
- * a box between waves really does keep it off the list.
- */
-export function finalSweep(state) {
-  const eng = state.engine;
-  if (!eng) return [];
-  if (!eng.finalFired) {
-    eng.finalFired = true;
-    runWave(state, { n: 'final', label: 'final sweep at the buzzer' });
-  }
-  return liveCompromises(state);
-}
-
-/** Findings the red team has confirmed as compromised during the round (used by the end-of-round scorer). */
+/** The Red Team footholds this round, as the end-of-round scorer charges them. */
 export function liveCompromises(state) {
-  const eng = state.engine;
-  if (!eng) return [];
-  return state.findingList
-    .filter((f) => eng.probes[f.id] === 'compromised' && state.findings[f.id].status !== 'fixed')
-    .map((f) => ({ id: f.id, title: f.title, impact: f.compromise?.impact || 'Compromised.', penalty: f.compromise?.penalty || 40 }));
+  const r = state.engine?.red;
+  if (!r) return [];
+  return r.events.filter((e) => e.type === 'foothold').map((e) => ({ id: e.findingId || e.account, title: e.title, impact: e.impact, penalty: Math.max(0, e.charged - e.recovered) }));
 }
 
 /** A compact live scoreboard for the HUD: per-service uptime %, current SLA count, red-team activity. */
@@ -220,8 +177,6 @@ export function scoreboard(state) {
     rows,
     slaViolations: eng.slaViolations,
     uptimePoints: eng.uptimePoints,
-    probes: Object.values(eng.probes).filter((p) => p === 'probed').length,
-    compromised: Object.values(eng.probes).filter((p) => p === 'compromised').length,
     injectsOpen: state.injectList.filter((i) => eng.injectTimers[i.id].released && !state.injects[i.id].done && !eng.injectTimers[i.id].overdue).length,
     pcr: eng.pcr,
     events: eng.events,

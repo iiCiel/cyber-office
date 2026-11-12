@@ -1,0 +1,78 @@
+/* PAN-OS 11 web interface, matched to docs/reference/panos-policy-list.png and panos-commit.png. */
+.pa { position: relative; width: 100%; height: 100%; display: flex; flex-direction: column; background: #fff; color: #333; font: 13px/1.3 Tahoma, Verdana, Arial, sans-serif; }
+.pa *, .pa *::before, .pa *::after { box-sizing: border-box; }
+.pa button { font: inherit; cursor: pointer; }
+.pa-head { display: flex; align-items: flex-end; height: 56px; padding: 0 8px; background: #fff; }
+.pa-brand { width: 200px; padding-bottom: 10px; color: #333; font: 700 22px Arial, sans-serif; }
+.pa-tabs { display: flex; gap: 2px; }
+.pa-tab { height: 29px; padding: 0 16px; border: 0; border-radius: 6px 6px 0 0; background: #bfccd2; color: #333; font-size: 14px !important; font-family: 'Arial Narrow', Arial, sans-serif !important; letter-spacing: .3px; }
+.pa-tab.on { background: #2f6a89; color: #fff; }
+.pa-actions { margin-left: auto; display: flex; gap: 14px; padding-bottom: 8px; color: #456; font-family: 'Arial Narrow', Arial, sans-serif; font-size: 14px; }
+.pa-commit { background: none; border: 0; color: #2f6a89; padding: 0; }
+.pa-bar { height: 30px; background: #2f6a89; }
+.pa-main { flex: 1; min-height: 0; display: flex; background: #2f6a89; }
+.pa-nav { width: 200px; margin: 0 0 0 12px; padding: 8px 0; background: #fff; border-radius: 3px 0 0 0; overflow: auto; }
+.pa-nav-i { padding: 4px 8px 4px 20px; color: #333; }
+.pa-nav-i.on { background: #dfe5e8; }
+.pa-content { flex: 1; min-width: 0; display: flex; flex-direction: column; background: #fff; }
+.pa-filter { padding: 4px; background: #3f4a50; }
+.pa-filter input { width: 100%; height: 20px; border: 0; }
+.pa-tblwrap { flex: 1; overflow: auto; }
+.pa-tbl { width: 100%; border-collapse: collapse; }
+.pa-tbl th { padding: 5px 6px; background: #f5cf6c; color: #333; font-weight: 400; text-align: left; border-right: 1px solid #e8c15b; white-space: nowrap; }
+.pa-tbl th.pa-grp { background: #d7ab3f; color: #fff; text-align: center; }
+.pa-tbl th.pa-nogrp { background: #f5cf6c; }
+.pa-tbl td { padding: 4px 6px; border-right: 1px solid #f2ebd6; border-bottom: 1px solid #f2ebd6; white-space: nowrap; }
+.pa-tbl tbody tr:nth-child(even) { background: #faf6ea; }
+.pa-tbl tr.sel { background: #d6e5ee !important; }
+.pa-tbl tr.off td { color: #aaa; text-decoration: line-through; }
+.pa-tbl tr.dflt { background: #ffeecb !important; color: #666; }
+.pa-tbl a { color: #2f6a89; cursor: pointer; }
+.pa-tbl .num { color: #888; text-align: center; }
+.act-ok i, .act-no i { display: inline-block; width: 12px; height: 12px; margin-right: 5px; border-radius: 50%; vertical-align: -2px; }
+.act-ok i { background: #5cb85c; }
+.act-no i { background: #e0533d; }
+.act-ok { color: #456; }
+.pa-tools { display: flex; gap: 4px; padding: 4px; background: #d9dfe2; border-top: 1px solid #b8c2c7; }
+.pa-tool { padding: 2px 10px; background: none; border: 0; color: #2f6a89; }
+.pa-tool:disabled { color: #aaa; cursor: default; }
+.pa-other { flex: 1; padding: 30px; background: #fff; color: #666; }
+.pa-mask { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.25); z-index: 10; }
+.pa-dlg { width: 760px; max-width: 96%; max-height: 92%; display: flex; flex-direction: column; padding: 0 8px 8px; background: #2f6a89; border-radius: 3px; }
+.pa-dlg-commit { width: 640px; }
+.pa-dlg-title { padding: 10px 6px; color: #fff; font: 16px 'Arial Narrow', Arial, sans-serif; }
+.pa-dlg-body { flex: 1; overflow: auto; padding: 8px; background: #eee; }
+.pa-dlg-body p { margin: 2px 0 8px; }
+.pa-dlg-tabs { display: flex; flex-wrap: wrap; gap: 2px; margin: -2px -2px 8px; }
+.pa-dt { padding: 6px 12px; background: #c6d2d8; border: 0; border-radius: 6px 6px 0 0; font-family: 'Arial Narrow', Arial, sans-serif !important; font-size: 14px !important; }
+.pa-dt.on { background: #fff; }
+.pa-dlg-page { background: #fff0; min-height: 150px; }
+.pa-f { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+.pa-f span { width: 150px; text-align: right; }
+.pa-f input, .pa-f select { flex: 1; height: 24px; padding: 2px 4px; border: 1px solid #aaa; font: inherit; }
+.pa-err { color: #b00; min-height: 16px; }
+.pa-dlg-btns { display: flex; justify-content: flex-end; gap: 10px; padding: 10px 2px 2px; }
+.pa-btn { min-width: 86px; padding: 6px 14px; background: #bbc4c9; border: 2px solid #fff; border-radius: 4px; color: #222; }
+.pa-btn[data-btn='OK'], .pa-btn[data-btn='Commit'] { background: #6d9db6; border-color: #6d9db6; }
+.pa-scope { width: 100%; border-collapse: collapse; background: #fff; }
+.pa-scope th { padding: 5px 8px; background: #89959c; color: #fff; text-align: left; font-weight: 400; }
+.pa-scope td { padding: 5px 8px; background: #bcc9cf; }
+.pa-status { padding: 10px; background: #fff; }
+.pa-login { flex: 1; display: flex; align-items: center; justify-content: center; background: linear-gradient(#dfe5e8, #f7f7f7); }
+.pa-login-box { width: 320px; padding: 20px; background: #fff; border: 1px solid #c2c9cd; }
+.pa-login-title { margin-bottom: 14px; font: 700 22px Arial, sans-serif; }
+.pa-login-box label { display: block; margin: 10px 0 3px; color: #555; }
+.pa-login-box input { display: block; width: 100%; height: 28px; padding: 3px 6px; border: 1px solid #aaa; font: inherit; margin-top: 3px; }
+.pa-login-err { min-height: 18px; margin-top: 6px; color: #b00; }
+.pa-login-btn { width: 100%; height: 32px; margin-top: 8px; background: #2f6a89; border: 0; color: #fff; }
+.pa-f-tall { align-items: flex-start; }
+.pa-f-tall textarea { flex: 1; height: 62px; border: 1px solid #aaa; }
+.pa-f select:disabled { background: #fff; color: #333; opacity: 1; }
+.pa-radios { display: flex; gap: 18px; margin-bottom: 6px; }
+.pa-radios .dim { color: #888; }
+.pa-scopebox { display: flex; flex-direction: column; height: 240px; background: #fff; border: 1px solid #aaa; }
+.pa-scopebox .pa-scope { flex: 0 0 auto; }
+.pa-scopefoot { margin-top: auto; display: flex; gap: 16px; padding: 7px 8px; background: #89959c; color: #fff; font-family: 'Arial Narrow', Arial, sans-serif; font-size: 13px; }
+.pa-scopefoot .r { margin-left: auto; }
+.pa-note { margin: 6px 0; color: #777; font-size: 11px; font-weight: 700; }
+.pa-desc { width: 100%; height: 44px; border: 1px solid #ccc; font: inherit; }

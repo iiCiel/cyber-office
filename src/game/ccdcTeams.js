@@ -10,8 +10,11 @@
 // The player's row is computed from state.engine with the SAME formula score() uses, so the live number ends at
 // the final scorecard: service points = points * passedChecks / totalChecksInRound.
 
-import { CHECK_INTERVAL, SLA_FAILS, liveCompromises, scoreboard } from './ccdcEngine.js';
-import { score } from './ccdcLab.js';
+import { CHECK_INTERVAL, SLA_FAILS, scoreboard } from './ccdcEngine.js';
+import { REVERT_PENALTY } from './ccdcBox.js';
+import { SLA_CAP, score } from './ccdcLab.js';
+import { hash01 } from './ccdcHash.js';
+import { RED_POOL, redCharged } from './ccdcRed.js';
 
 function seedNum(seed) {
   if (typeof seed === 'number' && Number.isFinite(seed)) return seed | 0;
@@ -20,18 +23,7 @@ function seedNum(seed) {
   return x | 0;
 }
 
-/** Deterministic hash of integers -> [0,1). */
-export function hash01(...vals) {
-  let x = 2166136261;
-  for (const v of vals) {
-    x = Math.imul(x ^ (v | 0), 16777619);
-    x ^= x >>> 15;
-    x = Math.imul(x, 2246822519);
-    x ^= x >>> 13;
-  }
-  x = Math.imul(x ^ (x >>> 16), 3266489917);
-  return ((x ^ (x >>> 16)) >>> 0) / 4294967296;
-}
+export { hash01 };
 
 const pad2 = (n) => String(n).padStart(2, '0');
 
@@ -40,7 +32,7 @@ export function roster(state) {
   const sd = seedNum(state.seed);
   const others = 9 + Math.floor(hash01(sd, 1) * 3);
   const total = others + 1;
-  const youNo = 1 + Math.floor(hash01(sd, 2) * total);
+  const youNo = state.scenario?.teamNumber || 1 + Math.floor(hash01(sd, 2) * total);
   const teams = [];
   for (let n = 1; n <= total; n++) {
     const you = n === youNo;
@@ -50,6 +42,8 @@ export function roster(state) {
   return teams;
 }
 
+const redPoolFor = (state) => Math.round(RED_POOL * (state.findingList.length / Math.max(1, state.scenario.findings.length)));
+
 function totalChecks(state) {
   const sec = state.timeLimitSec || state.scenario.clockSeconds || 900;
   return Math.max(1, Math.floor(sec / CHECK_INTERVAL));
@@ -58,7 +52,7 @@ function totalChecks(state) {
 function maxPoints(state) {
   const svc = state.serviceList.reduce((n, s) => n + (s.points || 0), 0);
   const inj = state.injectList.reduce((n, i) => n + (i.points || 0), 0);
-  return svc + inj;
+  return svc + inj + redPoolFor(state);
 }
 
 // Simulate one rival up to clock `sec` (inclusive of checks at <= sec).
@@ -120,15 +114,17 @@ function simTeam(state, t, sec) {
     const at = rel + delay;
     if (sec < at) return;
     injDone += 1;
-    const pts = delay > win ? 0 : Math.round((inj.points || 0) * (0.4 + 0.6 * Math.min(1, t.skill + 0.25 * hash01(sd, 43, t.no, ii))));
+    const pts = delay > win ? 0 : Math.round((inj.points || 0) * (0.25 + 0.5 * Math.min(1, t.skill + 0.25 * hash01(sd, 43, t.no, ii))));
     injPts += pts;
     if (sec - CHECK_INTERVAL >= at) injPrev += pts;
   });
   const compPen = compromises.filter((c) => c.at <= sec).reduce((n, c) => n + c.penalty, 0);
   const compPenPrev = compromises.filter((c) => c.at <= sec - CHECK_INTERVAL).reduce((n, c) => n + c.penalty, 0);
-  const scoreNow = svcPts(okCount) + injPts - sla * slaEach - compPen;
+  const pool = redPoolFor(state);
+  const slaLost = Math.min(SLA_CAP, sla * slaEach);
+  const scoreNow = svcPts(okCount) + injPts + pool - slaLost - Math.min(pool, compPen);
   // Delta = what the last check (plus anything that landed in its window) changed.
-  const scorePrev = svcPts(prevOk) + injPrev - sla * slaEach - compPenPrev;
+  const scorePrev = svcPts(prevOk) + injPrev + pool - slaLost - Math.min(pool, compPenPrev);
   return {
     score: Math.round(scoreNow), delta: Math.round(scoreNow - scorePrev), status,
     uptimePct: all ? Math.round((up / all) * 100) : 100, sla, injects: injDone,
@@ -151,9 +147,9 @@ export function liveTeamScore(state) {
     const rec = state.injects[i.id];
     if (rec?.done && !rec.late) inj += rec.grade?.pts || 0;
   }
-  const sla = (eng ? eng.slaViolations : 0) * (state.scenario.slaPenalty || 0);
-  const comp = liveCompromises(state).reduce((n, c) => n + (c.penalty || 0), 0);
-  return Math.round(svc + inj - sla - comp);
+  const sla = Math.min(SLA_CAP, (eng ? eng.slaViolations : 0) * (state.scenario.slaPenalty || 0));
+  const pool = redPoolFor(state);
+  return Math.round(svc + inj + pool - sla - Math.min(pool, redCharged(state)) - (state.reverts?.length || 0) * REVERT_PENALTY);
 }
 
 function playerRow(state, no) {

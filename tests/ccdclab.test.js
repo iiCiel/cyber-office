@@ -7,14 +7,15 @@ import {
 } from '../src/game/ccdcLab.js';
 
 const SCOPED = ['pass tcp to web01 port 80', 'pass tcp to web01 port 443', 'pass any to dc01 port 53', 'pass tcp to mail01 port 25', 'pass tcp to mail01 port 143', 'pass tcp to mail01 port 993', 'pass tcp to db01 port 3306 from scoring'];
-// Rubric-complete inject answers (what a strong captain actually writes).
-export const GOOD_INJECTS = {
+// Rubric-complete inject answers (what a strong captain actually writes), laid out as a memo.
+const memo = (t) => `To: Management\nFrom: Blue Team\nSubject: Requested deliverable\n\n${t.replace(/; /g, '\n')}\nThis memo is the full response from the team and we will follow up on it as needed for the business.`;
+export const GOOD_INJECTS = Object.fromEntries(Object.entries({
   'inv-memo': 'edge-fw 203.0.113.2 pfSense firewall; dc01 10.10.10.10 Windows Server 2019 domain controller + DNS; web01 10.10.10.20 Ubuntu Apache/WordPress web; db01 10.10.10.40 Ubuntu MySQL database; mail01 10.10.10.30 Ubuntu Postfix mail (SMTP/IMAP).',
   'new-user': 'Create a standard domain user with New-ADUser, temporary password with change at next logon, add only to the Accounting group. Least privilege: not a Domain Admin and no local admin.',
   'vendor-ftp': 'We will not open plaintext FTP (credentials cross the internet unencrypted). Instead we offer SFTP on port 22 to a dedicated, chrooted upload-only account, allow-listed to your source IP address.',
   'incident-report': 'At 09:20 this morning we found a web shell (stats.php) on web01, the WordPress web server, re-run by a root cron. We removed the file and the crontab entry. Recommend blocking PHP execution in uploads to prevent recurrence.',
   pcr: 'PCR: rotate the ccdc-scorecheck password on db01 during the 10:30-10:35 window. Rollback: revert to the old password. The new credential is handed to the white team before the change.',
-};
+}).map(([k, v]) => [k, memo(v)]));
 
 const fresh = (opts = {}) => newGame(CCDC_LAB, { seed: 1, ...opts });
 const svcState = (s, id) => s.services[id].state;
@@ -221,10 +222,10 @@ test('Linux seat: the SSH backdoor needs key removed + root login off + sshd rel
   const s = newGame(CCDC_LAB, { seed: 1, role: ROLES.LINUX });
   assert.deepEqual(s.findingList.map((f) => f.id).sort(), ['mail-open-relay', 'ssh-root-key']);
   const look = runLine(s, 'mail01', 'cat /root/.ssh/authorized_keys');
-  assert.match(look.lines.map((l) => l.text).join('\n'), /redteam@203\.0\.113\.66/);
+  assert.match(look.lines.map((l) => l.text).join('\n'), /deploy@build-07/);
   const trap = runLine(s, 'mail01', 'passwd -l root');
   assert.equal(trap.effects.trapId, 'lock-root-pw');
-  runLine(s, 'mail01', "sed -i '/redteam@/d' /root/.ssh/authorized_keys");
+  runLine(s, 'mail01', "sed -i '/deploy@build-07/d' /root/.ssh/authorized_keys");
   runLine(s, 'mail01', "sed -i 's/^PermitRootLogin yes/PermitRootLogin no/' /etc/ssh/sshd_config");
   assert.ok(!fixed(s, 'ssh-root-key'), 'not live until sshd reloads');
   const r = runLine(s, 'mail01', 'systemctl reload ssh');
@@ -267,8 +268,8 @@ test('injects: filler earns little; a rubric-complete answer earns full points',
   assert.equal(filler.ok, true);
   assert.ok(filler.grade.pts <= 5, `filler got ${filler.grade.pts}`);
   assert.ok(filler.grade.missing.length >= 4);
-  const full = answerInject(s, 'pcr', 'PCR: rotate the ccdc-scorecheck password on db01 during the 10:30-10:35 window. Rollback: revert to the old password. The new credential is handed to the white team before the change.');
-  assert.equal(full.grade.pts, 25, JSON.stringify(full.grade));
+  const full = answerInject(s, 'pcr', GOOD_INJECTS.pcr);
+  assert.equal(full.grade.pts, full.grade.max, JSON.stringify(full.grade));
   const g = score(s);
   const row = g.injectResults.find((r) => r.id === 'vendor-ftp');
   assert.ok(row.missing.length >= 4, 'the debrief lists what was missing');
@@ -276,8 +277,8 @@ test('injects: filler earns little; a rubric-complete answer earns full points',
 
 test('injects: partial answers get partial credit', () => {
   const s = fresh();
-  const r = answerInject(s, 'vendor-ftp', 'We will not open FTP. We can offer SFTP on port 22 instead for your manifests.');
-  assert.ok(r.grade.pts > 0 && r.grade.pts < 25, `got ${r.grade.pts}`);
+  const r = answerInject(s, 'vendor-ftp', 'We will not open FTP for this request. We can offer SFTP on port 22 instead for your manifests, and that gives the business what it needs from us today.');
+  assert.ok(r.grade.pts > 0 && r.grade.pts < r.grade.max, `got ${r.grade.pts}`);
 });
 
 // --- red team + scoring -----------------------------------------------------
@@ -313,7 +314,7 @@ test('fixing everything leaves no compromises and a strong score', () => {
   for (const r of SCOPED) runLine(s, 'edge-fw', r);
   runLine(s, 'edge-fw', 'default block');
   // injects
-  for (const [id, text] of Object.entries(GOOD_INJECTS)) assert.equal(answerInject(s, id, text).grade.pts, 25, id);
+  for (const [id, text] of Object.entries(GOOD_INJECTS)) { const { grade } = answerInject(s, id, text); assert.equal(grade.pts, grade.max, `${id} ${grade.missing}`); }
 
   assert.equal(progress(s).fixed, s.findingList.length, 'all findings fixed');
   runRedTeam(s);

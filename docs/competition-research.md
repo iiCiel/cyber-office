@@ -83,6 +83,12 @@ Team-level first moves: get topology, identify hosts, confirm scored services, d
 9. Punish blind hardening: default-deny without allowing the scoring source, disabling a needed service, same password everywhere, killing legit OS processes.
 10. Timed mode (compressed round) plus untimed guided mode.
 
+### 1.9 Midwest ground truth (added Nov 9, 2026)
+Sections 1.1 to 1.8 came from other regions, ISEAGE (a separate competition) and a third-party site. These are the sources the CCDC sim now follows:
+- [National CCDC rules](https://nationalccdc.org/rules.html): no running totals during the competition.
+- [2025 Midwest qualifier packet](https://brazil.minnesota.edu/ccdc/ccdc-2025/2025MWCCDCQTeamPack.pdf): 09:00 to 16:00 Central, 10 VMs on NETLAB+, Palo Alto firewall, NISE inject portal, 35-50% uptime, 35-50% injects, 10-20% exploitation/IR, reverts through Tech Support with a penalty, no comparisons to other teams.
+- [WinterKnight: How to Win CCDC](https://www.winterknight.net/how-to-win-ccdc-red-team/) (Minnesota/Indiana red team lead): Red Team starts at drop flag, recoverable takedowns from about noon, destructive after 14:30, about 30 injects, roughly 40/40/20 scoring, incident reports can recover Red Team points.
+
 ---
 
 ## 2. CPTC (Collegiate Penetration Testing Competition, cp.tc)

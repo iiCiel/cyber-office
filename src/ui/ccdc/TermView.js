@@ -83,14 +83,18 @@ export class TermView {
   focus() { this.input.focus(); }
   setInput(text) { this.input.value = text; this.input.focus(); }
 
+  syncSecret() { this.input.type = this.o.secret?.() ? 'password' : 'text'; }
+
   exec(line) {
     const prompt = this.o.prompt();
-    if (line.trim()) { this.history.push(line); }
+    const secret = !!this.o.secret?.();
+    if (line.trim() && !secret) { this.history.push(line); }
     this.hpos = this.history.length;
     let res;
     try { res = this.o.run(line) || {}; } catch (err) { res = { lines: [{ cls: 'err', text: `${err?.message || 'error'}` }] }; }
     if (res.clear) { this.buffer.length = 0; this.redraw(); this.o.onRan?.(res, line); return res; }
-    this.print([{ cls: 'cmd', prompt, text: line }, ...(res.lines || [])]);
+    this.print([{ cls: 'cmd', prompt, text: secret ? '' : line }, ...(res.lines || [])]);
+    this.syncSecret();
     clear(this.promptEl).append(...this.promptNode(this.o.prompt()));
     this.o.onRan?.(res, line);
     return res;

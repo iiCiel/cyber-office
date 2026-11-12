@@ -523,7 +523,20 @@ export function createSiem(scenario, opts = {}) {
     return added;
   }
 
+  /** Red Team activity as log lines at `clockSec` (see redLogSpecs). Returns the indices added. */
+  function addLines(specs, clockSec) {
+    const added = [];
+    let idx = total + Math.floor(clockSec * liveRate) + 1;
+    for (const sp of specs) {
+      while (overrides.has(idx)) idx++;
+      overrides.set(idx, sp);
+      added.push(idx++);
+    }
+    return added;
+  }
+
   const api = {
+    addLines,
     scenarioId: scenario.id, seed, total, spanSec, startEpoch, roundStart, liveRate, profile: P, story,
     hunt: story.hunt, attacker: story.attacker,
     get, tOf, indexAtTime, onWave, waveLog,
