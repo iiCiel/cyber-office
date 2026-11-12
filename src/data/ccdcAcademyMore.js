@@ -241,6 +241,23 @@ export const MORE_LESSONS = [
       { ask: { q: 'You found a useful hardening script online during the event. What should you do before running it on a scored box?', a: /(read|test|understand|review)/i, sample: 'read and test it', why: 'A bad script can take down every service at once.' } },
     ],
   },
+  {
+    id: 'destroy', title: 'When a restart is not enough', mins: 12, vms: ['ad', 'web', 'mail'],
+    steps: [
+      { say: 'Early in the day Red Team just knocks a service over, and you start it again (that is the Break-fix lesson). After about 14:30 they stop playing nice and break things for good:\n\n- a service stopped AND disabled, so your restart bounces off it\n- the service\'s files deleted outright\n- the whole box wrecked so it will not boot, or rootkitted so you cannot trust it\n\nEach one needs more than systemctl start. Here is all three.' },
+      winLogin('ad', '2019 AD'),
+      { vm: 'ad', setup: (st) => { const s = KW(st, 'ad').live.winServices.find((x) => x.Name === 'NTDS'); s.Status = 'Stopped'; s.StartType = 'Disabled'; }, say: 'POP3 mail is failing again. The mail box is fine — the scorer signs in with an AD account, and the directory service on the DC is down. Try the obvious fix first.', type: 'Start-Service NTDS', expectFail: /disabled/, after: 'It refused. Red did not just stop NTDS, they set it to Disabled, so a plain start cannot touch it.' },
+      { ask: { q: 'Start-Service refused because the service is disabled. What do you have to do before you can start it?', a: /(set-service|startuptype|automatic|enable)/i, sample: 'Set-Service -StartupType Automatic', why: 'A disabled service takes two steps: set the start type back, then start it.' } },
+      { vm: 'ad', say: 'Put the start type back to Automatic.', type: 'Set-Service -Name NTDS -StartupType Automatic', parts: [['-StartupType Automatic', 'start at boot again, and allow a manual start now']] },
+      { vm: 'ad', drill: true, say: 'Now start it, then confirm POP3 is passing again.', type: 'Start-Service NTDS', done: (c) => KW(c.st, 'ad').live.winServices.find((x) => x.Name === 'NTDS').Status === 'Running', after: 'Enable, then start. The same holds for sc.exe config NTDS start= auto on the command line.' },
+      login('web', 'Ubuntu Srv'),
+      { vm: 'web', setup: (st) => { delete KW(st, 'web').fs['/var/www/html/index.html']; if (!KW(st, 'web').fs['/root/www.bak/index.html']) KW(st, 'web').fs['/root/www.bak/index.html'] = '<html><head><title>Driftless Managed Services</title></head><body><h1>Driftless Managed Services</h1></body></html>\n'; }, say: 'On the web box Red deleted the site\'s files. Apache is still running, so the port is open, but there is nothing to serve and the scorer compares the page content. Ask the server the way the scorer does.', type: 'curl http://localhost/', look: 'A 500 or an empty page, not the company page. The service is up but failing.' },
+      { vm: 'web', drill: true, say: 'A restart will not bring back a deleted file. Put your morning backup back.', type: 'cp /root/www.bak/index.html /var/www/html/index.html', done: (c) => /Driftless Managed/.test(KW(c.st, 'web').fs['/var/www/html/index.html'] || ''), after: 'This is why you copy every web root and config to /root in the first fifteen minutes. You cannot restore what you never backed up.' },
+      login('mail', 'Fedora'),
+      { vm: 'mail', setup: (st) => { delete KW(st, 'mail').fs['/etc/fstab']; KW(st, 'mail').live.bricked = true; KW(st, 'mail').live.offlineUntil = Infinity; }, say: 'The worst case. Red deleted /etc/fstab and rebooted mail, so it no longer boots. Try to reach it.', type: 'whoami', expectFail: /timed out/, after: 'Dead. No shell, nothing to fix by hand, and both mail checks are now failing.' },
+      { ask: { q: 'The box will not boot. What is the honest move, and why not just power-cycle it from NETLAB+?', a: /(tech support|revert|ticket|restore)/i, sample: 'File a Tech Support revert ticket', why: 'Power-cycling boots the same broken disk. Tech Support reverts the VM to its original state: it costs points and wipes your hardening (the original holes come back, so re-harden at once) — but a dead box scores zero all day. Same answer for a rootkit, where you cannot trust what the box tells you.' } },
+    ],
+  },
 ];
 
 export const EXAMS = [

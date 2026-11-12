@@ -278,7 +278,7 @@ const CORE = [
   },
 ];
 
-const ORDER = ['day', 'concepts', 'netlab', 'linux', 'editors', 'passwords', 'services', 'hostfw', 'panos', 'pan2', 'persistence', 'deeplinux', 'evict', 'windows', 'windeep', 'scored', 'otherservices', 'patching', 'docker', 'splunk', 'splunkops', 'injects', 'injecttypes', 'incident', 'breakfix', 'redplaybook', 'otherfw', 'scripts', 'plan'];
+const ORDER = ['day', 'concepts', 'netlab', 'linux', 'editors', 'passwords', 'services', 'hostfw', 'panos', 'pan2', 'persistence', 'deeplinux', 'evict', 'windows', 'windeep', 'scored', 'otherservices', 'patching', 'docker', 'splunk', 'splunkops', 'injects', 'injecttypes', 'incident', 'breakfix', 'destroy', 'redplaybook', 'otherfw', 'scripts', 'plan'];
 const ALL = [...CORE, ...MORE_LESSONS];
 export const LESSONS = ORDER.map((id) => ALL.find((l) => l.id === id));
 
