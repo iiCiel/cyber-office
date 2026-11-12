@@ -1,5 +1,4 @@
 import Phaser from 'phaser';
-import { addHdLayers, addProp, hasHdProp, charScale, HAS_CHAIR } from '../art/hd.js';
 import { ZOOM, VIEW_W, VIEW_H, UI_SCALE, FONT, fitCamera } from '../config.js';
 import { FOOTPRINTS, NPC_NAMES, CAST, PROPS, DOORS } from '../data/office.js';
 import { DialogBox } from '../ui/DialogBox.js';
@@ -124,16 +123,8 @@ export class OfficeScene extends Phaser.Scene {
   buildMap() {
     const map = (this.map = this.make.tilemap({ key: 'office' }));
     const ts = map.addTilesetImage('office', 'tiles');
-    const floor = this.world(map.createLayer('floor', ts).setDepth(-1000));
+    this.world(map.createLayer('floor', ts).setDepth(-1000));
     this.wallsLayer = this.world(map.createLayer('walls', ts).setDepth(-999));
-    // Detailed 64px tiles drawn over the same grid; the 16px layers stay for collision and lookups.
-    this.hdLayers = addHdLayers(this, map, ['floor', 'walls']);
-    if (this.hdLayers.floor) {
-      this.world(this.hdLayers.floor.setDepth(-1000));
-      this.world(this.hdLayers.walls.setDepth(-999));
-      floor.setVisible(false);
-      this.wallsLayer.setVisible(false);
-    }
     this.wallsLayer.setCollisionByProperty({ collides: true });
     this.physics.world.setBounds(0, 0, map.widthInPixels, map.heightInPixels);
 
@@ -158,11 +149,11 @@ export class OfficeScene extends Phaser.Scene {
         let sprite = null;
         let halfW = 8;
         if (p.tex) {
-          if (p.tex.startsWith('desk') && !(HAS_CHAIR.has(p.tex) && hasHdProp(this, p.tex))) {
-            this.world(addProp(this, o.x, o.y + 12, 'chair').setOrigin(0.5, 1).setDepth(o.y + 6));
+          if (p.tex.startsWith('desk')) {
+            this.world(this.add.image(o.x, o.y + 12, 'chair').setOrigin(0.5, 1).setDepth(o.y + 6));
           }
-          sprite = this.world(addProp(this, o.x, o.y, p.tex).setOrigin(0.5, 1).setDepth(o.y));
-          const [fw, fh] = FOOTPRINTS[p.tex] || [sprite.displayWidth, 6];
+          sprite = this.world(this.add.image(o.x, o.y, p.tex).setOrigin(0.5, 1).setDepth(o.y));
+          const [fw, fh] = FOOTPRINTS[p.tex] || [sprite.width, 6];
           this.solids.add(this.world(this.add.zone(o.x, o.y - fh / 2, fw, fh)));
           this.solidRects.push({ x: o.x - fw / 2, y: o.y - fh, w: fw, h: fh });
           halfW = fw / 2;
@@ -186,12 +177,11 @@ export class OfficeScene extends Phaser.Scene {
 
   addNpc(id, { name, sprite: sheet, x, y, face }) {
     const lines = this.day.npcLines?.[id] || {};
-    const k = charScale(this, sheet);
-    const s = this.world(this.add.sprite(x, y, sheet, 'down-idle').setOrigin(0.5, 1).setDepth(y).setScale(k));
+    const s = this.world(this.add.sprite(x, y, sheet, 'down-idle').setOrigin(0.5, 1).setDepth(y));
     const zone = this.world(this.add.zone(x, y - 2.5, 8, 5));
     this.solids.add(zone);
     this.faceSprite(s, face);
-    this.tweens.add({ targets: s, scaleY: 0.96 * k, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
+    this.tweens.add({ targets: s, scaleY: 0.96, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.inOut' });
     this.npcs[id] = s;
     const rect = { x: x - 4, y: y - 5, w: 8, h: 5 };
     this.solidRects.push(rect);
@@ -211,10 +201,7 @@ export class OfficeScene extends Phaser.Scene {
   buildPlayer() {
     const { x, y } = this.spawn;
     this.player = this.world(this.physics.add.sprite(x, y, 'player', 'up-idle').setOrigin(0.5, 1));
-    // The body is set in texture pixels, so divide by the sprite scale (HD sheets are 4x and shown at 1/4).
-    const k = charScale(this, 'player');
-    this.player.setScale(k);
-    this.player.body.setSize(8 / k, 5 / k).setOffset(2 / k, 11 / k);
+    this.player.body.setSize(8, 5).setOffset(2, 11);
     this.player.setCollideWorldBounds(true);
     this.facing = 'up';
     this.physics.add.collider(this.player, this.wallsLayer);
@@ -981,13 +968,11 @@ export class OfficeScene extends Phaser.Scene {
     for (const d of this.serverDoorTiles) {
       if (open) {
         this.wallsLayer.removeTileAt(d.x, d.y);
-        this.hdLayers?.walls?.removeTileAt(d.x, d.y);
       } else {
         // putTileAt doesn't copy the tileset's properties, so restore them and the collision by hand.
         const tile = this.wallsLayer.putTileAt(d.index, d.x, d.y);
         tile.properties = { ...d.props };
         tile.setCollision(true, true, true, true);
-        this.hdLayers?.walls?.putTileAt(d.index, d.x, d.y);
       }
     }
     this.doorClearMs = 0;

@@ -72,11 +72,18 @@ function prepare(c) {
   return {
     npcLines: {
       priya: {
-        talk: ['Morning!', usb, mfa, "Dana's buried in laptop setups, so you're covering the helpdesk ticket queue. Tickets app, on your PC.", 'Inbox first, then tickets. I\'ll ping you if the SIEM lights up.'],
-        again: ['Inbox, then the ticket queue. Watch for 203.0.113.45.'],
+        talk: [
+          'Morning. Quick stand-up.',
+          usb,
+          mfa,
+          "Ravi's overnight handoff from Northgate is in your inbox. Read it, but don't just close what he says is noise. Check it against the logs yourself.",
+          "Dana's buried in laptop builds, so you're covering the service desk queue: INC0004512 to 4519. Tickets app on your PC.",
+          "Inbox, then the queue. Anything touching 203.0.113.45 is a P2 minimum. I'll ping you if the SIEM fires.",
+        ],
+        again: ['Handoff, inbox, then the queue. Anything touching 203.0.113.45 comes to me.'],
       },
-      dana: { talk: ["Thanks for taking the queue. I've got 14 laptops to set up and one of them is on fire. Figuratively."], again: ['Still figuratively on fire.'] },
-      mike: { talk: ['Morning. Excel crashed twice already. I put in a ticket.'], again: ['Still crashing.'] },
+      dana: { talk: ["Thank you for taking the queue. I've got 14 laptops to image and one of them is on fire. Figuratively.", "Watch INC0004519, Mike's TeamViewer one. He's going to tell you it's urgent. It is not."], again: ['Still figuratively on fire. Laptop 9 of 14.'] },
+      mike: { talk: ['Morning. Excel crashed twice already. I put in a ticket. Is that you now?'], again: ['Still crashing. No rush. Kind of a rush.'] },
     },
   };
 }
