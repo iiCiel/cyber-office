@@ -51,8 +51,8 @@ const CORE = [
       { open: 'netlab', say: 'NETLAB+ is how you reach every machine. There is one button per VM along the top. Clicking the name opens its console. The small arrow opens a menu.\n\nA console is like sitting at the machine. It keeps working even if you break the network, which makes it your safety net.\n\nOn the real system there is a Reservation menu. Stay out of it. Ending your reservation restarts your whole network, and you start over.' },
       login('web', 'Ubuntu Srv'),
       { vm: 'web', type: 'hostname', parts: [['hostname', 'prints this machine\'s name']], look: 'Always check which machine you are on before changing anything. People take down the wrong server this way.', after: 'It said web. That is the machine you meant.' },
-      { vm: 'web', say: 'Click the arrow on Ubuntu Srv and look at the menu.\n\nUndock opens the console in its own window, which is useful with two machines side by side.\nRevert is greyed out. You cannot undo things yourself.\nPower Off and Power On restart the machine, but they restore nothing.\n\nIf a machine is truly dead, a teammate files a Tech Support ticket to restore it. It costs points, takes time, and all the original holes come back.' },
-      { ask: { q: 'You delete an important file and power-cycle the VM. Does the file come back? (yes or no)', a: /^n/i, sample: 'no', why: 'A power cycle restores nothing. Only a Tech Support restoration does, and it wipes your work too.' } },
+      { vm: 'web', say: 'Click the arrow on Ubuntu Srv and look at the menu.\n\nUndock opens the console in its own window, which is useful with two machines side by side.\nRevert is greyed out. You cannot undo things yourself.\nPower Off and Power On restart the machine, but they restore nothing.\n\nThere is no revert or scrub at this invitational, and Tech Support will NOT restore a single VM. If a box is truly dead you either rebuild it by hand, or the team requests a whole new lab reservation: that resets every box to its default (all your hardening gone) but keeps the service scores you have already earned. Last resort.' },
+      { ask: { q: 'You delete an important file and power-cycle the VM. Does the file come back? (yes or no)', a: /^n/i, sample: 'no', why: 'A power cycle restores nothing, and there is no revert or scrub here. You put the file back by hand from a backup you made, or lose everything to a brand-new lab reservation.' } },
     ],
   },
   {
@@ -263,7 +263,7 @@ const CORE = [
       { vm: 'ad', drill: true, setup: (st) => { st.devState.ad.live.winServices.find((s) => s.Name === 'NTDS').Status = 'Stopped'; }, say: 'POP3 is failing. The mail server looks fine. Fix it.', type: 'Start-Service NTDS', done: (c) => c.st.devState.ad.live.winServices.find((s) => s.Name === 'NTDS').Status === 'Running', after: 'The cause was on a different machine. That is the hardest kind to spot.' },
       login('web', 'Ubuntu Srv'),
       { vm: 'web', drill: true, setup: (st) => { delete st.devState.web.fs['/var/www/html/index.html']; st.devState.web.fs['/root/www.bak/index.html'] = '<html><head><title>Driftless Managed Services</title></head><body><h1>Driftless Managed Services</h1></body></html>\n'; }, say: 'The web check is failing and apache is running. You took a backup to /root/www.bak this morning.', type: 'cp /root/www.bak/index.html /var/www/html/index.html', done: (c) => /Driftless Managed/.test(c.st.devState.web.fs['/var/www/html/index.html'] || ''), after: 'Restored.' },
-      { ask: { q: 'A machine has been wrecked beyond repair. Who restores it, and how do you ask?', a: /ticket|tech support|support/i, sample: 'a Tech Support ticket', why: 'It is tracked and can cost points, and the original holes come back. It is the last resort.' } },
+      { ask: { q: 'A box is wrecked beyond repair. There is no revert or scrub at this event, so what are your only two options?', a: /(rebuild|by hand|reinstall|repair|new ?(lab )?reservation)/i, sample: 'rebuild it by hand, or request a whole new lab reservation', why: 'Tech Support will not scrub or revert a VM. A new lab reservation resets every box to default but keeps your service scores so far. Last resort.' } },
     ],
   },
   {
@@ -278,7 +278,7 @@ const CORE = [
   },
 ];
 
-const ORDER = ['day', 'concepts', 'netlab', 'linux', 'editors', 'passwords', 'services', 'hostfw', 'panos', 'pan2', 'persistence', 'deeplinux', 'evict', 'windows', 'windeep', 'scored', 'otherservices', 'patching', 'docker', 'splunk', 'splunkops', 'injects', 'injecttypes', 'incident', 'breakfix', 'destroy', 'redplaybook', 'otherfw', 'scripts', 'plan'];
+const ORDER = ['day', 'saturday', 'concepts', 'netlab', 'linux', 'editors', 'passwords', 'services', 'hostfw', 'panos', 'pan2', 'persistence', 'deeplinux', 'evict', 'windows', 'windeep', 'scored', 'otherservices', 'patching', 'docker', 'splunk', 'splunkops', 'injects', 'injecttypes', 'incident', 'breakfix', 'destroy', 'redplaybook', 'otherfw', 'scripts', 'plan'];
 const ALL = [...CORE, ...MORE_LESSONS];
 export const LESSONS = ORDER.map((id) => ALL.find((l) => l.id === id));
 
@@ -339,7 +339,7 @@ export const SHEET = [
     ['sourcetype=access_combined | stats count by src_ip | sort -count', 'busiest web clients'], ['sourcetype=linux_secure "Failed password" | stats count by src_ip', 'guessing attempts'], ['sourcetype=linux_secure "Accepted password"', 'logins that worked'],
     ['4624 / 4625', 'Windows login worked / failed'], ['4720 / 4728', 'account created / added to a group'], ['4688 / 7045 / 4698 / 1102', 'process / service / task / log cleared'], ['splunk enable listen 9997', 'on the server'], ['splunk add forward-server IP:9997 ; add monitor FILE', 'on each machine'],
   ]],
-  ['Something is red', [['1', 'Machine on?'], ['2', 'Service running?'], ['3', 'Listening? ss -tulpn'], ['4', 'Works from inside? curl'], ['5', 'Host firewall?'], ['6', 'Palo Alto? test security-policy-match'], ['7', 'What changed? Ask the team'], ['Last resort', 'Tech Support ticket: costs points, holes come back']]],
+  ['Something is red', [['1', 'Machine on?'], ['2', 'Service running?'], ['3', 'Listening? ss -tulpn'], ['4', 'Works from inside? curl'], ['5', 'Host firewall?'], ['6', 'Palo Alto? test security-policy-match'], ['7', 'What changed? Ask the team'], ['Last resort', 'No revert/scrub here: rebuild by hand, or a new lab reservation (resets every box, keeps scores)']]],
 ];
 
 /** The sheet as its own printable page. */
