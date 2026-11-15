@@ -18,11 +18,11 @@ const GOOD = {
   pcr: 'Open each Quotient credential list (DomainUsers, Splunk) and copy its Usernames tab. Build username,password CSV lines for exactly those names and submit the PCR in Quotient first, then run Set-ADAccountPassword. Exclude svc- service accounts. Check Quotient after one round.',
 };
 
-test('scenario 4: registered fourth, shape — 7 devices, 17 findings, 14 scored services, 5 injects', () => {
+test('scenario 4: registered fourth, shape — 7 devices, 18 findings, 14 scored services, 5 injects', () => {
   assert.equal(CCDC_SCENARIOS[3], CCDC_LAB_4);
   const s = fresh();
   assert.equal(s.deviceList.length, 7);
-  assert.equal(s.findingList.length, 17);
+  assert.equal(s.findingList.length, 18);
   assert.equal(Object.keys(s.services).length, 14);
   assert.equal(s.injectList.length, 5);
 });
@@ -37,7 +37,7 @@ test('scenario 4: the checklist hardens every finding and brings every service u
   const s = fresh();
   for (const d of s.deviceList) for (const c of d.checklist) runLine(s, d.id, c);
   const p = progress(s);
-  assert.equal(p.fixed, 17);
+  assert.equal(p.fixed, 18);
   assert.equal(p.servicesUp, 14);
 });
 
@@ -123,9 +123,37 @@ test('scenario 4: the drop table fix brings the store back and curl stops hangin
   assert.match(runLine(s, 'ecom', 'curl -kI https://localhost').lines.map((l) => l.text).join(' '), /200/);
 });
 
-test('scenario 4: the WinRM rule fix brings ad-winrm back', () => {
-  const s = fresh(); run(s, 'dc', 'Set-NetFirewallRule -DisplayGroup "Windows Remote Management" -RemoteAddress Any');
+const UNLOCK = ['Remove-Item C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\profile.ps1', 'C:\\Tools\\PsExec64.exe -s -i powershell', 'Set-Acl HKLM:\\SYSTEM\\CurrentControlSet\\Services\\SharedAccess\\Parameters\\FirewallPolicy $a'];
+const WINRM = 'Set-NetFirewallRule -DisplayGroup "Windows Remote Management" -RemoteAddress Any';
+const txt = (s, dev, l) => runLine(s, dev, l).lines.map((x) => x.text).join('\n');
+
+test('scenario 4: the WinRM rule fix brings ad-winrm back (once the firewall lock is gone)', () => {
+  const s = fresh();
+  assert.match(txt(s, 'dc', WINRM), /Access is denied/);
+  assert.equal(up(s, 'ad-winrm'), false);
+  run(s, 'dc', ...UNLOCK, WINRM);
   assert.equal(up(s, 'ad-winrm'), true);
+});
+
+test('scenario 4 DC lock: empty output, then Access is denied, then SYSTEM fixes it (Nov 14 session 2)', () => {
+  const s = fresh();
+  assert.equal(txt(s, 'dc', 'Get-NetFirewallRule').trim(), '', 'profile hook swallows the output');
+  assert.match(txt(s, 'dc', 'Get-Content C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\profile.ps1'), /function Get-NetFirewallRule/);
+  assert.match(txt(s, 'dc', 'netsh advfirewall show allprofiles state'), /Access is denied/);
+  run(s, 'dc', UNLOCK[0]);
+  assert.match(txt(s, 'dc', 'Get-NetFirewallRule'), /Access is denied/, 'hook gone, lock still there');
+  assert.match(txt(s, 'dc', UNLOCK[2]), /not allowed/, 'Administrator cannot reset the ACL');
+  assert.equal(open(s, 'dc-fw-lock'), true);
+  run(s, 'dc', UNLOCK[1], UNLOCK[2]);
+  assert.equal(open(s, 'dc-fw-lock'), false);
+  assert.match(txt(s, 'dc', 'Get-NetFirewallRule'), /Windows Remote Management/);
+  assert.match(txt(s, 'dc', 'netsh advfirewall show allprofiles state'), /State\s+ON/);
+});
+
+test('scenario 4 DC lock: the lock does not leak into the next game', () => {
+  const a = fresh(); run(a, 'dc', ...UNLOCK);
+  const b = fresh();
+  assert.match(txt(b, 'dc', 'netsh advfirewall show allprofiles state'), /Access is denied/);
 });
 
 test('scenario 4: strong inject answers get full marks', () => {

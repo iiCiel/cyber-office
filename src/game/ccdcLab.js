@@ -117,7 +117,7 @@ export function newGame(scenario, opts = {}) {
       firewall: d.kind === 'firewall' ? { rules: (d.firewall?.rules || []).map((r) => ({ ...r })), default: d.firewall?.default || 'pass' } : null,
       // A per-game, mutable copy of the box's filesystem so edits (sed -i, echo >>, rm, …) actually change it and
       // `cat` reflects the change. Starts as a deep copy of the scenario's read-only fs.
-      fs: d.kind === 'bash' && d.ctx?.fs ? JSON.parse(JSON.stringify(d.ctx.fs)) : null,
+      fs: (d.kind === 'bash' || d.kind === 'pwsh') && d.ctx?.fs ? JSON.parse(JSON.stringify(d.ctx.fs)) : null,
       // Live host state (running services, local users, scheduled tasks, units, host-firewall rules) that status
       // commands read, so verifying a change shows the CURRENT state, not the starting one.
       live: d.kind === 'firewall' ? null : initHostState(d),

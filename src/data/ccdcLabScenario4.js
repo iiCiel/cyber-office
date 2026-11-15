@@ -227,6 +227,31 @@ const LISTEN_SPLUNK = 'LISTEN  0  128  0.0.0.0:22    users:(("sshd",pid=742,fd=3
 const LISTEN_ECOM = 'LISTEN  0  511  0.0.0.0:80    users:(("nginx",pid=912,fd=6))\nLISTEN  0  511  0.0.0.0:443   users:(("nginx",pid=912,fd=7))\nLISTEN  0  128  0.0.0.0:22    users:(("sshd",pid=742,fd=3))\nLISTEN  0  128  127.0.0.1:5000 users:(("dotnet",pid=1180,fd=9))';
 const LISTEN_EMAIL = 'LISTEN  0  100  0.0.0.0:25    users:(("master",pid=1101,fd=13))\nLISTEN  0  100  0.0.0.0:587   users:(("master",pid=1101,fd=17))\nLISTEN  0  100  0.0.0.0:143   users:(("dovecot",pid=1420,fd=36))\nLISTEN  0  100  0.0.0.0:993   users:(("dovecot",pid=1420,fd=38))\nLISTEN  0  511  0.0.0.0:443   users:(("apache2",pid=1210,fd=4))\nLISTEN  0  128  0.0.0.0:22    users:(("sshd",pid=742,fd=3))';
 
+// --- DC firewall lock (session 2): the FirewallPolicy registry key's ACL denies everyone, even Domain/Enterprise
+// Admins, and a machine-wide PowerShell profile swallows the firewall cmdlets' output. State lives in the DC's own
+// (per-game) filesystem: the profile file, the ACL marker, and whether a SYSTEM shell is open.
+const PS_PROFILE = 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\profile.ps1';
+const FW_LOCK = '\\registry\\FirewallPolicy.acl';
+const SYSTEM_SHELL = '\\session\\system';
+const NO_PROFILE = '\\session\\noprofile';
+const hooked = (ctx) => !!ctx.fs?.[PS_PROFILE] && !ctx.fs?.[NO_PROFILE];
+const locked = (ctx) => !!ctx.fs?.[FW_LOCK];
+const DENIED = (cmd) => `${cmd} : Access is denied.\n    + CategoryInfo          : PermissionDenied: (MSFT_NetFirewall:root/standardcimv2/MSFT_NetFirewall) [${cmd}], CimException\n    + FullyQualifiedErrorId : Windows System Error 5,${cmd}\n`;
+const fwRead = (cmd, body) => (_a, _in, ctx) => {
+  if (hooked(ctx)) return '';
+  if (locked(ctx)) return DENIED(cmd);
+  return body;
+};
+const DC_FW_COMMANDS = {
+  'get-netfirewallrule': fwRead('Get-NetFirewallRule', '\nDisplayName                            Enabled Profile RemoteAddress\n-----------                            ------- ------- -------------\nWindows Remote Management (HTTP-In)    True    Public  LocalSubnet\nWindows Remote Management (HTTP-In)    True    Domain  Any\n'),
+  'get-netfirewallprofile': fwRead('Get-NetFirewallProfile', '\nName    : Domain\nEnabled : True\n\nName    : Private\nEnabled : True\n\nName    : Public\nEnabled : True\n'),
+  netsh: (a, _in, ctx) => (/advfirewall|firewall/i.test((a || []).join(' ')) && locked(ctx) ? '\nAccess is denied.\n' : '\nDomain Profile Settings:\n----------------------------------------------------------------------\nState                                 ON\n\nPrivate Profile Settings:\n----------------------------------------------------------------------\nState                                 ON\n\nPublic Profile Settings:\n----------------------------------------------------------------------\nState                                 ON\nOk.\n'),
+  'get-acl': (a, _in, ctx) => (/firewallpolicy/i.test((a || []).join(' ')) && locked(ctx) && !ctx.fs?.[SYSTEM_SHELL] ? "Get-Acl : Requested registry access is not allowed.\n    + CategoryInfo          : PermissionDenied: (HKEY_LOCAL_MACHINE\\SYSTEM\\...\\FirewallPolicy:String) [Get-Acl], SecurityException\n" : '\nPath   : Microsoft.PowerShell.Core\\Registry::HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Services\\SharedAccess\\Parameters\\FirewallPolicy\nOwner  : NT AUTHORITY\\SYSTEM\nAccess : ' + (locked(ctx) ? 'Everyone Deny  FullControl' : 'NT AUTHORITY\\SYSTEM Allow  FullControl\n         BUILTIN\\Administrators Allow  FullControl\n         NT SERVICE\\mpssvc Allow  FullControl') + '\n'),
+  sc: (a) => (/sdshow/i.test((a || []).join(' ')) ? '\nD:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)(A;;CCLCSWRPWPDTLOCRRC;;;S-1-5-80-...)\n(mpssvc service DACL is the Windows default)\n' : '\n[SC] usage: sc sdshow mpssvc | sc query mpssvc\n'),
+  powershell: (a, _in, ctx) => { if (/-noprofile|-nop\b/i.test((a || []).join(' '))) { ctx.fs[NO_PROFILE] = '1'; return 'Windows PowerShell\nCopyright (C) Microsoft Corporation. All rights reserved.\n(started without loading any profile)\n'; } return 'Windows PowerShell\nCopyright (C) Microsoft Corporation. All rights reserved.\n'; },
+};
+const PS_HOOK_TEXT = "# Windows PowerShell machine profile\nfunction Get-NetFirewallRule { param([Parameter(ValueFromRemainingArguments)]$a) }\nfunction Get-NetFirewallProfile { param([Parameter(ValueFromRemainingArguments)]$a) }\n$null = Register-EngineEvent PowerShell.OnIdle -Action { }\n";
+
 export const CCDC_LAB_4 = {
   id: 'underpressure-invitational-2026',
   roundStartMs: Date.UTC(2026, 10, 14, 13, 0, 0), // Windows clocks show the afternoon session of Nov 14
@@ -404,8 +429,13 @@ export const CCDC_LAB_4 = {
     {
       id: 'dc', name: 'Domain controller (AD-DNS)', host: 'dc', ip: '172.20.240.100', os: 'Windows Server 2022', role: 'windows', kind: 'pwsh',
       prompt: 'PS C:\\Users\\Administrator>', user: 'Administrator', cwd: 'C:\\Users\\Administrator',
-      brief: 'DNS and WinRM are scored here, and ad-winrm is already red: the DC flipped to the Public network profile and its WinRM firewall rule only allows the local subnet. The Splunk service account was also slipped into Domain Admins and Enterprise Admins. And remember what happened when every domain password got reset at once.',
+      brief: 'DNS and WinRM are scored here, and ad-winrm is already red: the DC flipped to the Public network profile and its WinRM firewall rule only allows the local subnet. The Splunk service account was also slipped into Domain Admins and Enterprise Admins. And remember what happened when every domain password got reset at once. The firewall itself is locked too: firewall commands print nothing (a profile hook) or say Access is denied, even for a Domain Admin. Unlock it before you can fix WinRM.',
       checklist: [
+        'netsh advfirewall show allprofiles state',
+        'Get-Content C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\profile.ps1',
+        'Remove-Item C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\profile.ps1',
+        'C:\\Tools\\PsExec64.exe -s -i powershell',
+        'Set-Acl HKLM:\\SYSTEM\\CurrentControlSet\\Services\\SharedAccess\\Parameters\\FirewallPolicy (Get-Acl HKLM:\\SYSTEM\\CurrentControlSet\\Services\\SharedAccess\\Parameters)',
         'Get-NetConnectionProfile',
         'Set-NetFirewallRule -DisplayGroup "Windows Remote Management" -RemoteAddress Any',
         'Get-ADGroupMember "Domain Admins"',
@@ -420,11 +450,12 @@ export const CCDC_LAB_4 = {
         { Status: 'Running', Name: 'mpssvc', DisplayName: 'Windows Defender Firewall', StartType: 'Automatic' },
       ] },
       ctx: {
-        dir: DC_DIR, user: 'Administrator', host: 'AD-DNS', fs: {}, cwd: 'C:\\Users\\Administrator',
+        dir: DC_DIR, user: 'Administrator', host: 'AD-DNS', cwd: 'C:\\Users\\Administrator',
+        fs: { [PS_PROFILE]: PS_HOOK_TEXT, [FW_LOCK]: 'D:P(D;OICI;KA;;;WD)', 'C:\\Tools\\PsExec64.exe': 'Sysinternals PsExec v2.43' },
         events: () => [],
         commands: {
+          ...DC_FW_COMMANDS,
           'get-netconnectionprofile': () => '\nName             : underpressure.local\nInterfaceAlias   : Ethernet0\nNetworkCategory  : Public\nIPv4Connectivity : Internet\n',
-          'get-netfirewallrule': () => '\nDisplayName                            Enabled Profile RemoteAddress\n-----------                            ------- ------- -------------\nWindows Remote Management (HTTP-In)    True    Public  LocalSubnet\nWindows Remote Management (HTTP-In)    True    Domain  Any\n',
           'test-wsman': () => '\nwsmid           : http://schemas.dmtf.org/wbem/wsman/identity/1/wsmanidentity.xsd\nProtocolVersion : http://schemas.dmtf.org/wbem/wsman/1/wsman.xsd\nProductVendor   : Microsoft Corporation\n',
         },
       },
@@ -686,8 +717,9 @@ export const CCDC_LAB_4 = {
       teach: 'The DC briefly could not find itself in AD and flipped its network to the Public profile. On Public, the built-in WinRM rule only accepts LocalSubnet, and the scorer connects from outside. WinRM itself was fine (Test-WSMan works locally). Let the rule accept any address.',
       exploitable: false,
       fix: {
-        accept: [[/set-netfirewallrule/, /remote management|windows remote/, /remoteaddress any/]],
-        output: ['Windows Remote Management (HTTP-In) on every profile: RemoteAddress Any. The scorer can reach 5985 again.'],
+        steps: [
+          { id: 'rule', accept: [/set-netfirewallrule/, /remote management|windows remote/, /remoteaddress any/], verify: (fs) => (fs[FW_LOCK] ? { ok: false, why: 'Set-NetFirewallRule : Access is denied. (The FirewallPolicy registry key is locked: see "Firewall settings locked" on this DC.)' } : { ok: true }), label: 'WinRM rule open to Any', output: ['Windows Remote Management (HTTP-In) on every profile: RemoteAddress Any. The scorer can reach 5985 again.'] },
+        ],
         restores: ['ad-winrm'],
         why: 'Get-NetConnectionProfile shows NetworkCategory Public. Set-NetFirewallRule -DisplayGroup "Windows Remote Management" -RemoteAddress Any fixes it no matter which profile is active.',
       },
@@ -709,6 +741,22 @@ export const CCDC_LAB_4 = {
       },
       traps: [
         { id: 'reset-svc-splunk', match: [[/set-adaccountpassword/, /svc-splunk/], [/get-aduser -filter/, /set-adaccountpassword/]], unless: [/-notlike\s+["']?svc-|-notmatch\s+["']?\^?svc|-ne\s+["']svc-splunk/], drops: ['splunk-query'], note: 'svc-splunk\'s password changed in AD but not in Splunk\'s bindDNpassword: every Splunk login against AD now fails (it happened twice on Nov 14).', output: ['Password for svc-splunk reset.', '(on the Splunk box, splunkd.log: ERROR ScopedLDAPConnection - Error binding to LDAP. reason="Invalid credentials")'], why: 'Exclude every svc-* account from bulk resets. If you must rotate one, change it in AD and in the application\'s config together, then restart the application.' },
+      ],
+    },
+    {
+      id: 'dc-fw-lock', host: 'dc', title: 'Firewall settings locked: FirewallPolicy ACL + PowerShell profile hook', severity: 'High',
+      teach: 'Red team denied everyone on HKLM\\SYSTEM\\CurrentControlSet\\Services\\SharedAccess\\Parameters\\FirewallPolicy, so even a Domain Admin gets "Access is denied" from netsh and the firewall cmdlets, and cannot take ownership. A machine-wide profile.ps1 also replaces Get-NetFirewallRule with an empty function, so the first symptom is commands that print nothing. Delete the profile, open a SYSTEM shell with PsExec64 -s -i (SYSTEM still owns the key), and reset the key\'s ACL. mpssvc and its service DACL are fine: do not chase them.',
+      exploitable: true, compromise: { impact: 'Red team keeps the DC firewall frozen: nobody can open WinRM or close what they opened, and the lock survives reboots.', penalty: 40 },
+      fix: {
+        steps: [
+          { id: 'hook', accept: [/remove-item|\brm\b|\bdel\b|clear-content|set-content|rename-item|move-item/, /profile\.ps1/], verify: (fs) => { delete fs[PS_PROFILE]; return { ok: true }; }, label: 'Deleted the profile hook', output: ['profile.ps1 removed: Get-NetFirewallRule is the real cmdlet again (open a new PowerShell window).'], todo: 'delete C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\profile.ps1' },
+          { id: 'system', accept: [/psexec(64)?(\.exe)?/, /\s-s\b/], verify: (fs) => { fs[SYSTEM_SHELL] = '1'; return { ok: true }; }, label: 'Opened a SYSTEM shell', output: ['PsExec v2.43 - Execute processes remotely', 'Copyright (C) 2001-2023 Mark Russinovich', 'Sysinternals - www.sysinternals.com', '', 'Started as NT AUTHORITY\\SYSTEM (session 1).'], todo: 'open a SYSTEM shell: C:\\Tools\\PsExec64.exe -s -i powershell (or regedit)' },
+          { id: 'acl', accept: [/firewallpolicy/, /set-acl|regini|icacls|setacl|permission/], verify: (fs) => { if (!fs[SYSTEM_SHELL]) return { ok: false, why: 'Set-Acl : Requested registry access is not allowed. Administrators are denied on this key; only SYSTEM can still change it. Open a SYSTEM shell first (PsExec64 -s -i powershell).' }; delete fs[FW_LOCK]; return { ok: true }; }, label: 'Reset the FirewallPolicy ACL', output: ['FirewallPolicy ACL reset: SYSTEM, Administrators and NT SERVICE\\mpssvc have Full Control again. netsh and the firewall cmdlets work.'], todo: 'reset the FirewallPolicy key\'s ACL from the SYSTEM shell' },
+        ],
+        why: 'Remove-Item C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\profile.ps1; C:\\Tools\\PsExec64.exe -s -i powershell; in that SYSTEM window: $k = "HKLM:\\SYSTEM\\CurrentControlSet\\Services\\SharedAccess\\Parameters\\FirewallPolicy"; $a = Get-Acl $k; $a.SetAccessRuleProtection($false,$false); Set-Acl $k $a (or SYSTEM regedit > Permissions). Then netsh advfirewall show allprofiles state.',
+      },
+      traps: [
+        { id: 'stop-mpssvc', match: [[/stop-service|set-service|sc(\.exe)? (stop|config)|net stop/, /mpssvc/]], output: ['Stop-Service : Service \'Windows Defender Firewall (mpssvc)\' cannot be stopped.', '(and if it could, the DC would drop every connection the firewall was allowing)'], why: 'mpssvc and its service DACL were fine on the day. The lock is on the registry key, not the service.' },
       ],
     },
     // ---------------- MSSQL ----------------
