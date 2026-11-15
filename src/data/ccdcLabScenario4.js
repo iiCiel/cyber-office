@@ -479,6 +479,30 @@ export const CCDC_LAB_4 = {
       evidence: (st) => historyOf(st, ['dc']).some((l) => /netsh|get-acl|get-netfirewall|profile\.ps1/i.test(l)) },
   ],
 
+  // What team 14 actually did on Nov 14 (docs/mwccdc-2026-11-14-record.md), for the debrief's side-by-side.
+  realDay: [
+    { label: 'Router (VyOS) key + password', day: 'Skipped. ~11:40 CST red team took the console; a reboot landed on the boot menu and never came back. Every service down for the last ~20 minutes.',
+      you: (h) => (h.trap('vyos-backdoor', 'reboot') ? { text: 'Rebooted the compromised router: same ending.', verdict: 'same' } : h.breached('vyos-backdoor') ? { text: 'Left open: red team took it over.', verdict: 'same' } : h.fixed('vyos-backdoor') ? { text: `Secured${h.at('vyos-backdoor')} (password, key deleted, committed).`, verdict: 'better' } : { text: 'Still open at the buzzer.', verdict: 'worse' }) },
+    { label: 'Web store down at the start', day: 'A teammate restarted firewalld and left an nft drop table that blocked even localhost; fixed with nft delete table inet firewalld_policy_drop.',
+      you: (h) => (h.fixed('ecom-drop-table') ? { text: `Store back up${h.at('ecom-drop-table')}.`, verdict: 'better' } : { text: 'Never brought ecomm back.', verdict: 'worse' }) },
+    { label: 'ad-winrm (Public profile)', day: 'Red 10:24 to 10:58 CST (34 min). Fixed with Set-NetFirewallRule -DisplayGroup "Windows Remote Management" -RemoteAddress Any.',
+      you: (h) => (h.fixed('dc-winrm-public') ? { text: `Fixed${h.at('dc-winrm-public')} (uptime ${h.uptime('ad-winrm') ?? '—'}%).`, verdict: 'better' } : { text: `Still red (uptime ${h.uptime('ad-winrm') ?? '—'}%).`, verdict: 'worse' }) },
+    { label: 'Domain password change (PCR)', day: 'First paste was built from AD and rejected whole (svc-splunk and names Quotient did not know); redone from the Usernames tab. Resetting before the PCR broke the AD-login checks.',
+      you: (h) => { const d = h.pcr('DomainUsers'); const sp = h.pcr('Splunk'); if (d.everBroke || sp.everBroke) return { text: 'A reset happened before the PCR: the AD-login checks failed until it was filed.', verdict: 'same' }; if (d.filed && sp.filed) return { text: 'Filed DomainUsers and Splunk in Quotient before any reset: nothing broke.', verdict: 'better' }; return { text: 'No AD passwords rotated and no PCR filed.', verdict: 'info' }; } },
+    { label: 'svc-splunk and Splunk login', day: 'The bulk reset changed svc-splunk too; splunk-query red from ~11:03 and again after 13:57 until bindDNpassword matched.',
+      you: (h) => ({ text: `splunk-query uptime ${h.uptime('splunk-query') ?? '—'}%${h.trap('dc-svc-da', 'reset-svc-splunk') ? ' (svc-splunk was reset)' : ''}.`, verdict: (h.uptime('splunk-query') ?? 0) >= 90 ? 'better' : 'same' }) },
+    { label: 'svc-splunk in Domain/Enterprise Admins', day: 'Found in session 2 (~14:00), hours after the red team added it at 05:31.',
+      you: (h) => (h.fixed('dc-svc-da') ? { text: `Removed from both groups${h.at('dc-svc-da')}.`, verdict: 'better' } : { text: 'Still a Domain Admin at the buzzer.', verdict: 'worse' }) },
+    { label: 'DC firewall locked', day: 'Commands printed nothing, then Access is denied even for admins; fixed late with PsExec64 -s -i and SYSTEM regedit.',
+      you: (h) => (h.fixed('dc-fw-lock') ? { text: `Unlocked${h.at('dc-fw-lock')}.`, verdict: 'better' } : { text: 'Still locked.', verdict: 'worse' }) },
+    { label: 'Goose kit (fake scoringengine)', day: 'Removed 14:30 to 15:05 CST on Rocky and Ubuntu, after it had been spamming the consoles.',
+      you: (h) => (h.fixed('ecom-goose') && h.fixed('email-goose') ? { text: `Removed from both boxes (Rocky${h.at('ecom-goose')}, Ubuntu${h.at('email-goose')}).`, verdict: 'better' } : { text: 'Still running on at least one box.', verdict: 'worse' }) },
+    { label: 'TOOL23T (Palo Alto policy)', day: 'Done with 8 minutes left: profile group "inspict", interzone-default logged, committed; memo PDF submitted.',
+      you: (h) => (h.fixed('pa-permit-any') ? { text: `Policy hardened and committed${h.at('pa-permit-any')}${h.inj('tool23t').done ? ', memo submitted' : ''}.`, verdict: 'better' } : h.inj('tool23t').done ? { text: 'Memo submitted, policy not hardened.', verdict: 'same' } : { text: 'Not done.', verdict: 'worse' }) },
+    { label: 'Incident reports', day: '6 reports in session 2 (fake scoringengine, firewall wipers, fake services, Splunk backdoors, svc-splunk in DA/EA, DC firewall lock).',
+      you: (h) => { const n = h.reports(); return { text: `${n} of 6 matched to real incidents.`, verdict: n >= 6 ? 'same' : n > 0 ? 'worse' : 'worse' }; } },
+  ],
+
   // Fixing a mistake that lives on another box: svc-splunk reset in AD (by you, or by the 13:57 bulk reset) breaks
   // splunk-query until Splunk's own copy of the bind password matches and Splunkd is restarted.
   recoveries: [{

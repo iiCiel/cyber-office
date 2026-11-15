@@ -369,3 +369,20 @@ test('scenario 4: after the router is rebooted (or taken over) its SSH session i
   run(s, 'vyos', 'delete system login user vyos authentication public-keys cyberrange-lab');
   assert.equal(s.findings['vyos-backdoor'].steps.key, undefined);
 });
+
+// --- debrief: you vs the real day ------------------------------------------------------------------------------
+import { compareRealDay } from '../src/game/realDay.js';
+test('scenario 4 debrief: the checklist round beats the real day where team 14 struggled; the reboot matches it', () => {
+  let s = attachEngine(fresh());
+  for (const d of s.deviceList) for (const c of d.checklist) runLine(s, d.id, c);
+  let rows = compareRealDay(s);
+  const by = (l) => rows.find((r) => r.label.startsWith(l));
+  assert.equal(by('Router').verdict, 'better');
+  assert.equal(by('DC firewall').verdict, 'better');
+  assert.match(by('Router').you, /at \d+:\d\d/);
+  s = attachEngine(fresh());
+  runLine(s, 'vyos', 'reboot');
+  rows = compareRealDay(s);
+  assert.equal(rows.find((r) => r.label.startsWith('Router')).verdict, 'same');
+  assert.equal(rows.length, 10);
+});

@@ -29,6 +29,7 @@ import { QuotientApp } from '../ui/ccdc/QuotientApp.js';
 import { NiseApp } from '../ui/ccdc/NiseApp.js';
 import { NetlabApp } from '../ui/ccdc/NetlabApp.js';
 import { submitIncident } from '../game/incidents.js';
+import { compareRealDay } from '../game/realDay.js';
 import { submitPcr } from '../game/quotient.js';
 import '../ui/ccdc/panos.css';
 
@@ -439,6 +440,7 @@ export class CcdcLabScene extends Phaser.Scene {
           h('tbody', {},
             g.serviceMax ? row(['Service uptime', `+${g.servicePts}`, `of ${g.serviceMax}, earned check by check`]) : null,
             g.injectMax ? row(['Injects', `+${g.injectPts}`, `of ${g.injectMax}, graded against the rubric`]) : null,
+            g.incidentMax ? row(['Incident reports', `+${g.incidentPts}`, `of ${g.incidentMax}, matched by the white team to real incidents`]) : null,
             g.serviceMax ? row(['SLA violations', g.slaPenalty ? `−${g.slaPenalty}` : '0', `${g.slaCount} SLA violation(s): 3 missed checks in a row each`], g.slaPenalty ? 'bad' : '') : null,
             g.findingsTotal ? row(['Red Team compromises', g.compromisePenalty ? `−${g.compromisePenalty}` : '0', `${g.compromises.length} breach(es)`], g.compromisePenalty ? 'bad' : '') : null,
             this.hunt.total ? row(['Threat hunt (Splunk)', `${this.hunt.got}/${this.hunt.total}`, `questions answered from the logs (${this.hunt.pts}/${this.hunt.max} bonus, not in the letter grade)`]) : null,
@@ -449,6 +451,13 @@ export class CcdcLabScene extends Phaser.Scene {
             h('thead', {}, h('tr', {}, ['Rank', 'Team', 'Score', 'Uptime', 'SLA'].map((t) => h('th', {}, t)))),
             h('tbody', {}, this.finalStandings.map((r) => h('tr', { class: r.you ? 'you' : '' },
               h('td', { class: 'num' }, r.rank), h('td', {}, r.team), h('td', { class: 'num' }, Math.round(r.score).toLocaleString('en-US')), h('td', { class: 'num' }, `${r.uptimePct ?? ''}%`), h('td', { class: 'num' }, r.sla ?? '')))))) : null,
+        this.scenario.realDay ? h('div', { class: 'ccx-realday' }, h('h2', {}, `You vs team 14 on the real day`),
+          h('p', { class: 'ccx-small' }, 'What happened at the MWCCDC Invitational on Nov 14, 2026, next to what you did in this round.'),
+          h('table', { class: 'ccx-tbl' },
+            h('thead', {}, h('tr', {}, ['', 'Team 14 on Nov 14', 'You', ''].map((t) => h('th', {}, t)))),
+            h('tbody', {}, compareRealDay(st).map((r) => h('tr', { class: r.verdict === 'worse' ? 'bad' : '', 'data-verdict': r.verdict },
+              h('td', {}, h('b', {}, r.label)), h('td', {}, r.day), h('td', {}, r.you),
+              h('td', { class: `ccx-verdict v-${r.verdict}` }, r.verdict === 'better' ? '▲ better' : r.verdict === 'worse' ? '▼ worse' : r.verdict === 'same' ? '= same' : '')))))) : null,
         Object.keys(st.services).length ? h('div', {}, h('h2', {}, '3. Scored services'),
           h('table', { class: 'ccx-tbl' },
             h('thead', {}, h('tr', {}, ['Service', 'At the buzzer', 'Uptime', 'Points'].map((t) => h('th', {}, t)))),

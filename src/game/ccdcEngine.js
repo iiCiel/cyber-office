@@ -81,6 +81,7 @@ export function notePasswordRotated(state, accounts) {
     // rotation is pre-approved and scoring never breaks.
     if (p.filed) { log(eng, 'ok', `Scored account ${p.account} rotated under the PCR you already filed — the scoring engine has the new credential; ${[].concat(p.service).join(', ')} keep${[].concat(p.service).length > 1 ? '' : 's'} passing.`); continue; }
     p.breaking = true;
+    p.everBroke = true;
     log(eng, 'warn', `Scored account ${p.account} rotated. The scoring engine can no longer authenticate — file the PCR or ${[].concat(p.service).join(', ')} checks will fail.`);
   }
 }

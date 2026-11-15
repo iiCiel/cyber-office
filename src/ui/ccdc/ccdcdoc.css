@@ -71,3 +71,7 @@
 .np-status { flex: none; display: flex; justify-content: flex-end; border-top: 1px solid #d7d7d7; background: #f0f0f0; }
 .np-status span { padding: 2px 14px; border-left: 1px solid #d7d7d7; font-size: 12px; }
 @media (max-width: 640px) { .np-text { white-space: pre-wrap; font-size: 13px; } .np-line, .np-cmd { white-space: pre-wrap; } }
+.ccx-verdict { white-space: nowrap; font-weight: 700; }
+.ccx-verdict.v-better { color: #1e7e34; }
+.ccx-verdict.v-worse { color: #b02a37; }
+.ccx-verdict.v-same { color: #6c757d; }

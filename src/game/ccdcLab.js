@@ -338,6 +338,7 @@ export function runLine(state, deviceId, rawLine) {
 
 function finishFix(state, f, lines) {
   state.findings[f.id].status = 'fixed';
+  state.findings[f.id].fixedAt = state.engine?.clock ?? null;
   const restored = [];
   for (const s of asList(f.fix.restores)) if (restoreService(state, s, f.id)) restored.push(s);
   lines.unshift({ cls: 'fix', text: `✓ Hardened: ${f.title}` });
@@ -355,7 +356,7 @@ function runPanFindings(state, findings, ds, applied) {
     for (const s of Object.keys(state.services)) {
       if ((v.down || []).includes(s)) { if (dropService(state, s, f.id, v.note || 'blocked at the Palo Alto')) effects.dropped.push(s); } else if (restoreService(state, s, f.id)) effects.restored.push(s);
     }
-    if (v.fixed && rec.status !== 'fixed') { rec.status = 'fixed'; effects.fixed = f.id; effects.why = f.fix.why; lines.push({ cls: 'fix', text: `✓ Hardened: ${f.title}` }); }
+    if (v.fixed && rec.status !== 'fixed') { rec.status = 'fixed'; rec.fixedAt = state.engine?.clock ?? null; effects.fixed = f.id; effects.why = f.fix.why; lines.push({ cls: 'fix', text: `✓ Hardened: ${f.title}` }); }
     else if (!v.fixed && rec.status === 'fixed') rec.status = 'open';
     if (applied.commit && !v.fixed && v.todo?.length && f.reportTodo) lines.push({ cls: 'warn', text: `Not hardened yet: ${v.todo.join('; ')}.` });
   }
