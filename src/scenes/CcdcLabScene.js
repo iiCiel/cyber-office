@@ -224,7 +224,7 @@ export class CcdcLabScene extends Phaser.Scene {
     // A Palo Alto with a web UI: reached by typing its management IP into a browser on the team workstation.
     for (const pan of st.deviceList.filter((d) => d.webui === 'panos')) {
       wins.push({ id: `web-${pan.id}`, kind: 'browser', icon: 'pan', pinned: true, desktop: 'Palo Alto', title: `${pan.panHost || 'PA-VM'} - Palo Alto Networks`, short: 'Palo Alto', tabLabel: `${pan.panHost || 'PA-VM'}`, url: `https://${pan.ip}/#policies::vsys1::policies/security-rulebase`,
-        create: () => new PanOsApp({ dev: pan }) });
+        create: () => new PanOsApp({ dev: pan, state: st, run: (l) => this.run(pan.id, l) }) });
     }
     for (const d of st.deviceList) {
       if (d.kind === 'bash') {

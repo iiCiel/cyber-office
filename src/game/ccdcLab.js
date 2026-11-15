@@ -22,6 +22,7 @@ import { rng, freshSeed } from './shuffle.js';
 import { finalSweep, tickTo } from './ccdcEngine.js';
 import { initHostState, applyHostChange, applyAdChange } from './hostState.js';
 import { makeDirectory } from './directory.js';
+import { initialPan, applyPan } from './panMap.js';
 
 export const SERVICE_STATE = { UP: 'up', DOWN: 'down' };
 export const MODES = { GUIDED: 'guided', COMPETITION: 'competition' };
@@ -120,6 +121,8 @@ export function newGame(scenario, opts = {}) {
       // Live host state (running services, local users, scheduled tasks, units, host-firewall rules) that status
       // commands read, so verifying a change shows the CURRENT state, not the starting one.
       live: d.kind === 'firewall' ? null : initHostState(d),
+      // A Palo Alto keeps a candidate and a running config (see panMap.js); nothing is live until commit.
+      pan: d.webui === 'panos' ? initialPan() : null,
     };
   }
 
@@ -183,6 +186,13 @@ export function runLine(state, deviceId, rawLine) {
 
   const lower = line.toLowerCase();
   const findings = state.findingList.filter((f) => f.host === deviceId);
+
+  // Palo Alto: PAN-OS config lines (typed, or sent by the web UI) change the candidate config; findings on the
+  // box are judged against the RUNNING config after every change, like the pfSense rule editor.
+  if (ds.pan) {
+    const r = applyPan(ds.pan, line);
+    if (r.handled) return runPanFindings(state, findings, ds, r);
+  }
 
   // A file-editing command (sed -i / echo >> / rm / tee / truncate / nano…) on a Linux box actually changes the
   // box's own filesystem, so a later `cat` shows the edited result. Apply the change first, then still let the
@@ -273,7 +283,7 @@ export function runLine(state, deviceId, rawLine) {
   if (editLines) return { lines: editLines, effects: {} };
 
   // 3) Everything else: the real inspection engine for this box (reading the box's current, possibly edited, fs).
-  const ctx = { ...dev.ctx, cwd: ds.cwd, fs: ds.fs || dev.ctx?.fs, live: ds.live, dir: ds.dir || dev.ctx?.dir };
+  const ctx = { ...dev.ctx, cwd: ds.cwd, fs: ds.fs || dev.ctx?.fs, live: ds.live, dir: ds.dir || dev.ctx?.dir, pan: ds.pan };
   const res = dev.kind === 'pwsh' ? runPwsh(line, ctx) : runBash(line, ctx);
   if (res.cwd) ds.cwd = res.cwd;
   const text = res.out == null ? '' : String(res.out).replace(/\n$/, '');
@@ -288,6 +298,27 @@ function finishFix(state, f, lines) {
   for (const s of asList(f.fix.restores)) if (restoreService(state, s, f.id)) restored.push(s);
   lines.unshift({ cls: 'fix', text: `✓ Hardened: ${f.title}` });
   return { lines, effects: { fixed: f.id, restored, why: f.fix.why } };
+}
+
+function runPanFindings(state, findings, ds, applied) {
+  const lines = applied.lines.filter((t) => t !== '').map((text) => ({ cls: applied.error ? 'err' : 'note', text }));
+  const effects = { dropped: [], restored: [], commit: !!applied.commit };
+  if (applied.error) return { lines, effects };
+  for (const f of findings) {
+    if (typeof f.pan !== 'function') continue;
+    const rec = state.findings[f.id];
+    const v = f.pan(ds.pan, state);
+    for (const s of Object.keys(state.services)) {
+      if ((v.down || []).includes(s)) { if (dropService(state, s, f.id, v.note || 'blocked at the Palo Alto')) effects.dropped.push(s); } else if (restoreService(state, s, f.id)) effects.restored.push(s);
+    }
+    if (v.fixed && rec.status !== 'fixed') { rec.status = 'fixed'; effects.fixed = f.id; effects.why = f.fix.why; lines.push({ cls: 'fix', text: `✓ Hardened: ${f.title}` }); }
+    else if (!v.fixed && rec.status === 'fixed') rec.status = 'open';
+    if (applied.commit && !v.fixed && v.todo?.length && f.reportTodo) lines.push({ cls: 'warn', text: `Not hardened yet: ${v.todo.join('; ')}.` });
+  }
+  if (effects.dropped.length) lines.push({ cls: 'bad', text: `!! Scored service DOWN: ${effects.dropped.join(', ')} — the committed policy no longer lets the scorer in.` });
+  if (effects.restored.length) lines.push({ cls: 'ok', text: `Scored service back UP: ${effects.restored.join(', ')}.` });
+  if (ds.pan.dirty && !applied.commit) lines.push({ cls: 'note', text: '(candidate config changed — not live until you commit)' });
+  return { lines, effects };
 }
 
 function runFirewallLine(state, dev, ds, line) {

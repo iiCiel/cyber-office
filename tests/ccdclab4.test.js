@@ -18,11 +18,11 @@ const GOOD = {
   pcr: 'Open each Quotient credential list (DomainUsers, Splunk) and copy its Usernames tab. Build username,password CSV lines for exactly those names and submit the PCR in Quotient first, then run Set-ADAccountPassword. Exclude svc- service accounts. Check Quotient after one round.',
 };
 
-test('scenario 4: registered fourth, shape — 6 devices, 15 findings, 11 scored services, 5 injects', () => {
+test('scenario 4: registered fourth, shape — 6 devices, 16 findings, 11 scored services, 5 injects', () => {
   assert.equal(CCDC_SCENARIOS[3], CCDC_LAB_4);
   const s = fresh();
   assert.equal(s.deviceList.length, 6);
-  assert.equal(s.findingList.length, 15);
+  assert.equal(s.findingList.length, 16);
   assert.equal(Object.keys(s.services).length, 11);
   assert.equal(s.injectList.length, 5);
 });
@@ -37,7 +37,7 @@ test('scenario 4: the checklist hardens every finding and brings every service u
   const s = fresh();
   for (const d of s.deviceList) for (const c of d.checklist) runLine(s, d.id, c);
   const p = progress(s);
-  assert.equal(p.fixed, 15);
+  assert.equal(p.fixed, 16);
   assert.equal(p.servicesUp, 11);
 });
 
@@ -142,4 +142,54 @@ test('sed range delete removes a BEGIN/END block and nothing else', () => {
   const r = applyEdit(fs, "sed -i '/BEGIN X/,/END X/d' /etc/profile", { cwd: '/' });
   assert.ok(!r.error);
   assert.equal(fs['/etc/profile'], 'a\nb\n');
+});
+
+// --- Palo Alto (TOOL23T hands-on) -----------------------------------------------------------------------------
+const PA_GOOD = CCDC_LAB_4.devices.find((d) => d.id === 'pa').checklist.filter((c) => /^set (profile-group|rulebase)/.test(c));
+
+test('scenario 4 PA: nothing is live until commit; then the perimeter is hardened and every service stays up', () => {
+  const s = fresh();
+  run(s, 'pa', ...PA_GOOD);
+  assert.equal(open(s, 'pa-permit-any'), true, 'candidate only');
+  assert.equal(s.devState.pa.pan.dirty, true);
+  run(s, 'pa', 'commit');
+  assert.equal(open(s, 'pa-permit-any'), false);
+  for (const id of ['ecomm-ping', 'webmail-smtp', 'webmail-imap', 'splunk-query', 'ad-dns']) assert.equal(s.services[id].downBy['pa-permit-any'], undefined, id);
+});
+
+test('scenario 4 PA: disabling both allow-all rules before adding allow rules drops every scored service, re-enabling restores', () => {
+  const s = fresh();
+  run(s, 'pa', 'set rulebase security rules "Permit Inbound" disabled yes', 'commit');
+  assert.equal(up(s, 'splunk-query'), true, 'Permit Outbound is any to any, so it still lets the scorer in');
+  const r = run(s, 'pa', 'set rulebase security rules "Permit Outbound" disabled yes', 'commit').pop();
+  assert.ok(r.effects.dropped.includes('webmail-imap'));
+  assert.equal(up(s, 'splunk-query'), false);
+  run(s, 'pa', 'set rulebase security rules "Permit Inbound" disabled no', 'commit');
+  assert.equal(up(s, 'splunk-query'), true);
+});
+
+test('scenario 4 PA: forgetting one service (WinRM port rule) keeps the finding open and that service down', () => {
+  const s = fresh();
+  run(s, 'pa', ...PA_GOOD.filter((c) => !/ad-winrm/.test(c)), 'commit');
+  assert.equal(open(s, 'pa-permit-any'), true);
+  assert.ok(s.services['ad-winrm'].downBy['pa-permit-any']);
+});
+
+test('scenario 4 PA: profile group must exist, no-profile rules and unlogged denies keep it open', () => {
+  let s = fresh();
+  const r = runLine(s, 'pa', 'set rulebase security rules x action allow profile-setting group nope');
+  assert.match(r.lines[0].text, /does not exist/);
+  s = fresh();
+  run(s, 'pa', ...PA_GOOD.filter((c) => !/interzone-default/.test(c)), 'commit');
+  assert.equal(open(s, 'pa-permit-any'), true, 'denies not logged');
+  const t = runLine(s, 'pa', 'show running rulebase security').lines.map((l) => l.text).join('\n');
+  assert.match(t, /"Permit Inbound".*disabled yes/);
+});
+
+test('scenario 4 PA: admin password counts only after commit', () => {
+  const s = fresh();
+  run(s, 'pa', 'configure', 'set mgt-config users admin password');
+  assert.equal(open(s, 'pa-default-admin'), true);
+  run(s, 'pa', 'commit');
+  assert.equal(open(s, 'pa-default-admin'), false);
 });

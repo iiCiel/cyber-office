@@ -1,3 +1,4 @@
+import { panVerdict, PAN_PREDEFINED } from '../game/panMap.js';
 // Fourth CCDC hands-on scenario: "Under Pressure Water Authority" — a replay of the network Soliman's team (team 14)
 // defended at the MWCCDC Invitational on Nov 14, 2026. Same hands-on model as the other companies (open each box's
 // own terminal and TYPE the commands), but every finding, trap and inject is something that really happened that
@@ -177,12 +178,22 @@ const vyosCommands = {
 
 const panCommands = {
   configure: () => 'Entering configuration mode\n[edit]\n',
-  commit: () => 'Commit job 7 is in progress. Use Ctrl+C to return to command prompt\n..........55%...100%\nConfiguration committed successfully\n',
-  show: (args) => {
+  show: (args, _in, ctx) => {
     const a = (args || []).join(' ');
-    if (/mgt-config users/.test(a)) return lines(['users {', '  admin {', '    phash $1$default$Changeme123hash;   # factory default password', '    permissions { role-based { superuser yes; } }', '  }', '}']);
-    if (/rulebase security/.test(a)) return lines(['rules {', '  "Permit Outbound" { from any; to any; source any; destination any; application any; service any; action allow; }', '  "Permit Inbound"  { from external; to any; source any; destination any; application any; service application-default; action allow; }', '}']);
-    return lines(['(simulated) try: show mgt-config users | show rulebase security']);
+    const pan = ctx?.pan;
+    const cfg = pan ? (/running/.test(a) ? pan.running : pan.candidate) : null;
+    if (/mgt-config users/.test(a)) return lines(['users {', '  admin {', cfg?.adminChanged ? '    phash $5$k2Lq...;' : '    phash $1$default$Changeme123hash;   # factory default password', '    permissions { role-based { superuser yes; } }', '  }', '}']);
+    if (/rulebase security/.test(a) && cfg) {
+      const l = (x) => (x.length > 1 ? '[ ' + x.join(' ') + ' ]' : x[0]);
+      const out = ['rules {'];
+      for (const r of cfg.rules) out.push(`  "${r.name}" { from ${l(r.from)}; to ${l(r.to)}; source ${l(r.source)}; destination ${l(r.destination)}; application ${l(r.application)}; service ${l(r.service)}; action ${r.action};${r.group ? ` profile-setting group ${r.group};` : ''}${r.logEnd ? ' log-end yes;' : ''}${r.disabled ? ' disabled yes;' : ''} }`);
+      out.push('}');
+      for (const d of cfg.defaults) out.push(`# ${d.name}: action ${d.action}, log-end ${d.logEnd ? 'yes' : 'no'}${d.logEnd !== PAN_PREDEFINED.find((x) => x.name === d.name).logEnd ? ' (override)' : ''}`);
+      if (pan.dirty) out.push('# candidate has uncommitted changes (show running rulebase security for what is live)');
+      return lines(out);
+    }
+    if (/profile-group/.test(a) && cfg) return lines(Object.keys(cfg.profileGroups).length ? Object.entries(cfg.profileGroups).map(([n, g]) => `${n} { virus ${g.virus || '-'}; spyware ${g.spyware || '-'}; vulnerability ${g.vulnerability || '-'}; }`) : ['(no security profile groups)']);
+    return lines(['(simulated) try: show mgt-config users | show rulebase security | show profile-group']);
   },
   exit: () => 'Exiting configuration mode\n',
 };
@@ -269,13 +280,22 @@ export const CCDC_LAB_4 = {
       webui: 'panos', panHost: 'PA-VM',
       prompt: 'admin@PA-VM>', user: 'admin', cwd: '/home/admin',
       motd: ['Last login: Sat Nov 14 12:58:03 2026 from 172.20.240.5', '', 'Number of failed attempts since last successful login: 0', '', ''],
-      brief: 'The perimeter firewall still has the factory admin / Changeme123 login, and two allow-everything rules (that is an inject, not a finding here). On PAN-OS nothing you change is live until you commit.',
+      brief: 'The perimeter firewall still has the factory admin / Changeme123 login, and two allow-everything rules (TOOL23T). Do it in the web UI from a workstation, or type it here. On PAN-OS nothing you change is live until you commit.',
       checklist: [
         'show mgt-config users',
         'configure',
         'set mgt-config users admin password',
+        'set profile-group inspect virus default spyware default vulnerability default',
+        'set rulebase security rules ecomm from external to internal destination 172.20.240.10 application [ web-browsing ssl ping ] service application-default action allow profile-setting group inspect',
+        'set rulebase security rules webmail from external to internal destination 172.20.240.15 application [ smtp imap ssh ] service application-default action allow profile-setting group inspect',
+        'set rulebase security rules splunk from external to internal destination 172.20.240.20 application [ ssh ntp splunk ssl ] service application-default action allow profile-setting group inspect',
+        'set rulebase security rules ad-dns from external to internal destination 172.20.240.100 application dns service application-default action allow profile-setting group inspect',
+        'set rulebase security rules ad-winrm from external to internal destination 172.20.240.100 application any service tcp-5985 action allow profile-setting group inspect',
+        'set rulebase security rules "Permit Inbound" disabled yes',
+        'set rulebase security rules "Permit Outbound" disabled yes',
+        'set rulebase default-security-rules rules interzone-default log-end yes',
         'commit',
-        'show rulebase security',
+        'show running rulebase security',
       ],
       ctx: { user: 'admin', host: 'PA-VM', cwd: '/home/admin', history: [], fs: { '/home/admin/README.txt': 'PA-VM 11.0.2. Web UI on https://172.20.240.200 from the Ubuntu or Windows workstation. Zones: external (ethernet1/2), internal (ethernet1/3).\n' }, commands: panCommands },
     },
@@ -414,12 +434,23 @@ export const CCDC_LAB_4 = {
       id: 'pa-default-admin', host: 'pa', title: 'Palo Alto still uses admin / Changeme123', severity: 'High',
       teach: 'The packet printed the firewall password for every team and the red team. The admin account is not used by the scorer, so change it in the first five minutes, no PCR needed. On PAN-OS a change is not live until commit, and the commit locks the config for a minute.',
       exploitable: true, compromise: { impact: 'Red team logs in to the firewall web UI with the factory password and adds an allow rule for their own traffic.', penalty: 45 },
+      // Judged on the RUNNING config: the new password only counts once it is committed.
+      pan: (pan) => ({ fixed: !!pan.running.adminChanged }),
       fix: {
-        steps: [
-          { id: 'pw', accept: [/set mgt-config users admin password/], label: 'Set a new admin password', output: ['Enter password   : ****************', 'Confirm password : ****************'], todo: 'set mgt-config users admin password' },
-          { id: 'commit', accept: [/^commit$/], label: 'Committed', output: ['Configuration committed successfully — the new password is live.'], todo: 'commit — on PAN-OS nothing is live until you commit' },
-        ],
         why: 'configure → set mgt-config users admin password → commit. Also look under Device > Administrators for any admin you did not create.',
+      },
+      traps: [],
+    },
+    {
+      id: 'pa-permit-any', host: 'pa', title: 'Palo Alto lets everything in and out (TOOL23T)', severity: 'High', reportTodo: true,
+      teach: 'Permit Inbound allows any application from external to anything inside, and Permit Outbound is any to any. No security profiles, so nothing is inspected, and denied traffic is not logged. Build an allow rule per scored service (by application, to the inside IP: VyOS already NATs), attach a security profile group to every allow rule, disable the two old rules (do not delete them; you need them to roll back), and log what gets denied. Commit, then watch the scoreboard.',
+      exploitable: true, compromise: { impact: 'Red team reaches every inside port straight through the Palo Alto, including RDP and SMB on the SQL box.', penalty: 40 },
+      pan: (pan, state) => {
+        const v = panVerdict(pan, Object.keys(state.services));
+        return { fixed: v.fixed, down: v.blocked, todo: v.todo, note: 'the committed Palo Alto policy blocks the scorer' };
+      },
+      fix: {
+        why: 'Objects > Security Profile Groups: add one (antivirus, anti-spyware, vulnerability = default). Policies > Security: one allow rule per service (web-browsing+ssl to .10, smtp+imap+ssh to .15, ssh+ntp+splunk to .20, dns + tcp-5985 to .100), each with the profile group; disable Permit Inbound and Permit Outbound; override interzone-default to log at session end. Commit.',
       },
       traps: [],
     },
