@@ -76,9 +76,9 @@ export function notePasswordRotated(state, accounts) {
     p.rotated = true;
     // PCR filed FIRST (the right order in a real round): the white team already holds the new credential, so the
     // rotation is pre-approved and scoring never breaks.
-    if (p.filed) { log(eng, 'ok', `Scored account ${p.account} rotated under the PCR you already filed — the scoring engine has the new credential; ${p.service} keeps passing.`); continue; }
+    if (p.filed) { log(eng, 'ok', `Scored account ${p.account} rotated under the PCR you already filed — the scoring engine has the new credential; ${[].concat(p.service).join(', ')} keep${[].concat(p.service).length > 1 ? '' : 's'} passing.`); continue; }
     p.breaking = true;
-    log(eng, 'warn', `Scored account ${p.account} rotated. The scoring engine can no longer authenticate — file the PCR or ${p.service} checks will fail.`);
+    log(eng, 'warn', `Scored account ${p.account} rotated. The scoring engine can no longer authenticate — file the PCR or ${[].concat(p.service).join(', ')} checks will fail.`);
   }
 }
 
@@ -89,7 +89,7 @@ export function notePcrFiled(state, account) {
   for (const p of eng.pcrs) {
     if (account && p.account !== account) continue;
     p.filed = true;
-    if (p.breaking) { p.breaking = false; log(eng, 'ok', `PCR accepted. The white team updated the scoring credentials for ${p.account}; ${p.service} checks pass again.`); }
+    if (p.breaking) { p.breaking = false; log(eng, 'ok', `PCR accepted. The white team updated the scoring credentials for ${p.account}; ${[].concat(p.service).join(', ')} checks pass again.`); }
   }
 }
 
@@ -97,7 +97,7 @@ export function notePcrFiled(state, account) {
 function serviceFailing(state, svc) {
   if (svc.state !== SERVICE_STATE.UP) return true;
   const eng = state.engine;
-  if (eng?.pcrs?.some((p) => p.breaking && p.service === svc.id)) return true;
+  if (eng?.pcrs?.some((p) => p.breaking && [].concat(p.service).includes(svc.id))) return true;
   return false;
 }
 

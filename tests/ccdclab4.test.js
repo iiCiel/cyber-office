@@ -18,27 +18,27 @@ const GOOD = {
   pcr: 'Open each Quotient credential list (DomainUsers, Splunk) and copy its Usernames tab. Build username,password CSV lines for exactly those names and submit the PCR in Quotient first, then run Set-ADAccountPassword. Exclude svc- service accounts. Check Quotient after one round.',
 };
 
-test('scenario 4: registered fourth, shape — 6 devices, 16 findings, 11 scored services, 5 injects', () => {
+test('scenario 4: registered fourth, shape — 7 devices, 17 findings, 14 scored services, 5 injects', () => {
   assert.equal(CCDC_SCENARIOS[3], CCDC_LAB_4);
   const s = fresh();
-  assert.equal(s.deviceList.length, 6);
-  assert.equal(s.findingList.length, 16);
-  assert.equal(Object.keys(s.services).length, 11);
+  assert.equal(s.deviceList.length, 7);
+  assert.equal(s.findingList.length, 17);
+  assert.equal(Object.keys(s.services).length, 14);
   assert.equal(s.injectList.length, 5);
 });
 
 test('scenario 4: the board starts red where it did on Nov 14 (ecomm-http, ecomm-ping, ad-winrm)', () => {
   const s = fresh();
   for (const id of ['ecomm-http', 'ecomm-ping', 'ad-winrm']) assert.equal(up(s, id), false, `${id} starts down`);
-  assert.equal(progress(s).servicesUp, 8);
+  assert.equal(progress(s).servicesUp, 11);
 });
 
 test('scenario 4: the checklist hardens every finding and brings every service up', () => {
   const s = fresh();
   for (const d of s.deviceList) for (const c of d.checklist) runLine(s, d.id, c);
   const p = progress(s);
-  assert.equal(p.fixed, 16);
-  assert.equal(p.servicesUp, 11);
+  assert.equal(p.fixed, 17);
+  assert.equal(p.servicesUp, 14);
 });
 
 test('scenario 4: no checklist item is prose or a missing command', () => {
@@ -192,4 +192,27 @@ test('scenario 4 PA: admin password counts only after commit', () => {
   assert.equal(open(s, 'pa-default-admin'), true);
   run(s, 'pa', 'commit');
   assert.equal(open(s, 'pa-default-admin'), false);
+});
+
+// --- MSSQL ---------------------------------------------------------------------------------------------------------
+test('scenario 4 MSSQL: blocking 135/139/5985 and turning IIS off fixes it; blocking a scored port is the trap', () => {
+  let s = fresh();
+  run(s, 'mssql', 'New-NetFirewallRule -DisplayName x -Direction Inbound -Protocol TCP -LocalPort 135,139,5985 -Action Block');
+  assert.equal(open(s, 'mssql-exposed'), true, 'IIS still on');
+  run(s, 'mssql', 'Stop-Service W3SVC');
+  assert.equal(open(s, 'mssql-exposed'), false);
+  for (const [line, svc] of [['New-NetFirewallRule -Direction Inbound -LocalPort 135,139,445 -Action Block', 'mssql-smb'], ['Stop-Service MSSQLSERVER', 'mssql-mssql'], ['Set-ItemProperty "HKLM:\\System\\CurrentControlSet\\Control\\Terminal Server" fDenyTSConnections 1', 'mssql-rdp'], ['Remove-SmbShare SOP -Force', 'mssql-smb']]) {
+    s = fresh(); run(s, 'mssql', line);
+    assert.equal(up(s, svc), false, line);
+  }
+});
+
+test('scenario 4 MSSQL: the SOP share and the waterops_svc login are there to find', () => {
+  const s = fresh();
+  const t = (l) => runLine(s, 'mssql', l).lines.map((x) => x.text).join('\n');
+  assert.match(t('Get-SmbShare'), /SOP\s+\*\s+C:\\Shares\\SOP/);
+  assert.match(t('Get-ChildItem C:\\Shares\\SOP'), /Chlorine-Dosing-SOP\.docx/);
+  assert.match(t('Get-LocalUser'), /waterops_svc/);
+  const r = runLine(s, 'mssql', 'net user waterops_svc N3wPass!2026');
+  assert.deepEqual(r.effects.pcrAccounts, ['MssqlService'], 'changing waterops_svc is an MssqlService rotation');
 });

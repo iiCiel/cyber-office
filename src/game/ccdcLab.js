@@ -222,7 +222,7 @@ export function runLine(state, deviceId, rawLine) {
   const pcrRotated = rotatedPcrs.length > 0;
   const pcrFx = (res) => {
     if (!pcrRotated) return res;
-    for (const p of rotatedPcrs) res.lines.push({ cls: 'warn', text: `Scored credentials in the ${p.account} list rotated. If you did not submit the PCR in Quotient first, ${p.service} will start failing.` });
+    for (const p of rotatedPcrs) res.lines.push({ cls: 'warn', text: `Scored credentials in the ${p.account} list rotated. If you did not submit the PCR in Quotient first, ${[].concat(p.service).join(', ')} will start failing.` });
     res.effects = { ...(res.effects || {}), pcrRotated: true, pcrAccounts: rotatedPcrs.map((p) => p.account) };
     return res;
   };

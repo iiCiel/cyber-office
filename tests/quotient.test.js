@@ -8,7 +8,7 @@ import { submitPcr, parsePcr, PCR_REJECT, quotientLists } from '../src/game/quot
 const fresh = () => attachEngine(newGame(CCDC_LAB_4, { seed: 1 }));
 const BULK = "Get-ADUser -Filter * | Where-Object { $_.SamAccountName -notlike 'svc-*' } | Set-ADAccountPassword -Reset -NewPassword (ConvertTo-SecureString 'ZipsBlue2026x!' -AsPlainText -Force)";
 const paste = (users) => users.map((u) => `${u},ZipsBlue2026x!`).join('\n');
-const failing = (s, id) => s.engine.pcrs.some((p) => p.breaking && p.service === id);
+const failing = (s, id) => s.engine.pcrs.some((p) => p.breaking && [].concat(p.service).includes(id));
 const rotate = (s, line) => { const r = runLine(s, 'dc', line); if (r.effects.pcrRotated) notePasswordRotated(s, r.effects.pcrAccounts); return r; };
 
 test('quotient: three credential lists; svc accounts are in AD but not on DomainUsers', () => {
@@ -47,6 +47,7 @@ test('quotient: reset first breaks webmail-imap and splunk-query until each list
   const L = quotientLists(CCDC_LAB_4);
   rotate(s, BULK);
   assert.equal(failing(s, 'webmail-imap'), true);
+  assert.equal(failing(s, 'mssql-smb'), true, 'SMB logs in as an AD user too (13:57 on the day)');
   assert.equal(failing(s, 'splunk-query'), true);
   tickTo(s, 120);
   assert.ok(s.engine.history['webmail-imap'].some((h) => !h.ok), 'round table shows false');

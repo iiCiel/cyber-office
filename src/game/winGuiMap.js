@@ -224,7 +224,7 @@ export function fmtDate(ms) {
   const h24 = d.getUTCHours();
   return `${d.getUTCMonth() + 1}/${d.getUTCDate()}/${d.getUTCFullYear()} ${((h24 + 11) % 12) + 1}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())} ${h24 < 12 ? 'AM' : 'PM'}`;
 }
-export const fmtClock = (sec) => { const d = ROUND_START + sec * 1000; const x = new Date(d); const h24 = x.getUTCHours(); return { time: `${((h24 + 11) % 12) + 1}:${pad(x.getUTCMinutes())} ${h24 < 12 ? 'AM' : 'PM'}`, date: `${x.getUTCMonth() + 1}/${x.getUTCDate()}/${x.getUTCFullYear()}` }; };
+export const fmtClock = (sec, base = ROUND_START) => { const d = base + sec * 1000; const x = new Date(d); const h24 = x.getUTCHours(); return { time: `${((h24 + 11) % 12) + 1}:${pad(x.getUTCMinutes())} ${h24 < 12 ? 'AM' : 'PM'}`, date: `${x.getUTCMonth() + 1}/${x.getUTCDate()}/${x.getUTCFullYear()}` }; };
 
 function mulberry(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 const hash = (s) => [...String(s)].reduce((a, c) => (Math.imul(a, 31) + c.charCodeAt(0)) >>> 0, 7);

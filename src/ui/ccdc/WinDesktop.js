@@ -76,7 +76,7 @@ export class WinDesktop {
       act: (line) => this.act(line),
       openApp: (id) => this.openApp(id),
       closeWin: () => win && this.closeWin(win),
-      nowMs: () => ROUND_START + this.clock() * 1000,
+      nowMs: () => (this.state?.scenario?.roundStartMs || ROUND_START) + this.clock() * 1000,
       get self() { return self; },
     };
   }
@@ -289,7 +289,7 @@ export class WinDesktop {
   refresh() {
     if (this.destroyed) return;
     this.layout();
-    const c = fmtClock(this.clock());
+    const c = fmtClock(this.clock(), this.state?.scenario?.roundStartMs || ROUND_START);
     if (this._clk !== c.time + c.date) { this._clk = c.time + c.date; clear(this.clockEl).append(h('div', {}, c.time), h('div', {}, c.date)); }
     this.refreshApps(false);
   }

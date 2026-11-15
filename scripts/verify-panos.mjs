@@ -46,6 +46,7 @@ const RULES = [
   ['webmail', '172.20.240.15', 'smtp, imap, ssh', null],
   ['splunk', '172.20.240.20', 'ssh, ntp, splunk, ssl', null],
   ['ad-dns', '172.20.240.100', 'dns', null],
+  ['mssql', '172.20.240.120', 'ms-ds-smb, ms-rdp, mssql-db', null],
   ['ad-winrm', '172.20.240.100', '', 'tcp-5985'],
 ];
 for (const [name, ip, apps, port] of RULES) {
@@ -65,7 +66,7 @@ for (const [name, ip, apps, port] of RULES) {
   await ok(); await noErr(`rule ${name}`);
 }
 let s = await st();
-check(s.rules.length === 7, `7 rules in candidate (${s.rules.join(', ')})`);
+check(s.rules.length === 8, `8 rules in candidate (${s.rules.join(', ')})`);
 check(s.dirty === true, 'candidate dirty, nothing live yet');
 check(await W.locator('.pan-commit-on').count() === 1, 'Commit button shows pending changes');
 

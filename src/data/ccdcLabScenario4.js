@@ -229,6 +229,7 @@ const LISTEN_EMAIL = 'LISTEN  0  100  0.0.0.0:25    users:(("master",pid=1101,fd
 
 export const CCDC_LAB_4 = {
   id: 'underpressure-invitational-2026',
+  roundStartMs: Date.UTC(2026, 10, 14, 13, 0, 0), // Windows clocks show the afternoon session of Nov 14
   company: 'Under Pressure Water Authority (Invitational replay)',
   tagline: 'A replay of the network team 14 defended at the MWCCDC Invitational on Nov 14, 2026. Red team had a head start: backdoor accounts, hidden SSH keys, cron jobs that wipe the host firewall every minute, a fake scoring engine, a service account in Domain Admins. Two services are already red. Everything here really happened that day, including the mistakes.',
   clockSeconds: 900,
@@ -244,8 +245,9 @@ export const CCDC_LAB_4 = {
   // Rotating domain user passwords without a PCR in Quotient breaks every check that logs in with an AD account.
   // One record per Quotient credential list. Submitting the list in Quotient FIRST pre-approves the rotation.
   pcr: [
-    { account: 'DomainUsers', host: 'dc', service: 'webmail-imap', rotateMatch: [/set-adaccountpassword/], rotateUnless: [/set-adaccountpassword\s+(-identity\s+)?["']?(svc-|administrator)/] },
+    { account: 'DomainUsers', host: 'dc', service: ['webmail-imap', 'webmail-smtp', 'webmail-ssh', 'splunk-ssh', 'mssql-smb'], rotateMatch: [/set-adaccountpassword/], rotateUnless: [/set-adaccountpassword\s+(-identity\s+)?["']?(svc-|administrator)/] },
     { account: 'Splunk', host: 'dc', service: 'splunk-query', rotateMatch: [/set-adaccountpassword/, /get-aduser|import-csv|get-content|foreach|%/] },
+    { account: 'MssqlService', host: 'mssql', service: 'mssql-mssql', rotateMatch: [/waterops_svc/, /net user waterops_svc \S|set-localuser|alter login|sp_password|-password/] },
   ],
   quotient: {
     lists: {
@@ -267,6 +269,9 @@ export const CCDC_LAB_4 = {
     { id: 'splunk-query', name: 'Splunk query', proto: 'tcp', ports: [8089], host: 'splunk', ip: '172.25.34.20', points: 120, check: 'Logs in as an AD user and searches for the "waterplant operational report" events' },
     { id: 'ad-dns', name: 'AD DNS', proto: 'any', ports: [53], host: 'dc', ip: '172.25.34.100', points: 100, check: 'A-record lookups for underpressure.local resolve' },
     { id: 'ad-winrm', name: 'AD WinRM', proto: 'tcp', ports: [5985], host: 'dc', ip: '172.25.34.100', points: 100, check: 'Authenticates to WinRM and runs a PowerShell command' },
+    { id: 'mssql-smb', name: 'MSSQL SMB (SOP share)', proto: 'tcp', ports: [445], host: 'mssql', ip: '172.25.34.120', points: 100, check: 'Logs in to \\\\MSSQL\\SOP as an AD user and reads the SOP documents' },
+    { id: 'mssql-rdp', name: 'MSSQL RDP', proto: 'tcp', ports: [3389], host: 'mssql', ip: '172.25.34.120', points: 80, check: 'RDP logon as an AD user' },
+    { id: 'mssql-mssql', name: 'MSSQL database', proto: 'tcp', ports: [1433], host: 'mssql', ip: '172.25.34.120', points: 120, check: 'Logs in to SQL Server as waterops_svc (MssqlService list) and runs a SELECT' },
   ],
 
   devices: [
@@ -312,6 +317,7 @@ export const CCDC_LAB_4 = {
         'set rulebase security rules webmail from external to internal destination 172.20.240.15 application [ smtp imap ssh ] service application-default action allow profile-setting group inspect',
         'set rulebase security rules splunk from external to internal destination 172.20.240.20 application [ ssh ntp splunk ssl ] service application-default action allow profile-setting group inspect',
         'set rulebase security rules ad-dns from external to internal destination 172.20.240.100 application dns service application-default action allow profile-setting group inspect',
+        'set rulebase security rules mssql from external to internal destination 172.20.240.120 application [ ms-ds-smb ms-rdp mssql-db ] service application-default action allow profile-setting group inspect',
         'set rulebase security rules ad-winrm from external to internal destination 172.20.240.100 application any service tcp-5985 action allow profile-setting group inspect',
         'set rulebase security rules "Permit Inbound" disabled yes',
         'set rulebase security rules "Permit Outbound" disabled yes',
@@ -423,6 +429,49 @@ export const CCDC_LAB_4 = {
         },
       },
     },
+    {
+      id: 'mssql', name: '2019 MSSQL server', host: 'mssql', ip: '172.20.240.120', os: 'Windows Server 2019 (SQL Server 2019)', role: 'windows', kind: 'pwsh',
+      prompt: 'PS C:\\Users\\Administrator>', user: 'Administrator', cwd: 'C:\\Users\\Administrator',
+      brief: 'Three checks are scored here: SMB (the SOP share, logged in as an AD user), RDP, and SQL Server as the local login waterops_svc. The EVAL14A scan showed more than that open from outside: RPC 135, NetBIOS 139, IIS on 80 and WinRM on 5985. Close what the business does not need, keep 445, 1433 and 3389. waterops_svc is on the MssqlService credential list: PCR it in Quotient before you change it.',
+      checklist: [
+        'Get-SmbShare',
+        'netstat -ano',
+        'New-NetFirewallRule -DisplayName "Block RPC NetBIOS WinRM" -Direction Inbound -Protocol TCP -LocalPort 135,139,5985 -Action Block',
+        'Stop-Service W3SVC',
+        'Set-Service W3SVC -StartupType Disabled',
+        'Get-Service W3SVC',
+      ],
+      live: {
+        winServices: [
+          { Status: 'Running', Name: 'MSSQLSERVER', DisplayName: 'SQL Server (MSSQLSERVER)', StartType: 'Automatic' },
+          { Status: 'Running', Name: 'LanmanServer', DisplayName: 'Server', StartType: 'Automatic' },
+          { Status: 'Running', Name: 'TermService', DisplayName: 'Remote Desktop Services', StartType: 'Manual' },
+          { Status: 'Running', Name: 'W3SVC', DisplayName: 'World Wide Web Publishing Service', StartType: 'Automatic' },
+          { Status: 'Running', Name: 'WinRM', DisplayName: 'Windows Remote Management (WS-Management)', StartType: 'Automatic' },
+          { Status: 'Running', Name: 'sshd', DisplayName: 'OpenSSH SSH Server', StartType: 'Automatic' },
+          { Status: 'Running', Name: 'mpssvc', DisplayName: 'Windows Defender Firewall', StartType: 'Automatic' },
+        ],
+        localUsers: [
+          { Name: 'Administrator', Enabled: true, Description: 'Built-in account for administering the computer/domain' },
+          { Name: 'waterops_svc', Enabled: true, Description: 'SQL login for the WaterOps app (scored: MssqlService)' },
+          { Name: 'Guest', Enabled: false, Description: 'Built-in account for guest access to the computer/domain' },
+        ],
+      },
+      ctx: {
+        dir: DC_DIR, user: 'Administrator', host: 'MSSQL', cwd: 'C:\\Users\\Administrator', events: () => [],
+        fs: {
+          'C:\\Shares\\SOP\\Chlorine-Dosing-SOP.docx': 'Standard operating procedure: chlorine dosing at the Under Pressure treatment plant.',
+          'C:\\Shares\\SOP\\Pump-Station-Startup-SOP.docx': 'Standard operating procedure: pump station startup and shutdown.',
+          'C:\\Shares\\SOP\\Water-Quality-Sampling-SOP.docx': 'Standard operating procedure: daily water quality sampling.',
+          'C:\\Shares\\SOP\\Emergency-Shutoff-SOP.docx': 'Standard operating procedure: emergency shutoff.',
+        },
+        commands: {
+          'get-smbshare': () => '\nName   ScopeName Path              Description\n----   --------- ----              -----------\nADMIN$ *         C:\\Windows        Remote Admin\nC$     *         C:\\               Default share\nIPC$   *                           Remote IPC\nSOP    *         C:\\Shares\\SOP     Plant standard operating procedures\n',
+          netstat: () => '\n  Proto  Local Address          Foreign Address        State           PID\n  TCP    0.0.0.0:22             0.0.0.0:0              LISTENING       3012\n  TCP    0.0.0.0:80             0.0.0.0:0              LISTENING       4\n  TCP    0.0.0.0:135            0.0.0.0:0              LISTENING       948\n  TCP    0.0.0.0:445            0.0.0.0:0              LISTENING       4\n  TCP    0.0.0.0:1433           0.0.0.0:0              LISTENING       3388\n  TCP    0.0.0.0:3389           0.0.0.0:0              LISTENING       1100\n  TCP    0.0.0.0:5985           0.0.0.0:0              LISTENING       4\n  TCP    172.20.240.120:139     0.0.0.0:0              LISTENING       4\n',
+          sqlcmd: () => '\nname\n--------------------\nsa                  (disabled)\nwaterops_svc\nUNDERPRESSURE\\Domain Admins\n\n(3 rows affected)\n',
+        },
+      },
+    },
   ],
 
   findings: [
@@ -472,7 +521,7 @@ export const CCDC_LAB_4 = {
         return { fixed: v.fixed, down: v.blocked, todo: v.todo, note: 'the committed Palo Alto policy blocks the scorer' };
       },
       fix: {
-        why: 'Objects > Security Profile Groups: add one (antivirus, anti-spyware, vulnerability = default). Policies > Security: one allow rule per service (web-browsing+ssl to .10, smtp+imap+ssh to .15, ssh+ntp+splunk to .20, dns + tcp-5985 to .100), each with the profile group; disable Permit Inbound and Permit Outbound; override interzone-default to log at session end. Commit.',
+        why: 'Objects > Security Profile Groups: add one (antivirus, anti-spyware, vulnerability = default). Policies > Security: one allow rule per service (web-browsing+ssl to .10, smtp+imap+ssh to .15, ssh+ntp+splunk to .20, dns + tcp-5985 to .100, ms-ds-smb+ms-rdp+mssql-db to .120), each with the profile group; disable Permit Inbound and Permit Outbound; override interzone-default to log at session end. Commit.',
       },
       traps: [],
     },
@@ -660,6 +709,24 @@ export const CCDC_LAB_4 = {
       },
       traps: [
         { id: 'reset-svc-splunk', match: [[/set-adaccountpassword/, /svc-splunk/], [/get-aduser -filter/, /set-adaccountpassword/]], unless: [/-notlike\s+["']?svc-|-notmatch\s+["']?\^?svc|-ne\s+["']svc-splunk/], drops: ['splunk-query'], note: 'svc-splunk\'s password changed in AD but not in Splunk\'s bindDNpassword: every Splunk login against AD now fails (it happened twice on Nov 14).', output: ['Password for svc-splunk reset.', '(on the Splunk box, splunkd.log: ERROR ScopedLDAPConnection - Error binding to LDAP. reason="Invalid credentials")'], why: 'Exclude every svc-* account from bulk resets. If you must rotate one, change it in AD and in the application\'s config together, then restart the application.' },
+      ],
+    },
+    // ---------------- MSSQL ----------------
+    {
+      id: 'mssql-exposed', host: 'mssql', title: 'MSSQL exposes RPC, NetBIOS, IIS and WinRM to the outside', severity: 'Medium',
+      teach: 'The EVAL14A scan from Kali showed 22, 80, 135, 139, 445, 1433, 3389 and 5985 open on .120. Only SMB 445, SQL 1433 and RDP 3389 are scored. RPC 135 and NetBIOS 139 hand out system details and are a common path for remote exploits, WinRM 5985 is a remote shell, and IIS on 80 serves nothing anyone needs. Block 135, 139 and 5985 inbound and turn IIS off. Do not touch 445, 1433 or 3389.',
+      exploitable: true, compromise: { impact: 'Red team uses RPC and WinRM on the SQL box to run commands as a local admin, then reads the SOP share.', penalty: 35 },
+      fix: {
+        steps: [
+          { id: 'block', accept: [/new-netfirewallrule|netsh advfirewall firewall add rule/, /block/, /135/, /139/, /5985/], label: 'Blocked 135, 139 and 5985 inbound', output: ['Firewall rule "Block RPC NetBIOS WinRM" created: TCP 135,139,5985 inbound blocked.'], todo: 'block TCP 135, 139 and 5985 inbound (New-NetFirewallRule … -LocalPort 135,139,5985 -Action Block)' },
+          { id: 'iis', accept: [/w3svc/, /stop-service|disabled|sc(\.exe)? stop/], label: 'Turned IIS off', output: ['W3SVC stopped: nothing listens on 80 any more.'], todo: 'stop and disable IIS (Stop-Service W3SVC; Set-Service W3SVC -StartupType Disabled)' },
+        ],
+        why: 'New-NetFirewallRule -DisplayName "Block RPC NetBIOS WinRM" -Direction Inbound -Protocol TCP -LocalPort 135,139,5985 -Action Block, then Stop-Service W3SVC and Set-Service W3SVC -StartupType Disabled. 445, 1433 and 3389 stay open: they are scored.',
+      },
+      traps: [
+        { id: 'block-445', match: [[/new-netfirewallrule|netsh|set-netfirewallrule/, /block/, /\b445\b/], [/remove-smbshare/], [/remove-item|\brm\b|\bdel\b/, /shares\\sop|\\sop\b/i], [/stop-service|set-service|sc(\.exe)? (stop|config)/, /lanmanserver/]], drops: ['mssql-smb'], note: 'SMB is scored: the checker opens \\\\MSSQL\\SOP as an AD user and reads the SOP files.', output: ['\\\\MSSQL\\SOP is no longer reachable.'], why: 'Only 135, 139 and 5985 were unneeded. 445 carries the scored SOP share.' },
+        { id: 'block-1433', match: [[/new-netfirewallrule|netsh|set-netfirewallrule/, /block/, /\b1433\b/], [/stop-service|set-service|sc(\.exe)? (stop|config)/, /mssqlserver/]], drops: ['mssql-mssql'], note: 'SQL Server on 1433 is scored (waterops_svc logs in and runs a SELECT).', output: ['SQL Server no longer answers on 1433.'], why: 'Keep 1433. Harden the database instead: sa disabled, waterops_svc password rotated after a PCR.' },
+        { id: 'block-3389', match: [[/new-netfirewallrule|netsh|set-netfirewallrule/, /block/, /\b3389\b/], [/stop-service|set-service|sc(\.exe)? (stop|config)/, /termservice/], [/fdenytsconnections/, /\b1\b/]], drops: ['mssql-rdp'], note: 'RDP is scored on the SQL box.', output: ['Remote Desktop no longer accepts connections.'], why: 'RDP is a scored service here. Restrict who can log on, do not turn it off.' },
       ],
     },
   ],
