@@ -1,0 +1,44 @@
+/* MyNETLAB pod portal, matched to docs/reference/netlab-*.png */
+.nl { position: relative; display: flex; flex-direction: column; height: 100%; background: #f4f6f8; color: #333; font: 15px/1.4 Roboto, "Segoe UI", Arial, sans-serif; overflow: hidden; }
+.nl-top { display: flex; align-items: center; gap: 28px; height: 46px; padding: 0 22px; background: #fff; border-bottom: 1px solid #e3e6ea; flex: none; }
+.nl-logo { font: 900 30px/1 "Arial Black", Arial, sans-serif; color: #444; letter-spacing: -1px; margin-right: auto; }
+.nl-nav { color: #3c8dbc; font-weight: 500; }
+.nl-crumbs { display: flex; gap: 10px; align-items: center; padding: 10px 12px 6px; font-size: 16px; color: #555; flex: none; }
+.nl-c0 { color: #3c8dbc; }
+.nl-sep { color: #777; }
+.nl-bar { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 10px 8px; border-bottom: 1px solid #e3e6ea; flex: none; }
+.nl-btn { display: inline-flex; align-items: center; border: 1px solid #dfe3e7; border-radius: 4px; background: #f8f9fa; color: #3c8dbc; font-weight: 500; }
+.nl-btn-main { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; cursor: pointer; }
+.nl-caret { padding: 6px 10px 6px 4px; cursor: pointer; font-size: 12px; }
+.nl-btn.on { background: #990000; border-color: #990000; color: #fff; }
+.nl-ic { display: inline-block; width: 16px; height: 12px; border: 1.6px solid currentColor; border-radius: 2px; }
+.nl-ic-pc { border-bottom-width: 3px; }
+.nl-ic-kbd { height: 10px; background: repeating-linear-gradient(90deg, currentColor 0 2px, transparent 2px 4px); }
+.nl-ic-book { width: 12px; }
+.nl-ic-chart { border-width: 0 0 1.6px 1.6px; border-radius: 0; }
+.nl-stage { flex: 1; min-height: 0; display: flex; justify-content: center; align-items: flex-start; overflow: auto; padding: 8px 0 12px; }
+.nl-frame { position: relative; width: min(1024px, 96%); height: calc(100% - 4px); min-height: 380px; border: 5px solid #b33a3a; background: #000; }
+.nl-con { width: 100%; height: 100%; }
+.nl-con .tv { height: 100%; font: 15px/1.25 "Perfect DOS VGA 437", "Lucida Console", Consolas, monospace; }
+.nl-con-win { background: #1b3a5c; }
+.nl-hint { position: absolute; right: 8px; top: 6px; padding: 2px 8px; border-radius: 3px; background: rgba(255,255,255,.12); color: #ddd; font-size: 11.5px; }
+.nl-menu { position: absolute; z-index: 20; min-width: 200px; background: #fff; border: 1px solid #ccd2d8; border-radius: 4px; box-shadow: 0 4px 14px rgba(0,0,0,.18); padding: 4px 0; }
+.nl-mi { padding: 7px 14px; cursor: pointer; color: #333; }
+.nl-mi:hover { background: #eef4fa; }
+.nl-page { width: min(1024px, 96%); background: #fff; border: 1px solid #e3e6ea; border-radius: 4px; padding: 14px 18px; }
+.nl-page h3 { margin: 0 0 12px; }
+.nl-topowrap { padding: 6px; }
+.nl-topo { width: 100%; height: auto; display: block; }
+.nl-tl { font: 600 14px "Segoe UI", Arial, sans-serif; fill: #333; }
+.nl-table { width: 100%; border-collapse: collapse; }
+.nl-table th, .nl-table td { text-align: left; padding: 8px; border-bottom: 1px solid #eceff2; }
+.nl-pw.ok { color: #2e7d32; }
+.nl-pw.bad { color: #b33a3a; }
+.nl-docs { margin: 0; padding-left: 18px; line-height: 2; }
+.nl-muted { color: #777; }
+/* takeover / boot menu */
+.tk { width: 100%; height: 100%; background: #000; outline: none; position: relative; }
+.tk-canvas { width: 100%; height: 100%; display: block; image-rendering: pixelated; background: #05357a; }
+.tk-text { margin: 0; padding: 6px 10px; color: #c8c8c8; font: 16px/1.15 "Perfect DOS VGA 437", "Lucida Console", Consolas, monospace; white-space: pre-wrap; }
+.tk-keys { position: absolute; right: 10px; bottom: 10px; display: flex; gap: 6px; }
+.tk-key { width: 30px; height: 26px; background: #222; color: #ddd; border: 1px solid #555; font: 14px Consolas, monospace; cursor: pointer; }

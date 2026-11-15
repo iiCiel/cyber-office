@@ -218,6 +218,7 @@ export function runLine(state, deviceId, rawLine) {
   // Scenario hook for state that is not a finding (e.g. SNMP set up for an inject): side effects now, and its lines
   // replace the generic shell output at step 3 for commands the shell does not know.
   const hook = state.scenario.onLine ? state.scenario.onLine(state, deviceId, line, ds, rawLine) : null;
+  if (hook?.block) return { lines: hook.lines.map((t) => (typeof t === 'string' ? { cls: 'err', text: t } : t)), effects: {} };
 
   // 0) Rotating the scored account's password? The command is legitimate, but until a PCR is filed the scoring
   //    engine can no longer authenticate — flag it so the live engine fails that service until the PCR lands.

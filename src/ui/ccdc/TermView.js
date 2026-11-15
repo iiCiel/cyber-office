@@ -84,6 +84,8 @@ export class TermView {
   setInput(text) { this.input.value = text; this.input.focus(); }
 
   exec(line) {
+    // A console can mangle keystrokes (MyNETLAB's web console with the wrong keyboard layout drops Shift).
+    if (this.o.mapLine) line = this.o.mapLine(line);
     const prompt = this.o.prompt();
     if (line.trim()) { this.history.push(line); }
     this.hpos = this.history.length;

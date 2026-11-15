@@ -360,3 +360,12 @@ test('scenario 4 SNMP: VyOS needs commit; a hardened Palo Alto must allow the sn
   run(s, 'pa', ...PA_GOOD, 'commit');
   assert.match(walk(s, '172.25.34.20'), /Timeout/, 'hardened PA without the snmp app blocks it');
 });
+
+test('scenario 4: after the router is rebooted (or taken over) its SSH session is dead', () => {
+  const s = fresh();
+  run(s, 'vyos', 'reboot');
+  assert.match(txt(s, 'vyos', 'show interfaces'), /No route to host/);
+  assert.equal(open(s, 'vyos-backdoor'), true, 'fix lines no longer reach the box');
+  run(s, 'vyos', 'delete system login user vyos authentication public-keys cyberrange-lab');
+  assert.equal(s.findings['vyos-backdoor'].steps.key, undefined);
+});

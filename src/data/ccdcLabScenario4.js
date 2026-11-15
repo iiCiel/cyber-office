@@ -430,7 +430,15 @@ export const CCDC_LAB_4 = {
   teamNumber: 14, // the team's real number at the Invitational
   roundStartMs: Date.UTC(2026, 10, 14, 13, 0, 0),
   portal: 'nise', // injects came through NISE as PDFs; answers were PDF uploads
-  onLine: (state, id, line, ds) => snmpOnLine(state, id, line, ds), // Windows clocks show the afternoon session of Nov 14
+  onLine: (state, id, line, ds) => (id === 'vyos' && routerDown(state)
+    ? { block: true, lines: ['ssh: connect to host 172.31.34.2 port 22: No route to host', '(the router is gone: its boot disk was overwritten. Open its console in MyNETLAB.)'] }
+    : snmpOnLine(state, id, line, ds)),
+  netlab: {
+    crumbs: ['MyNETLAB', 'CCDC State Pod 16', 'Reservation 24144', '2027 State'],
+    labels: { ecom: 'Rocky Ecom', email: 'Ubuntu Email', splunk: 'Debian Splunk', dc: '2022 AD', mssql: '2019 MSSQL', wkst: 'Ubuntu Wkst', win11: 'Window 11 Wkst', kali: 'Kali', pa: 'PAN', vyos: 'VyOS' },
+    takenOver: (state) => routerDown(state),
+    rebooted: (state) => !!state.findings['vyos-backdoor']?.triggeredTraps?.reboot,
+  }, // Windows clocks show the afternoon session of Nov 14
   company: 'Under Pressure Water Authority (Invitational replay)',
   tagline: 'A replay of the network team 14 defended at the MWCCDC Invitational on Nov 14, 2026. Red team had a head start: backdoor accounts, hidden SSH keys, cron jobs that wipe the host firewall every minute, a fake scoring engine, a service account in Domain Admins. Two services are already red. Everything here really happened that day, including the mistakes.',
   clockSeconds: 900,

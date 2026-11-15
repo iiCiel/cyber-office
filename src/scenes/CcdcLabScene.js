@@ -27,6 +27,7 @@ import '../ui/ccdc/pfsense.css';
 import { PanOsApp } from '../ui/ccdc/PanOsApp.js';
 import { QuotientApp } from '../ui/ccdc/QuotientApp.js';
 import { NiseApp } from '../ui/ccdc/NiseApp.js';
+import { NetlabApp } from '../ui/ccdc/NetlabApp.js';
 import { submitIncident } from '../game/incidents.js';
 import { submitPcr } from '../game/quotient.js';
 import '../ui/ccdc/panos.css';
@@ -235,6 +236,13 @@ export class CcdcLabScene extends Phaser.Scene {
         create: () => new PfSenseApp({ state: st, dev: fw, clock: () => this.elapsed(), run: (l) => this.run(fw.id, l) }) });
       wins.push({ id: `ssh-${fw.id}`, kind: 'putty', icon: 'putty', title: `${fw.ip} - PuTTY`, short: `${fw.host} (SSH)`,
         create: () => new PuttyApp({ dev: fw, session: this.sessions[fw.id], banner: pfConsoleBanner(fw), run: (l) => this.run(fw.id, l) }) });
+    }
+    // MyNETLAB pod portal: topology, status and every VM's console (a separate session from SSH/RDP).
+    if (sc.netlab) {
+      const nl = sc.netlab;
+      wins.push({ id: 'netlab', kind: 'browser', icon: 'netlab', pinned: true, desktop: 'MyNETLAB', title: 'MyNETLAB', short: 'MyNETLAB', tabLabel: `${nl.crumbs[nl.crumbs.length - 1]} · MyNETLAB`, url: 'https://ccdc.mynetlab.org/reservation/24144',
+        create: () => new NetlabApp({ state: st, crumbs: nl.crumbs, labels: nl.labels, run: (id, l) => this.run(id, l), takenOver: () => nl.takenOver(st), rebooted: () => nl.rebooted(st),
+          down: (id) => false, makeDesktop: (d) => new WinDesktop({ state: st, dev: d, clock: () => this.elapsed(), termBuffer: [], termHistory: [], run: (l) => this.run(d.id, l) }) }) });
     }
     // Quotient (MWCCDC's scoring engine): credential lists and the PCR form, plus each service's round history.
     if (sc.quotient) {
