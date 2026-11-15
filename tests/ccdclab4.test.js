@@ -283,3 +283,25 @@ test('scenario 4 live: router console takeover at 12:05 only if the planted key 
   assert.ok(!s.engine.broadcasts.some((b) => b.host === 'vyos'));
   assert.ok(s.engine.events.some((e) => /was refused/.test(e.text)));
 });
+
+// --- Splunk bind password after svc-splunk is reset --------------------------------------------------------------
+const AUTH = '/opt/splunk/etc/system/local/authentication.conf';
+test('scenario 4 Splunk bind: resetting svc-splunk breaks splunk-query until bindDNpassword matches and Splunkd restarts', () => {
+  const s = fresh();
+  run(s, 'dc', "Set-ADAccountPassword svc-splunk -Reset -NewPassword (ConvertTo-SecureString 'splunk.bind.2026' -AsPlainText -Force)");
+  assert.equal(up(s, 'splunk-query'), false);
+  assert.match(txt(s, 'splunk', `sed -i 's/^bindDNpassword.*/bindDNpassword = wrongpass/' ${AUTH}`), /not svc-splunk's new password/);
+  assert.match(txt(s, 'splunk', 'systemctl restart Splunkd'), /./);
+  assert.equal(up(s, 'splunk-query'), false, 'restart alone does not help');
+  run(s, 'splunk', `sed -i 's/^bindDNpassword.*/bindDNpassword = splunk.bind.2026/' ${AUTH}`, 'systemctl restart Splunkd');
+  assert.equal(up(s, 'splunk-query'), true);
+  assert.match(s.devState.splunk.fs[AUTH], /bindDNpassword = \$7\$/, 're-encrypted on restart');
+});
+
+test('scenario 4 Splunk bind: the 13:57 teammate reset knocks splunk-query down the same way', () => {
+  const s = attachEngine(fresh());
+  tickTo(s, 610);
+  assert.equal(up(s, 'splunk-query'), false);
+  run(s, 'splunk', `sed -i 's/^bindDNpassword.*/bindDNpassword = ZipsBlue2026x!/' ${AUTH}`, 'sudo systemctl restart Splunkd');
+  assert.equal(up(s, 'splunk-query'), true);
+});

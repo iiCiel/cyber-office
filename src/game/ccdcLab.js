@@ -235,6 +235,7 @@ export function runLine(state, deviceId, rawLine) {
       if (rec.triggeredTraps[t.id]) continue;
       if (matchesAny(t.match, lower) && !asList(t.unless).some((u) => u.test(lower))) {
         rec.triggeredTraps[t.id] = true;
+        if (typeof t.capture === 'function') t.capture(state, rawLine);
         const dropped = [];
         for (const s of asList(t.drops)) if (dropService(state, s, f.id, t.note)) dropped.push(s);
         const lines = (t.output || []).map((text) => ({ cls: 'warn', text }));
@@ -284,6 +285,32 @@ export function runLine(state, deviceId, rawLine) {
     } else if (matchesAny(f.fix.accept, lower)) {
       return pcrFx(finishFix(state, f, (f.fix.output || ['Done.']).map((text) => ({ cls: 'ok', text }))));
     }
+  }
+
+  // 2.4) Recovering from a mistake that lives on ANOTHER box (scenario.recoveries): e.g. svc-splunk was reset in AD,
+  //      so Splunk's own copy of the bind password must be changed to match and Splunkd restarted. Each recovery is
+  //      active only while its `when(state)` holds; finishing its steps restores the services its cause took down.
+  for (const r of state.scenario.recoveries || []) {
+    if (r.host !== deviceId || !r.when(state)) continue;
+    const rs = (state.recoveries ||= {})[r.id] ||= { steps: {} };
+    // Steps happen in order (restarting before the config is right fixes nothing).
+    const step = r.steps.find((st) => !rs.steps[st.id]);
+    if (!step || !matchesAll(step.accept, lower)) continue;
+    const check = step.verify ? step.verify(ds.fs || {}, state) : { ok: true };
+    if (!check.ok) return { lines: [...(editLines || []), { cls: 'warn', text: check.why }], effects: {} };
+    rs.steps[step.id] = true;
+    const lines = [...(editLines || []), ...(step.output || []).map((text) => ({ cls: 'ok', text }))];
+    if (r.steps.every((st) => rs.steps[st.id])) {
+      const restored = [];
+      for (const { svc, from } of r.restores) if (restoreService(state, svc, from)) restored.push(svc);
+      if (restored.length) lines.push({ cls: 'ok', text: `Scored service back UP: ${restored.join(', ')}.` });
+      r.reset?.(state);
+      state.recoveries[r.id] = { steps: {} };
+      return { lines, effects: { restored, recovered: r.id } };
+    }
+    const left = r.steps.filter((st) => !rs.steps[st.id]);
+    lines.push({ cls: 'note', text: `Still to do: ${left.map((st) => st.todo).join('; ')}` });
+    return { lines, effects: {} };
   }
 
   // 2.5) A file edit that wasn't itself a trap or a fix (e.g. editing a config by hand): report what it did.

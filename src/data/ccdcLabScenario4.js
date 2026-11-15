@@ -252,6 +252,10 @@ const DC_FW_COMMANDS = {
 };
 const PS_HOOK_TEXT = "# Windows PowerShell machine profile\nfunction Get-NetFirewallRule { param([Parameter(ValueFromRemainingArguments)]$a) }\nfunction Get-NetFirewallProfile { param([Parameter(ValueFromRemainingArguments)]$a) }\n$null = Register-EngineEvent PowerShell.OnIdle -Action { }\n";
 
+// The password in a Set-ADAccountPassword line (ConvertTo-SecureString 'x' ...), or null when it was typed at a prompt.
+const newPassword = (raw) => String(raw).match(/ConvertTo-SecureString\s+(?:-String\s+)?(['"])(.*?)\1/i)?.[2] ?? null;
+const BIND_RE = /^bindDNpassword\s*=\s*(.*)$/m;
+
 // Wall broadcast from the goose kit (ttygoose --wall), as it landed on the Rocky and Ubuntu consoles.
 const GOOSE_WALL = (host, n = 0) => [
   { cls: 'warn', text: '' },
@@ -289,6 +293,29 @@ export const CCDC_LAB_4 = {
     { n: 3, at: 720, label: 'router console takeover (the session 1 ending)' },
   ],
 
+  // Fixing a mistake that lives on another box: svc-splunk reset in AD (by you, or by the 13:57 bulk reset) breaks
+  // splunk-query until Splunk's own copy of the bind password matches and Splunkd is restarted.
+  recoveries: [{
+    id: 'splunk-bind', host: 'splunk',
+    when: (st) => !!st.findings['dc-svc-da'].triggeredTraps['reset-svc-splunk'],
+    steps: [
+      { id: 'conf', accept: [/sed -i|tee|>>|>/, /authentication\.conf/], todo: 'set bindDNpassword in /opt/splunk/etc/system/local/authentication.conf to svc-splunk\'s new AD password',
+        verify: (fs, st) => {
+          const v = (fs['/opt/splunk/etc/system/local/authentication.conf'] || '').match(BIND_RE)?.[1]?.trim() || '';
+          if (!v || v.startsWith('$7$')) return { ok: false, why: 'bindDNpassword is still the old encrypted value. Put the new password in plain text; Splunk encrypts it again on restart.' };
+          const want = st.adPasswords?.['svc-splunk'];
+          if (want && v !== want) return { ok: false, why: `That is not svc-splunk's new password in AD. Splunk will keep getting "Invalid credentials" from LDAP.` };
+          return { ok: true };
+        },
+        output: ['authentication.conf: bindDNpassword updated (plain text until the next restart).'] },
+      { id: 'restart', accept: [/restart/, /splunk/], todo: 'restart Splunkd (systemctl restart Splunkd)',
+        verify: (fs) => { const f = '/opt/splunk/etc/system/local/authentication.conf'; fs[f] = (fs[f] || '').replace(BIND_RE, () => 'bindDNpassword = $7$Qm1x0dLw3ZtB6cUeA0sJo9Hk2Lq8vNnR4yT5aPcEe9fG'); return { ok: true }; },
+        output: ['Splunkd restarted. splunkd.log: ScopedLDAPConnection - bind to 172.20.240.100:389 as svc-splunk OK.'] },
+    ],
+    restores: [{ svc: 'splunk-query', from: 'dc-svc-da' }],
+    reset: (st) => { delete st.findings['dc-svc-da'].triggeredTraps['reset-svc-splunk']; },
+  }],
+
   // What happened on the day, on the round clock. Each only fires if the thing that caused it is still there.
   liveEvents: [
     ...[200, 380, 560].map((at, i) => ({
@@ -301,12 +328,20 @@ export const CCDC_LAB_4 = {
     })),
     {
       id: 'teammate-bulk-reset', at: 600,
-      apply: () => ({
+      apply: (st) => {
+        // Their script had no svc-* exclusion: svc-splunk changed too (splunk-query red again on the day).
+        st.findings['dc-svc-da'].triggeredTraps['reset-svc-splunk'] = true;
+        (st.adPasswords ||= {})['svc-splunk'] = 'ZipsBlue2026x!';
+        const q = st.services['splunk-query'];
+        if (q) { q.downBy['dc-svc-da'] = 'svc-splunk was reset with everyone else; Splunk still binds with the old password.'; q.state = 'down'; }
+        return {
         log: [['team', '[Windows lead] reset EVERY AD password to ZipsBlue2026x! so red team is locked out 👍'],
           ['alert', '[Windows lead] reset EVERY AD password to ZipsBlue2026x! so red team is locked out 👍'],
-          ['warn', 'Bulk AD password reset at 13:57: every check that logs in with an AD account uses the new password from now on.']],
+          ['warn', 'Bulk AD password reset at 13:57: every check that logs in with an AD account uses the new password from now on.'],
+          ['bad', 'splunk-query: svc-splunk was in the bulk reset. splunkd.log: ScopedLDAPConnection - Error binding to LDAP. reason="Invalid credentials"']],
         rotate: ['DomainUsers', 'Splunk'],
-      }),
+      };
+      },
     },
     {
       id: 'router-takeover', at: 725,
@@ -797,7 +832,7 @@ export const CCDC_LAB_4 = {
         why: 'Remove-ADGroupMember "Domain Admins" svc-splunk -Confirm:$false, and the same for "Enterprise Admins". Leave it in Splunk Users / Splunk Admins.',
       },
       traps: [
-        { id: 'reset-svc-splunk', match: [[/set-adaccountpassword/, /svc-splunk/], [/get-aduser -filter/, /set-adaccountpassword/]], unless: [/-notlike\s+["']?svc-|-notmatch\s+["']?\^?svc|-ne\s+["']svc-splunk/], drops: ['splunk-query'], note: 'svc-splunk\'s password changed in AD but not in Splunk\'s bindDNpassword: every Splunk login against AD now fails (it happened twice on Nov 14).', output: ['Password for svc-splunk reset.', '(on the Splunk box, splunkd.log: ERROR ScopedLDAPConnection - Error binding to LDAP. reason="Invalid credentials")'], why: 'Exclude every svc-* account from bulk resets. If you must rotate one, change it in AD and in the application\'s config together, then restart the application.' },
+        { id: 'reset-svc-splunk', match: [[/set-adaccountpassword/, /svc-splunk/], [/get-aduser -filter/, /set-adaccountpassword/]], unless: [/-notlike\s+["']?svc-|-notmatch\s+["']?\^?svc|-ne\s+["']svc-splunk/], capture: (st, raw) => { (st.adPasswords ||= {})['svc-splunk'] = newPassword(raw); }, drops: ['splunk-query'], note: 'svc-splunk\'s password changed in AD but not in Splunk\'s bindDNpassword: every Splunk login against AD now fails (it happened twice on Nov 14).', output: ['Password for svc-splunk reset.', '(on the Splunk box, splunkd.log: ERROR ScopedLDAPConnection - Error binding to LDAP. reason="Invalid credentials")'], why: 'Exclude every svc-* account from bulk resets. If you must rotate one, change it in AD and in the application\'s config together, then restart the application.' },
       ],
     },
     {
