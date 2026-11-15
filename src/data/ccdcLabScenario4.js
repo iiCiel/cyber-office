@@ -277,10 +277,158 @@ const NYAN = [
   { cls: 'bad', text: 'ssh: connect to host 172.16.0.1 port 22: No route to host' },
 ];
 
+
+
+// --- SNMP (inject SA103): each box's agent, as a team would set it up on the day -------------------------------------
+const SNMPD_CONF = '/etc/snmp/snmpd.conf';
+const SNMPD_DEFAULT = '###########################################################################\n# snmpd.conf (package default)\n###########################################################################\n#  Listen for connections on the local loopback only\nagentaddress 127.0.0.1,[::1]\n\nview   systemonly  included   .1.3.6.1.2.1.1\nview   systemonly  included   .1.3.6.1.2.1.25.1\n\nrocommunity public default -V systemonly\nrocommunity6 public default -V systemonly\nsysLocation    Sitting on the Dock of the Bay\nsysContact     Me <me@example.org>\n';
+const LINUX_BOXES = ['ecom', 'email', 'splunk'];
+const WIN_BOXES = ['dc', 'mssql'];
+function snmpLinux(state, host, fs) {
+  const conf = fs[SNMPD_CONF] || '';
+  const agent = conf.match(/^\s*agentaddress\s+(.+)$/m)?.[1] || 'udp:161';
+  const ro = [...conf.matchAll(/^\s*rocommunity\s+(\S+)(?:\s+(\S+))?/gm)].find((m) => !m[2] || !/^(localhost|127\.0\.0\.1)$/.test(m[2]));
+  const snmp = (state.snmp ||= {});
+  if (/^\s*(127\.0\.0\.1|localhost)(,\[::1\])?\s*$/.test(agent) || !ro) { delete snmp[host]; return; }
+  snmp[host] = ro[1];
+}
+function snmpWindows(state, host, fs) {
+  const snmp = (state.snmp ||= {});
+  const ok = fs['\\snmp\\installed'] && fs['\\snmp\\community'] && fs['\\snmp\\anyhost'] && !(host === 'dc' && fs[FW_LOCK]);
+  if (ok) snmp[host] = fs['\\snmp\\community']; else delete snmp[host];
+}
+function snmpOnLine(state, id, line, ds) {
+  const l = line.toLowerCase();
+  const fs = ds.fs || (ds.fs = {});
+  if (id === 'vyos') {
+    const m = line.match(/^set service snmp community (\S+)/i);
+    if (m) { ds.snmpPending = m[1]; return { lines: ['[edit]'] }; }
+    if (/^commit$/.test(l) && ds.snmpPending) { (state.snmp ||= {}).vyos = ds.snmpPending; ds.snmpPending = null; return null; }
+    if (/^(set|delete) /.test(l)) return { lines: ['[edit]'] };
+    return null;
+  }
+  if (LINUX_BOXES.includes(id)) {
+    if (/^(apt|apt-get) (-y )?install\b.*\bsnmpd\b/.test(l)) {
+      if (!fs[SNMPD_CONF]) fs[SNMPD_CONF] = SNMPD_DEFAULT;
+      return { lines: ['Reading package lists... Done', 'Building dependency tree... Done', 'The following NEW packages will be installed:', '  libsnmp-base libsnmp40 snmpd', 'Setting up snmpd (5.9.1+dfsg-1ubuntu2.6) ...', 'Created symlink /etc/systemd/system/multi-user.target.wants/snmpd.service → /lib/systemd/system/snmpd.service.'] };
+    }
+    if (/^dnf (-y )?install\b.*net-snmp/.test(l)) return { lines: ['Package net-snmp-1:5.9.1-13.el9.x86_64 is already installed.', 'Dependencies resolved.', 'Nothing to do.', 'Complete!'] };
+    if (/(systemctl|service)\b.*\b(restart|start|enable)\b.*snmpd|snmpd.*\b(restart|start)\b/.test(l)) {
+      if (!fs[SNMPD_CONF]) return { lines: [{ cls: 'err', text: 'Failed to restart snmpd.service: Unit snmpd.service not found.' }] };
+      snmpLinux(state, id, fs);
+      return { lines: ['(snmpd restarted)', `snmpd[${2100 + id.length}]: NET-SNMP version 5.9.1 AgentX subagent connected`] };
+    }
+    return null;
+  }
+  if (WIN_BOXES.includes(id)) {
+    if (/install-windowsfeature|add-windowsfeature|add-windowscapability/.test(l) && /snmp/.test(l)) {
+      fs['\\snmp\\installed'] = '1';
+      return { lines: ['', 'Success Restart Needed Exit Code      Feature Result', '------- -------------- ---------      --------------', 'True    No             Success        {SNMP Service, SNMP WMI Provider}', ''] };
+    }
+    const comm = line.match(/validcommunities["']?\s+(?:-name\s+)?["']?([^\s"']+)["']?/i) || line.match(/validcommunities["']?\s+\/v\s+["']?([^\s"']+)/i);
+    if (comm && /new-itemproperty|set-itemproperty|reg add/.test(l)) {
+      if (!fs['\\snmp\\installed']) return { lines: [{ cls: 'err', text: "New-ItemProperty : Cannot find path 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\SNMP\\Parameters\\ValidCommunities' because it does not exist." }] };
+      fs['\\snmp\\community'] = comm[1];
+      snmpWindows(state, id, fs);
+      return { lines: ['', `${comm[1]} : 4`, 'PSPath   : Microsoft.PowerShell.Core\\Registry::HKEY_LOCAL_MACHINE\\SYSTEM\\CurrentControlSet\\Services\\SNMP\\Parameters\\ValidCommunities', ''] };
+    }
+    if (/permittedmanagers/.test(l) && /remove-itemproperty|reg delete|clear-item/.test(l)) {
+      fs['\\snmp\\anyhost'] = '1';
+      snmpWindows(state, id, fs);
+      return { lines: [] };
+    }
+    if (/restart-service|start-service|net (stop|start)/.test(l) && /\bsnmp\b/.test(l)) {
+      if (!fs['\\snmp\\installed']) return { lines: [{ cls: 'err', text: "Restart-Service : Cannot find any service with service name 'SNMP'." }] };
+      snmpWindows(state, id, fs);
+      return { lines: [] };
+    }
+    if (id === 'dc' && /netsh|set-acl/.test(l)) snmpWindows(state, id, fs);
+  }
+  return null;
+}
+
+// --- Kali (outside the firewall, like the scorer and the red team) --------------------------------------------------
+// Public 172.25.34.x maps 1:1 to inside 172.20.240.x through VyOS. What a scan sees depends on the game state.
+const PUBLIC = { 10: 'ecom', 15: 'email', 20: 'splunk', 100: 'dc', 120: 'mssql' };
+const NMAP_TCP = {
+  ecom: ['22/tcp   open  ssh      OpenSSH 9.9 (protocol 2.0)', '80/tcp   open  http     nginx 1.20.1', '443/tcp  open  ssl/http nginx 1.20.1'],
+  email: ['22/tcp  open  ssh      OpenSSH 8.9p1 Ubuntu 3ubuntu0.18 (Ubuntu Linux; protocol 2.0)', '25/tcp  open  smtp     Postfix smtpd', '110/tcp open  pop3     Dovecot pop3d', '143/tcp open  imap     Dovecot imapd (Ubuntu)', '443/tcp open  ssl/http Apache httpd 2.4.52 ((Ubuntu))', '587/tcp open  smtp     Postfix smtpd', '993/tcp open  ssl/imap Dovecot imapd (Ubuntu)', '995/tcp open  ssl/pop3 Dovecot pop3d'],
+  splunk: ['22/tcp   open  ssh      OpenSSH 9.2p1 Debian 2+deb12u2 (protocol 2.0)', '8000/tcp open  http     Splunkd httpd', '8089/tcp open  ssl/http Splunkd httpd'],
+  mssql: ['22/tcp   open  ssh           OpenSSH for_Windows_7.7 (protocol 2.0)', '80/tcp   open  http          Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)', '135/tcp  open  msrpc         Microsoft Windows RPC', '139/tcp  open  netbios-ssn   Microsoft Windows netbios-ssn', '445/tcp  open  microsoft-ds?', '1433/tcp open  ms-sql-s      Microsoft SQL Server 2019 15.00.2000', '3389/tcp open  ms-wbt-server Microsoft Terminal Services', '5985/tcp open  http          Microsoft HTTPAPI httpd 2.0 (SSDP/UPnP)'],
+};
+const routerDown = (g) => g?.engine?.probes?.['vyos-backdoor'] === 'compromised' || !!g?.findings?.['vyos-backdoor']?.triggeredTraps?.reboot;
+const targetsOf = (args) => {
+  const out = [];
+  for (const a of args) {
+    const m = String(a).match(/^172\.25\.34\.([\d,]+)$/);
+    if (m) for (const n of m[1].split(',')) out.push(Number(n));
+  }
+  return out;
+};
+const nmap = (args, _in, ctx) => {
+  const g = ctx.game;
+  const udp = args.includes('-sU');
+  const ts = targetsOf(args);
+  if (!ts.length) return 'Usage: nmap -sV 172.25.34.10,15,20,100,120   (or -sU -p 53,123,161 for UDP)\n';
+  const out = ['Starting Nmap 7.99 ( https://nmap.org ) at 2026-11-14 13:36 -0600'];
+  let up = 0;
+  for (const n of ts) {
+    const host = PUBLIC[n];
+    const ip = `172.25.34.${n}`;
+    if (!host || routerDown(g)) { out.push(`Nmap scan report for ${ip} [host down]`); continue; }
+    if (host === 'dc' && !udp) { out.push('', `Nmap scan report for ${ip}`, 'Host is up (0.0019s latency).', 'All 1000 scanned ports on 172.25.34.100 are in ignored states.', 'Not shown: 1000 filtered tcp ports (no-response)'); up++; continue; }
+    up++;
+    out.push('', `Nmap scan report for ${ip}`, 'Host is up (0.0015s latency).');
+    if (udp) {
+      const snmp = g?.snmp?.[host] ? 'open          snmp' : host === 'email' ? 'open|filtered snmp' : 'closed        snmp';
+      out.push('PORT    STATE         SERVICE', `53/udp  ${host === 'dc' ? 'open          domain' : 'closed        domain'}`, `123/udp ${host === 'splunk' ? 'open          ntp' : 'open|filtered ntp'}`, `161/udp ${snmp}`);
+      continue;
+    }
+    let rows = NMAP_TCP[host];
+    if (host === 'mssql' && g?.findings?.['mssql-exposed']?.status === 'fixed') rows = rows.filter((r) => !/^(80|135|139|5985)\//.test(r));
+    if (host === 'ecom' && g?.findings?.['ecom-ssh']?.status === 'fixed') rows = rows.filter((r) => !/^22\//.test(r));
+    out.push(`Not shown: ${1000 - rows.length} closed tcp ports (reset)`, 'PORT     STATE SERVICE  VERSION', ...rows);
+  }
+  out.push('', `Service detection performed. Please report any incorrect results at https://nmap.org/submit/ .`, `Nmap done: ${ts.length} IP addresses (${up} hosts up) scanned in 41.83 seconds`);
+  return lines(out);
+};
+const SNMP_NAMES = { ecom: 'Ecomm', email: 'WEBMAIL', splunk: 'Splunk', dc: 'AD-DNS', mssql: 'MSSQL' };
+const snmpwalk = (args, _in, ctx) => {
+  const g = ctx.game;
+  const ci = args.indexOf('-c');
+  const community = ci >= 0 ? args[ci + 1] : null;
+  const ip = args.find((a) => /^172\.(25\.34|31\.34)\.\d+$/.test(a));
+  if (!ip || !community) return 'USAGE: snmpwalk -v2c -c <community> <ip> [OID]\n';
+  const host = ip === '172.31.34.2' ? 'vyos' : PUBLIC[Number(ip.split('.').pop())];
+  const want = g?.snmp?.[host];
+  if (!host || routerDown(g) || !want || want !== community || (host !== 'vyos' && !snmpThroughPa(g))) return `Timeout: No Response from ${ip}\n`;
+  const name = host === 'vyos' ? 'EdgeRouter' : SNMP_NAMES[host];
+  return lines([`SNMPv2-MIB::sysDescr.0 = STRING: ${host === 'vyos' ? 'VyOS 1.4' : host === 'dc' || host === 'mssql' ? 'Hardware: Intel64 Family 6 - Software: Windows Version 6.3 (Build 20348 Multiprocessor Free)' : 'Linux ' + name + ' 6.1.0 x86_64'}`,
+    'SNMPv2-MIB::sysObjectID.0 = OID: NET-SNMP-MIB::netSnmpAgentOIDs.10', 'DISMAN-EVENT-MIB::sysUpTimeInstance = Timeticks: (2981404) 8:16:54.04', 'SNMPv2-MIB::sysContact.0 = STRING: it@underpressure.local', `SNMPv2-MIB::sysName.0 = STRING: ${name}`, 'SNMPv2-MIB::sysLocation.0 = STRING: Under Pressure Water Authority']);
+};
+// The Palo Alto sits in front of every inside box: with the as-found allow-all rules SNMP passes; after hardening it
+// passes only if some allow rule carries the snmp application (or any).
+const snmpThroughPa = (g) => {
+  const pan = g?.devState?.pa?.pan;
+  if (!pan) return true;
+  return pan.running.rules.some((r) => !r.disabled && r.action === 'allow' && (r.from.includes('any') || r.from.includes('external'))
+    && (r.application.includes('any') || r.application.includes('snmp'))
+    && (r.service.includes('any') || r.service.includes('udp-161') || (r.service.includes('application-default') && r.application.includes('snmp')) || (r.service.includes('application-default') && r.application.includes('any'))));
+};
+const evilWinrm = (args) => {
+  const ip = args[args.indexOf('-i') + 1] || '';
+  if (ip !== '172.25.34.100' && ip !== '172.20.240.100') return 'Error: An error of type Errno::ECONNREFUSED happened, message is Connection refused - connect(2) for "' + ip + '" port 5985\n';
+  return lines(['', 'Evil-WinRM shell v3.5', '', 'Info: Establishing connection to remote endpoint', 'Error: An error of type OpenSSL::Digest::DigestError happened, message is Digest initialization failed: initialization error', '', 'Error: Exiting with code 1', '(the server answered and asked for NTLM; Ruby\'s OpenSSL 3 build has no MD4, so the client gave up. WinRM itself was fine.)']);
+};
+const getent = (args, _in, ctx) => (args[0] === 'group' && args[1] === 'sudo' ? 'sudo:x:27:sysadmin\n' : args[0] === 'passwd' ? (ctx.fs?.['/etc/passwd'] || '') : '\n');
+
+ECOM_FS[SNMPD_CONF] = SNMPD_DEFAULT; // net-snmp ships with the Rocky image (no internet for dnf on the day)
+
 export const CCDC_LAB_4 = {
   id: 'underpressure-invitational-2026',
   teamNumber: 14, // the team's real number at the Invitational
-  roundStartMs: Date.UTC(2026, 10, 14, 13, 0, 0), // Windows clocks show the afternoon session of Nov 14
+  roundStartMs: Date.UTC(2026, 10, 14, 13, 0, 0),
+  onLine: (state, id, line, ds) => snmpOnLine(state, id, line, ds), // Windows clocks show the afternoon session of Nov 14
   company: 'Under Pressure Water Authority (Invitational replay)',
   tagline: 'A replay of the network team 14 defended at the MWCCDC Invitational on Nov 14, 2026. Red team had a head start: backdoor accounts, hidden SSH keys, cron jobs that wipe the host firewall every minute, a fake scoring engine, a service account in Domain Admins. Two services are already red. Everything here really happened that day, including the mistakes.',
   clockSeconds: 900,
@@ -595,6 +743,41 @@ export const CCDC_LAB_4 = {
         },
       },
     },
+    {
+      id: 'kali', name: 'Kali (outside)', host: 'kali', ip: '172.17.0.2', os: 'Kali Linux 2026.3', role: 'attacker', kind: 'bash', theme: 'kali', sudo: true,
+      prompt: 'sysadmin㉿kali ~', user: 'sysadmin', cwd: '/home/sysadmin',
+      motd: ['Linux kali 6.12.20-amd64 #1 SMP PREEMPT_DYNAMIC Kali 6.12.20-1kali1 (2026-08-04) x86_64', ''],
+      brief: 'Outside the firewall, where the scorer and the red team come from. Use it to see your network the way they do: the EVAL14A scan, SNMP checks for SA103, testing WinRM. Nothing here is scored.',
+      checklist: ['nmap -sV 172.25.34.10,15,20,100,120 -oN tcp.txt', 'nmap -sU -p 53,123,161 172.25.34.10,15,20,100,120', 'evil-winrm -i 172.25.34.100 -u Administrator -p Changeme1!'],
+      ctx: { user: 'sysadmin', host: 'kali', cwd: '/home/sysadmin', history: [], fs: { '/home/sysadmin/README.txt': 'Kali, 172.17.0.2, outside the Palo Alto and VyOS. Public addresses 172.25.34.10/.15/.20/.100/.120 map 1:1 to the inside 172.20.240.x boxes.\n' },
+        commands: { nmap, snmpwalk, 'evil-winrm': evilWinrm } },
+    },
+    {
+      id: 'wkst', name: 'Ubuntu Wkst', host: 'Ubuntu-Wkst', ip: '172.20.240.5', os: 'Ubuntu 22.04 Desktop', role: 'linux', kind: 'bash', sudo: true,
+      prompt: 'sysadmin@Ubuntu-Wkst:~$', user: 'sysadmin', cwd: '/home/sysadmin',
+      motd: ['Welcome to Ubuntu 22.04.5 LTS (GNU/Linux 6.8.0-49-generic x86_64)', '', 'Last login: Sat Nov 14 12:33:40 2026 from 172.20.240.5'],
+      brief: 'A user workstation, not scored. It still has the packet password (sysadmin/Changeme1!) and the cyberrange-lab SSH key the red team uses everywhere. splunkfwd is the real Splunk forwarder account: leave it.',
+      checklist: ["grep -vE 'nologin|false' /etc/passwd", 'getent group sudo', 'cat ~/.ssh/authorized_keys', 'passwd', "sed -i '/cyberrange-lab/d' /home/sysadmin/.ssh/authorized_keys"],
+      ctx: { user: 'sysadmin', host: 'Ubuntu-Wkst', cwd: '/home/sysadmin', history: [],
+        fs: {
+          '/etc/passwd': 'root:x:0:0:root:/root:/bin/bash\nsync:x:4:65534:sync:/bin:/bin/sync\nsysadmin:x:1000:1000:sysadmin:/home/sysadmin:/bin/bash\nsplunkfwd:x:1001:1001:Splunk Forwarder:/opt/splunkforwarder:/bin/bash\nsshd:x:110:65534::/run/sshd:/usr/sbin/nologin\n',
+          '/home/sysadmin/.ssh/authorized_keys': 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPrGQ4ujCmk6Fo/Y71ePr2Wu3HV48v82Bl+FkIZ4Y6Hi cyberrange-lab\n',
+          '/home/sysadmin/README.txt': 'Team workstation. Browse to the Palo Alto at https://172.20.240.200 and to Quotient from here.\n',
+        },
+        commands: { getent } },
+    },
+    {
+      id: 'win11', name: 'Windows 11 Wkst', host: 'WIN11-WKST', ip: '172.20.240.6', os: 'Windows 11 Pro', role: 'windows', kind: 'pwsh',
+      prompt: 'PS C:\\Users\\sysadmin>', user: 'sysadmin', cwd: 'C:\\Users\\sysadmin',
+      brief: 'The other team workstation (it wore a Linux-looking theme on the day). Not scored. Its local sysadmin still uses the packet password.',
+      checklist: ['Get-LocalUser', 'net user sysadmin *'],
+      live: { localUsers: [
+        { Name: 'Administrator', Enabled: false, Description: 'Built-in account for administering the computer/domain' },
+        { Name: 'sysadmin', Enabled: true, Description: 'Packet account (Changeme1!)' },
+        { Name: 'Guest', Enabled: false, Description: 'Built-in account for guest access to the computer/domain' },
+      ] },
+      ctx: { dir: DC_DIR, user: 'sysadmin', host: 'WIN11-WKST', cwd: 'C:\\Users\\sysadmin', events: () => [], fs: { 'C:\\Users\\sysadmin\\Desktop\\Topology.png': 'png' } },
+    },
   ],
 
   findings: [
@@ -607,7 +790,7 @@ export const CCDC_LAB_4 = {
         steps: [
           { id: 'pw', accept: [/set system login user vyos authentication plaintext-password \S+/], verify: removeKey('/config/default-password'), label: 'Changed the vyos password', output: ['Password for vyos set (pending commit).'], todo: 'set a new password (set system login user vyos authentication plaintext-password …)' },
           { id: 'key', accept: [/delete system login user vyos authentication public-keys/], verify: removeKey('/config/keys/cyberrange-lab'), label: 'Deleted the cyberrange-lab key', output: ['public-keys cyberrange-lab deleted (pending commit).'], todo: 'delete the planted key (delete system login user vyos authentication public-keys cyberrange-lab)' },
-          { id: 'commit', accept: [/^commit$/], label: 'Committed', output: ['[edit] commit OK — the new password and the key removal are live.'], todo: 'commit (then save) so the changes are live and survive a reboot' },
+          { id: 'commit', accept: [/^commit$/], verify: (fs) => (fs['/config/default-password'] || fs['/config/keys/cyberrange-lab'] ? { ok: false, why: '[edit] commit OK. (Nothing from the router hardening was pending: set the password and delete the key, then commit.)' } : { ok: true }), label: 'Committed', output: ['[edit] commit OK — the new password and the key removal are live.'], todo: 'commit (then save) so the changes are live and survive a reboot' },
         ],
         why: 'configure → set the vyos password → delete the public key → commit → save. Nothing in VyOS is live until commit, and nothing survives a reboot until save.',
       },
@@ -851,6 +1034,22 @@ export const CCDC_LAB_4 = {
         { id: 'stop-mpssvc', match: [[/stop-service|set-service|sc(\.exe)? (stop|config)|net stop/, /mpssvc/]], output: ['Stop-Service : Service \'Windows Defender Firewall (mpssvc)\' cannot be stopped.', '(and if it could, the DC would drop every connection the firewall was allowing)'], why: 'mpssvc and its service DACL were fine on the day. The lock is on the registry key, not the service.' },
       ],
     },
+    // ---------------- Workstations ----------------
+    {
+      id: 'wkst-default', host: 'wkst', title: 'Ubuntu Wkst: packet password and the cyberrange-lab key', severity: 'Medium',
+      teach: 'Not scored, but it is inside the network: from here the red team can reach every box. Change sysadmin\'s password and delete the planted cyberrange-lab key. splunkfwd is the real Splunk Universal Forwarder account (locked, runs the forwarder): leave it.',
+      exploitable: true, compromise: { impact: 'Red team logs in to the workstation with the planted key and uses it to reach the servers from inside.', penalty: 20 },
+      fix: {
+        steps: [
+          { id: 'pw', accept: [/^passwd(\s+sysadmin)?$|chpasswd/], label: 'Changed sysadmin\'s password', output: ['New password: ', 'Retype new password: ', 'passwd: password updated successfully'], todo: 'change the sysadmin password (passwd)' },
+          { id: 'key', accept: [/sed -i|>|\brm\b/, /authorized_keys/], verify: (fs) => (/cyberrange-lab/.test(fs['/home/sysadmin/.ssh/authorized_keys'] || '') ? { ok: false, why: 'The cyberrange-lab key is still in authorized_keys.' } : { ok: true }), label: 'Removed the cyberrange-lab key', output: ['authorized_keys: cyberrange-lab removed.'], todo: "remove the cyberrange-lab key (sed -i '/cyberrange-lab/d' ~/.ssh/authorized_keys)" },
+        ],
+        why: "passwd, then sed -i '/cyberrange-lab/d' /home/sysadmin/.ssh/authorized_keys.",
+      },
+      traps: [
+        { id: 'del-splunkfwd', match: [[/userdel|deluser/, /splunkfwd/]], output: ['userdel: splunkfwd removed. The Splunk forwarder on this box stops sending logs.'], why: 'splunkfwd is the legitimate forwarder (locked account). Removing it blinds Splunk to this workstation.' },
+      ],
+    },
     // ---------------- MSSQL ----------------
     {
       id: 'mssql-exposed', host: 'mssql', title: 'MSSQL exposes RPC, NetBIOS, IIS and WinRM to the outside', severity: 'Medium',
@@ -915,6 +1114,18 @@ export const CCDC_LAB_4 = {
         { label: 'lists ports with their services/protocols', re: /\b(22|25|53|80|110|135|139|143|443|445|1433|3389|5985|8000|8089)\b/, min: 4 },
         { label: 'judges each service needed / not needed', re: /not needed|unnecessary|should (be )?(closed|not)|needed|required/i },
         { label: 'scans only your own team\'s addresses', re: /172\.25\.34\.|our (own )?(pod|team|addresses)|team 14/i },
+      ],
+    },
+    {
+      id: 'sa103', title: 'SA103 — Implement SNMP', from: 'IT Director', points: 30, releaseAt: 300,
+      prompt: 'Implement SNMPv2c on each server and network device. Make provisions to security policies so that SNMP read-only access is available to the external network, so that a network monitoring provider can reach each device with SNMP. Deliverable: a business memo that enumerates, for each device: external IP address, public community string for read-only access, host name of the device.',
+      model: 'Community ccdc14ro (read-only, v2c, not "public"). Ecomm 172.25.34.10, WEBMAIL 172.25.34.15, Splunk 172.25.34.20, AD-DNS 172.25.34.100, MSSQL 172.25.34.120, EdgeRouter (VyOS) 172.31.34.2, PA-VM (management profile with SNMP). Linux: snmpd with rocommunity ccdc14ro default and agentaddress udp:161 (the package listens on 127.0.0.1 only). Windows: SNMP Service feature, ValidCommunities ccdc14ro = 4 (read-only), PermittedManagers cleared. VyOS: set service snmp community ccdc14ro authorization ro. Palo Alto: snmp app allowed inbound. Verified with snmpwalk -v2c -c ccdc14ro from Kali.',
+      rubric: [
+        { label: 'lists the external IP of each device', re: /172\.25\.34\.(10|15|20|100|120)/g, min: 4 },
+        { label: 'gives a read-only community string that is not "public"', re: /communit[\s\S]{0,40}\b(?!public\b)[a-z0-9_.-]{5,}|ccdc14ro/i },
+        { label: 'names each device by its host name', re: /\b(ecomm|webmail|splunk|ad-dns|mssql|edgerouter|pa-vm)\b/gi, min: 4 },
+        { label: 'states v2c and read-only', re: /v2c[\s\S]{0,80}read[- ]only|read[- ]only[\s\S]{0,80}v2c/i },
+        { label: 'firewall policy allows SNMP from outside (UDP 161)', re: /udp\s*161|161\/udp|snmp (app|application)|allow[\s\S]{0,40}snmp/i },
       ],
     },
     {

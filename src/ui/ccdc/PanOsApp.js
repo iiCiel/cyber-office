@@ -20,7 +20,7 @@ const TREES = {
 };
 const START = { Policies: 'Security', Objects: 'Security Profile Groups', Network: 'Zones', Device: 'Administrators' };
 const OPTIMIZER = [['New App Viewer', '1+'], ['Rules Without App Controls', '1'], ['Unused Apps', '0'], ['Log Forwarding for Security Services', '']];
-const APPS = ['web-browsing', 'ssl', 'ping', 'icmp', 'smtp', 'imap', 'ssh', 'ntp', 'splunk', 'dns', 'ldap', 'ms-ds-smb', 'ms-rdp', 'mssql-db', 'msrpc'];
+const APPS = ['web-browsing', 'ssl', 'ping', 'icmp', 'snmp', 'smtp', 'imap', 'ssh', 'ntp', 'splunk', 'dns', 'ldap', 'ms-ds-smb', 'ms-rdp', 'mssql-db', 'msrpc'];
 const ADDRESSES = ['172.20.240.10', '172.20.240.15', '172.20.240.20', '172.20.240.100', '172.20.240.120'];
 const ZONES = ['external', 'internal'];
 

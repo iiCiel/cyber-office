@@ -78,6 +78,8 @@ const joinOut = (arr) => (arr.length ? `${arr.join('\n')}\n` : '');
 
 function resolve(cwd, p) {
   if (!p) return cwd;
+  // ~ is the home of the user we are working as (the /home/<user> part of cwd, else /root).
+  if (p === '~' || p.startsWith('~/')) p = `${(String(cwd).match(/^\/home\/[^/]+/) || ['/root'])[0]}${p.slice(1)}`;
   const parts = (p.startsWith('/') ? p : `${cwd}/${p}`).split('/');
   const stack = [];
   for (const part of parts) {

@@ -20,7 +20,7 @@ export class PuttyApp {
     this.inMenu = this.fw && !o.session.shell;
     if (!o.session.buffer.length) o.session.buffer.push(...this.loginBanner());
     this.term = new TermView({
-      theme: this.fw ? 'fbsd' : 'putty',
+      theme: this.fw ? 'fbsd' : d.theme || 'putty',
       label: `${d.name} SSH session`,
       buffer: o.session.buffer,
       history: o.session.history,

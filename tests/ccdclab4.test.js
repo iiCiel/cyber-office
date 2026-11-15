@@ -15,16 +15,17 @@ const GOOD = {
   srva07a: 'We installed ClamAV, a free open-source tool, on Rocky, Ubuntu and Debian Linux and on the Windows Server 2022 and 2019 boxes. freshclam updated the definitions on each, and a clamscan scan summary shows Infected files: 0.',
   banner: 'The banner says authorized use only, that activity is monitored and use means consent with no expectation of privacy, and that misuse leads to discipline and criminal prosecution. It shows before login via issue.net and the sshd Banner, legalnoticecaption on Windows, and the PAN-OS and VyOS login banners.',
   eval14a: 'We ran Nmap from Kali against our own 172.25.34.x addresses. Ecom has 22, 80, 443; SSH there is not needed. MSSQL exposes 135 RPC, 139 NetBIOS, 80 and 5985 which are not needed; 445, 1433 and 3389 are required.',
+  sa103: 'SNMPv2c read-only with community ccdc14ro on every device. Ecomm 172.25.34.10, WEBMAIL 172.25.34.15, Splunk 172.25.34.20, AD-DNS 172.25.34.100, MSSQL 172.25.34.120, EdgeRouter 172.31.34.2. The Palo Alto allows UDP 161 inbound. Verified with snmpwalk from Kali.',
   pcr: 'Open each Quotient credential list (DomainUsers, Splunk) and copy its Usernames tab. Build username,password CSV lines for exactly those names and submit the PCR in Quotient first, then run Set-ADAccountPassword. Exclude svc- service accounts. Check Quotient after one round.',
 };
 
-test('scenario 4: registered fourth, shape — 7 devices, 18 findings, 19 scored services, 5 injects', () => {
+test('scenario 4: registered fourth, shape — 10 devices, 19 findings, 19 scored services, 6 injects', () => {
   assert.equal(CCDC_SCENARIOS[3], CCDC_LAB_4);
   const s = fresh();
-  assert.equal(s.deviceList.length, 7);
-  assert.equal(s.findingList.length, 18);
+  assert.equal(s.deviceList.length, 10);
+  assert.equal(s.findingList.length, 19);
   assert.equal(Object.keys(s.services).length, 19);
-  assert.equal(s.injectList.length, 5);
+  assert.equal(s.injectList.length, 6);
 });
 
 test('scenario 4: the board starts red where it did on Nov 14 (ecomm-http, ecomm-ping, ad-winrm)', () => {
@@ -37,7 +38,7 @@ test('scenario 4: the checklist hardens every finding and brings every service u
   const s = fresh();
   for (const d of s.deviceList) for (const c of d.checklist) runLine(s, d.id, c);
   const p = progress(s);
-  assert.equal(p.fixed, 18);
+  assert.equal(p.fixed, 19);
   assert.equal(p.servicesUp, 19);
 });
 
@@ -304,4 +305,58 @@ test('scenario 4 Splunk bind: the 13:57 teammate reset knocks splunk-query down 
   assert.equal(up(s, 'splunk-query'), false);
   run(s, 'splunk', `sed -i 's/^bindDNpassword.*/bindDNpassword = ZipsBlue2026x!/' ${AUTH}`, 'sudo systemctl restart Splunkd');
   assert.equal(up(s, 'splunk-query'), true);
+});
+
+// --- Kali and the workstations ---------------------------------------------------------------------------------
+test('scenario 4 Kali: nmap from outside shows what the EVAL14A memo needs, and follows your fixes', () => {
+  const s = fresh();
+  let t = txt(s, 'kali', 'nmap -sV 172.25.34.10,15,20,100,120 -oN tcp.txt');
+  assert.match(t, /135\/tcp\s+open\s+msrpc/);
+  assert.match(t, /1000 filtered tcp ports/, '.100 all filtered, as on the day');
+  run(s, 'mssql', 'New-NetFirewallRule -DisplayName x -Direction Inbound -Protocol TCP -LocalPort 135,139,5985 -Action Block', 'Stop-Service W3SVC');
+  t = txt(s, 'kali', 'nmap -sV 172.25.34.120');
+  assert.doesNotMatch(t, /135\/tcp/);
+  assert.match(t, /1433\/tcp\s+open/);
+  assert.match(txt(s, 'kali', 'evil-winrm -i 172.25.34.100 -u Administrator -p x'), /DigestError/);
+});
+
+test('scenario 4 Ubuntu Wkst: passwd + removing the planted key; splunkfwd is legit', () => {
+  const s = fresh();
+  assert.match(txt(s, 'wkst', 'cat ~/.ssh/authorized_keys'), /cyberrange-lab/);
+  run(s, 'wkst', 'passwd', "sed -i '/cyberrange-lab/d' /home/sysadmin/.ssh/authorized_keys");
+  assert.equal(open(s, 'wkst-default'), false);
+  assert.match(txt(fresh(), 'wkst', 'userdel splunkfwd'), /forwarder/);
+});
+
+// --- SNMP (SA103) ---------------------------------------------------------------------------------------------------
+const walk = (s, ip) => txt(s, 'kali', `snmpwalk -v2c -c ccdc14ro ${ip}`);
+test('scenario 4 SNMP: snmpd listens on localhost until agentaddress is changed; then Kali can walk it', () => {
+  const s = fresh();
+  run(s, 'email', 'apt install snmpd', 'systemctl restart snmpd');
+  assert.match(walk(s, '172.25.34.15'), /Timeout/, 'package default: loopback only, community public');
+  run(s, 'email', "sed -i 's/^agentaddress.*/agentaddress udp:161/' /etc/snmp/snmpd.conf", "sed -i 's/^rocommunity public/rocommunity ccdc14ro/' /etc/snmp/snmpd.conf", 'systemctl restart snmpd');
+  assert.match(walk(s, '172.25.34.15'), /sysName\.0 = STRING: WEBMAIL/);
+  assert.match(txt(s, 'kali', 'snmpwalk -v2c -c public 172.25.34.15'), /Timeout/, 'wrong community');
+});
+
+test('scenario 4 SNMP: Windows needs the feature, the community, PermittedManagers cleared; the DC also needs the firewall unlocked', () => {
+  const s = fresh();
+  const KEY = 'HKLM:\\SYSTEM\\CurrentControlSet\\Services\\SNMP\\Parameters';
+  for (const id of ['mssql', 'dc']) run(s, id, 'Install-WindowsFeature SNMP-Service', `New-ItemProperty -Path ${KEY}\\ValidCommunities -Name ccdc14ro -Value 4 -PropertyType DWord`, `Remove-ItemProperty -Path ${KEY}\\PermittedManagers -Name 1`, 'Restart-Service SNMP');
+  assert.match(walk(s, '172.25.34.120'), /sysName\.0 = STRING: MSSQL/);
+  assert.match(walk(s, '172.25.34.100'), /Timeout/, 'DC firewall still locked');
+  run(s, 'dc', ...UNLOCK, 'Restart-Service SNMP');
+  assert.match(walk(s, '172.25.34.100'), /AD-DNS/);
+});
+
+test('scenario 4 SNMP: VyOS needs commit; a hardened Palo Alto must allow the snmp app', () => {
+  const s = fresh();
+  run(s, 'vyos', 'set service snmp community ccdc14ro authorization ro');
+  assert.match(walk(s, '172.31.34.2'), /Timeout/);
+  run(s, 'vyos', 'commit');
+  assert.match(walk(s, '172.31.34.2'), /EdgeRouter/);
+  run(s, 'splunk', 'apt install snmpd', "sed -i 's/^agentaddress.*/agentaddress udp:161/' /etc/snmp/snmpd.conf", "sed -i 's/^rocommunity public/rocommunity ccdc14ro/' /etc/snmp/snmpd.conf", 'systemctl restart snmpd');
+  assert.match(walk(s, '172.25.34.20'), /Splunk/);
+  run(s, 'pa', ...PA_GOOD, 'commit');
+  assert.match(walk(s, '172.25.34.20'), /Timeout/, 'hardened PA without the snmp app blocks it');
 });

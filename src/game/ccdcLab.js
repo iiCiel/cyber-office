@@ -214,6 +214,9 @@ export function runLine(state, deviceId, rawLine) {
     if (!ds.dir) ds.dir = makeDirectory(JSON.parse(JSON.stringify(dev.ctx.dir.spec)));
     applyAdChange(ds.dir, line);
   }
+  // Scenario hook for state that is not a finding (e.g. SNMP set up for an inject): side effects now, and its lines
+  // replace the generic shell output at step 3 for commands the shell does not know.
+  const hook = state.scenario.onLine ? state.scenario.onLine(state, deviceId, line, ds, rawLine) : null;
 
   // 0) Rotating the scored account's password? The command is legitimate, but until a PCR is filed the scoring
   //    engine can no longer authenticate — flag it so the live engine fails that service until the PCR lands.
@@ -317,7 +320,8 @@ export function runLine(state, deviceId, rawLine) {
   if (editLines) return { lines: editLines, effects: {} };
 
   // 3) Everything else: the real inspection engine for this box (reading the box's current, possibly edited, fs).
-  const ctx = { ...dev.ctx, cwd: ds.cwd, fs: ds.fs || dev.ctx?.fs, live: ds.live, dir: ds.dir || dev.ctx?.dir, pan: ds.pan };
+  if (hook?.lines) return pcrFx({ lines: hook.lines.map((t) => (typeof t === 'string' ? { cls: '', text: t } : t)), effects: {} });
+  const ctx = { ...dev.ctx, cwd: ds.cwd, fs: ds.fs || dev.ctx?.fs, live: ds.live, dir: ds.dir || dev.ctx?.dir, pan: ds.pan, game: state };
   const res = dev.kind === 'pwsh' ? runPwsh(line, ctx) : runBash(line, ctx);
   if (res.cwd) ds.cwd = res.cwd;
   const text = res.out == null ? '' : String(res.out).replace(/\n$/, '');

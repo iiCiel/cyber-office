@@ -92,6 +92,13 @@ export function applyPan(pan, line) {
     return { handled: true, lines: ['Candidate configuration reverted to the running configuration.'] };
   }
 
+  // set deviceconfig system snmp-setting access-setting version v2c snmp-community-string ccdc14ro
+  if (verb === 'set' && t[1] === 'deviceconfig' && /snmp/.test(line)) {
+    const i = t.indexOf('snmp-community-string');
+    if (i < 0 || !t[i + 1]) return { handled: true, error: true, lines: ['Invalid syntax: ... snmp-setting access-setting version v2c snmp-community-string <community>'] };
+    c.snmp = String(t[i + 1]);
+    return ok(['[edit deviceconfig system snmp-setting]']);
+  }
   // set mgt-config users admin password
   if (verb === 'set' && t[1] === 'mgt-config') { c.adminChanged = true; return ok(['Enter password   : ****************', 'Confirm password : ****************']); }
 
