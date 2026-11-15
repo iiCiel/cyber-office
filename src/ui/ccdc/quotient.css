@@ -1,0 +1,46 @@
+/* Quotient scoring engine, matched to docs/reference/quotient-pcr-*.png and quotient-service.png */
+.qt { height: 100%; overflow: auto; background: #fff; color: #1f2328; font: 15px/1.45 Inter, "Segoe UI", system-ui, sans-serif; }
+.qt-nav { display: flex; align-items: center; gap: 22px; padding: 12px 28px; border-bottom: 1px solid #e5e7eb; }
+.qt-brand { font-weight: 700; font-size: 17px; margin-right: 10px; }
+.qt-nl { color: #6b21d8; text-decoration: none; }
+.qt-nl.on { color: #111; font-weight: 600; }
+.qt-team { margin-left: auto; color: #6b7280; font-size: 14px; }
+.qt-main { max-width: 760px; padding: 6px 8px 24px; }
+.qt-alert { display: flex; align-items: center; gap: 10px; margin: 4px 0 16px; padding: 14px 16px; border: 1px solid #f5d38a; border-radius: 6px; background: #fdf3d8; color: #3d3220; }
+.qt-alert-ok { border-color: #a7dcb5; background: #e8f6ec; color: #1d4d2b; }
+.qt-alert-ic { width: 16px; height: 16px; border: 1.5px solid currentColor; border-radius: 50%; font: 700 11px/14px Inter, sans-serif; text-align: center; font-style: normal; flex: none; }
+.qt-x { margin-left: auto; background: none; border: 0; font-size: 18px; color: #555; cursor: pointer; }
+.qt-card { border: 1px solid #d0d4d9; border-radius: 6px; padding: 16px 16px 12px; margin-bottom: 16px; }
+.qt-h { display: flex; align-items: center; gap: 6px; margin: 0 0 12px; font-size: 16px; font-weight: 700; }
+.qt-list-ic { font-style: normal; font-size: 13px; }
+.qt-select { width: 100%; height: 38px; border: 1px solid #e1e4e8; border-radius: 6px; background: #f6f7f9; padding: 0 10px; font: inherit; }
+.qt-muted { color: #5b6470; font-size: 14px; margin: 6px 0 0; }
+.qt-tabcard { padding: 0; overflow: hidden; }
+.qt-tabs { display: flex; gap: 2px; padding: 10px 8px 0; background: #f3f4f6; border-bottom: 1px solid #d0d4d9; }
+.qt-tab { padding: 9px 16px; color: #6b21d8; text-decoration: none; border: 1px solid transparent; border-bottom: 0; border-radius: 6px 6px 0 0; margin-bottom: -1px; }
+.qt-tab.on { background: #fff; color: #111; font-weight: 700; border-color: #d0d4d9; }
+.qt-tabbody { padding: 14px 16px 16px; }
+.qt-lbl { display: block; font-weight: 700; margin-bottom: 8px; }
+.qt-fmt { font-weight: 400; color: #444; }
+.qt-fmt code { color: #d6336c; font: 13px ui-monospace, Consolas, monospace; }
+.qt-ta { width: 100%; box-sizing: border-box; min-height: 200px; padding: 10px; border: 1px solid #e1e4e8; border-radius: 6px; background: #f6f7f9; font: 14px/1.6 ui-monospace, Consolas, "Courier New", monospace; resize: vertical; }
+.qt-actions { margin-top: 12px; }
+.qt-btn { background: #6b21d8; color: #fff; border: 0; border-radius: 6px; padding: 8px 18px; font: 600 14px Inter, sans-serif; cursor: pointer; }
+.qt-lead { margin: 0 0 14px; font-size: 15px; }
+.qt-table { width: 100%; border-collapse: collapse; }
+.qt-table th { text-align: left; font-weight: 700; padding: 10px; border-bottom: 1px solid #e5e7eb; }
+.qt-table td { padding: 10px; border-bottom: 1px solid #e5e7eb; }
+.qt-users tbody tr:nth-child(odd) { background: #f1f1f2; }
+.qt-users td { border: 0; }
+.qt-count { display: flex; align-items: center; gap: 6px; margin-top: 14px; }
+.qt-info { width: 14px; height: 14px; border: 1.3px solid #555; border-radius: 50%; font: 600 10px/12px Inter, sans-serif; text-align: center; font-style: normal; }
+.qt-title { display: flex; align-items: center; gap: 22px; font-size: 22px; font-weight: 600; margin: 16px 0 26px 10px; }
+.qt-back { color: #333; text-decoration: none; font-size: 20px; }
+.qt-rounds { font-size: 15px; }
+.qt-row { cursor: pointer; }
+.qt-row:hover { background: #f7f5fd; }
+.qt-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #cbd5e1; }
+.qt-dot.up { background: #22a052; }
+.qt-dot.down { background: #d93636; }
+.qt-err { color: #8b1d1d; font-size: 13px; }
+.qt-main.qt-wide { max-width: none; padding: 6px 20px 24px; }

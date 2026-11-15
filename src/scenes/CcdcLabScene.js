@@ -25,6 +25,8 @@ import '../ui/competitions.css';
 import '../ui/ccdc/ccdcdoc.css';
 import '../ui/ccdc/pfsense.css';
 import { PanOsApp } from '../ui/ccdc/PanOsApp.js';
+import { QuotientApp } from '../ui/ccdc/QuotientApp.js';
+import { submitPcr } from '../game/quotient.js';
 import '../ui/ccdc/panos.css';
 
 // CCDC as a full simulation. The player logs in to their team's jump box (a Windows 10 workstation) and works
@@ -195,10 +197,16 @@ export class CcdcLabScene extends Phaser.Scene {
     try { res = runLine(this.state, devId, line); } catch (err) { res = { lines: [{ cls: 'err', text: `${err?.message || 'error'}` }], effects: {} }; }
     const e = res.effects || {};
     if (this.guided && e.why) res.lines = [...res.lines, { cls: 'note', text: `Coach: ${e.why}` }];
-    if (e.pcrRotated) notePasswordRotated(this.state);
+    if (e.pcrRotated) notePasswordRotated(this.state, e.pcrAccounts);
     if ((e.dropped && e.dropped.length) || e.trapId) this.jb?.toast({ app: 'Scoring Engine', title: 'Service check failing', text: `${(e.dropped || []).join(', ') || 'a service'} stopped answering after that change.`, cls: 'bad', open: 'score' });
     this.sound2?.play(e.fixed ? 'select' : (e.dropped && e.dropped.length) || e.trapId ? 'error' : 'click');
     return res;
+  }
+
+  submitPcr(list, text) {
+    const r = submitPcr(this.state, list, text);
+    this.sound2?.play(r.ok ? 'select' : 'error');
+    return r;
   }
 
   windows() {
@@ -220,6 +228,11 @@ export class CcdcLabScene extends Phaser.Scene {
         create: () => new PfSenseApp({ state: st, dev: fw, clock: () => this.elapsed(), run: (l) => this.run(fw.id, l) }) });
       wins.push({ id: `ssh-${fw.id}`, kind: 'putty', icon: 'putty', title: `${fw.ip} - PuTTY`, short: `${fw.host} (SSH)`,
         create: () => new PuttyApp({ dev: fw, session: this.sessions[fw.id], banner: pfConsoleBanner(fw), run: (l) => this.run(fw.id, l) }) });
+    }
+    // Quotient (MWCCDC's scoring engine): credential lists and the PCR form, plus each service's round history.
+    if (sc.quotient) {
+      wins.push({ id: 'quotient', kind: 'browser', icon: 'quotient', pinned: true, desktop: 'Quotient', title: 'Quotient', short: 'Quotient', tabLabel: 'Quotient', url: 'https://quotient.ccdc.events/pcr',
+        create: () => new QuotientApp({ state: st, team: this.tn(), onSubmit: (list, text) => this.submitPcr(list, text) }) });
     }
     // A Palo Alto with a web UI: reached by typing its management IP into a browser on the team workstation.
     for (const pan of st.deviceList.filter((d) => d.webui === 'panos')) {

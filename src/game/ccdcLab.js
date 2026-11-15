@@ -217,8 +217,15 @@ export function runLine(state, deviceId, rawLine) {
 
   // 0) Rotating the scored account's password? The command is legitimate, but until a PCR is filed the scoring
   //    engine can no longer authenticate — flag it so the live engine fails that service until the PCR lands.
-  const pcr = state.scenario.pcr;
-  const pcrRotated = pcr && pcr.host === deviceId && matchesAll(pcr.rotateMatch, lower);
+  const pcrList = Array.isArray(state.scenario.pcr) ? state.scenario.pcr : state.scenario.pcr ? [state.scenario.pcr] : [];
+  const rotatedPcrs = pcrList.filter((p) => p.host === deviceId && matchesAll(p.rotateMatch, lower) && !asList(p.rotateUnless).some((u) => u.test(lower)));
+  const pcrRotated = rotatedPcrs.length > 0;
+  const pcrFx = (res) => {
+    if (!pcrRotated) return res;
+    for (const p of rotatedPcrs) res.lines.push({ cls: 'warn', text: `Scored credentials in the ${p.account} list rotated. If you did not submit the PCR in Quotient first, ${p.service} will start failing.` });
+    res.effects = { ...(res.effects || {}), pcrRotated: true, pcrAccounts: rotatedPcrs.map((p) => p.account) };
+    return res;
+  };
 
   // 1) A plausible-but-wrong trap command? (Can drop a scored service.) Traps are checked BEFORE fixes so a
   //    harmful command (e.g. denying 3306 for everyone) can never be mistaken for the scoped fix.
@@ -226,13 +233,13 @@ export function runLine(state, deviceId, rawLine) {
     const rec = state.findings[f.id];
     for (const t of f.traps) {
       if (rec.triggeredTraps[t.id]) continue;
-      if (matchesAny(t.match, lower)) {
+      if (matchesAny(t.match, lower) && !asList(t.unless).some((u) => u.test(lower))) {
         rec.triggeredTraps[t.id] = true;
         const dropped = [];
         for (const s of asList(t.drops)) if (dropService(state, s, f.id, t.note)) dropped.push(s);
         const lines = (t.output || []).map((text) => ({ cls: 'warn', text }));
         if (dropped.length) lines.push({ cls: 'bad', text: `!! Scored service DOWN: ${dropped.join(', ')} — ${t.note || 'your change broke it.'}` });
-        return { lines, effects: { trapId: t.id, dropped, note: t.note, why: t.why } };
+        return pcrFx({ lines, effects: { trapId: t.id, dropped, note: t.note, why: t.why } });
       }
     }
   }
@@ -270,12 +277,12 @@ export function runLine(state, deviceId, rawLine) {
         const lines = (step.output || [`✓ ${step.label}`]).map((text) => ({ cls: 'ok', text }));
         if (restoredNow.length) lines.push({ cls: 'ok', text: `Scored service back UP: ${restoredNow.join(', ')}.` });
         const remaining = f.fix.steps.filter((s) => !rec.steps[s.id]);
-        if (!remaining.length) return finishFix(state, f, lines);
+        if (!remaining.length) return pcrFx(finishFix(state, f, lines));
         lines.push({ cls: 'note', text: `Step done (${f.fix.steps.length - remaining.length}/${f.fix.steps.length}). Still to do: ${remaining.map((s) => s.todo || s.label).join('; ')}` });
-        return { lines, effects: { stepId: step.id } };
+        return pcrFx({ lines, effects: { stepId: step.id } });
       }
     } else if (matchesAny(f.fix.accept, lower)) {
-      return finishFix(state, f, (f.fix.output || ['Done.']).map((text) => ({ cls: 'ok', text })));
+      return pcrFx(finishFix(state, f, (f.fix.output || ['Done.']).map((text) => ({ cls: 'ok', text }))));
     }
   }
 
@@ -288,8 +295,12 @@ export function runLine(state, deviceId, rawLine) {
   if (res.cwd) ds.cwd = res.cwd;
   const text = res.out == null ? '' : String(res.out).replace(/\n$/, '');
   const lines = text === '' ? [] : text.split('\n').map((t) => ({ cls: res.error ? 'err' : '', text: t }));
-  if (pcrRotated) lines.push({ cls: 'warn', text: `Scored account ${pcr.account} rotated. File the Password Change Request inject, or ${pcr.service} will start failing its scored check.` });
-  return { lines, effects: pcrRotated ? { pcrRotated: true } : {} };
+  if (pcrRotated && pcrList.length === 1 && !Array.isArray(state.scenario.pcr)) {
+    const p = pcrList[0];
+    lines.push({ cls: 'warn', text: `Scored account ${p.account} rotated. File the Password Change Request inject, or ${p.service} will start failing its scored check.` });
+    return { lines, effects: { pcrRotated: true, pcrAccounts: [p.account] } };
+  }
+  return pcrFx({ lines, effects: {} });
 }
 
 function finishFix(state, f, lines) {
@@ -389,7 +400,7 @@ export function answerInject(state, injectId, text) {
   rec.late = !!(t && (t.overdue || state.engine.clock > t.dueAt));
   const g = gradeInject(i, body);
   rec.grade = rec.late ? { ...g, pts: 0, earned: g.pts, late: true } : g;
-  const isPcr = state.scenario.pcr && state.scenario.pcr.injectId === injectId;
+  const isPcr = (Array.isArray(state.scenario.pcr) ? state.scenario.pcr : [state.scenario.pcr]).some((p) => p && p.injectId === injectId);
   return { ok: true, grade: rec.grade, isPcr, late: rec.late };
 }
 

@@ -42,10 +42,15 @@ export function attachEngine(state) {
     waves: (sc.redWaves || []).map((w) => ({ ...w, fired: false })),
     probes: {}, // findingId -> 'probed' | 'compromised'
     injectTimers: {}, // injectId -> { releaseAt, dueAt, released, overdue }
-    pcr: sc.pcr ? { ...sc.pcr, rotated: false, filed: false, breaking: false } : null,
+    // One PCR record per Quotient credential list (a scenario may give one pcr or a list of them). eng.pcr stays
+    // the first one for older scenarios and the debrief.
+    pcrs: (Array.isArray(sc.pcr) ? sc.pcr : sc.pcr ? [sc.pcr] : []).map((p) => ({ ...p, rotated: false, filed: false, breaking: false })),
+    history: {}, // svcId -> [{ round, at, ok }] newest last (Quotient's per-service round table)
+    round: 0,
     teamFeed: (sc.teamFeed || DEFAULT_TEAM_FEED).map((m) => ({ ...m, fired: false })),
   };
-  for (const s of state.serviceList) eng.checks[s.id] = { ok: 0, fail: 0, consec: 0, violations: 0 };
+  eng.pcr = eng.pcrs[0] || null;
+  for (const s of state.serviceList) { eng.checks[s.id] = { ok: 0, fail: 0, consec: 0, violations: 0 }; eng.history[s.id] = []; }
   for (const i of state.injectList) {
     const t = i.releaseAt || 0;
     eng.injectTimers[i.id] = { releaseAt: t, dueAt: t + (i.window || sc.injectWindow || 300), released: t === 0, overdue: false };
@@ -62,33 +67,37 @@ export const fmtClock = (sec) => `${Math.floor(sec / 60)}:${String(Math.floor(se
  * as that account, so its service check fails — exactly the trap that catches real teams who reset passwords
  * without telling the white team.
  */
-export function notePasswordRotated(state) {
+export function notePasswordRotated(state, accounts) {
   const eng = state.engine;
-  if (!eng?.pcr || eng.pcr.rotated) return;
-  eng.pcr.rotated = true;
-  // PCR filed FIRST (the right order in a real round): the white team already holds the new credential, so the
-  // rotation is pre-approved and scoring never breaks.
-  if (eng.pcr.filed) {
-    log(eng, 'ok', `Scored account ${eng.pcr.account} rotated under the PCR you already filed — the scoring engine has the new credential; ${eng.pcr.service} keeps passing.`);
-    return;
+  if (!eng?.pcrs) return;
+  for (const p of eng.pcrs) {
+    if (accounts && !accounts.includes(p.account)) continue;
+    if (p.rotated) continue;
+    p.rotated = true;
+    // PCR filed FIRST (the right order in a real round): the white team already holds the new credential, so the
+    // rotation is pre-approved and scoring never breaks.
+    if (p.filed) { log(eng, 'ok', `Scored account ${p.account} rotated under the PCR you already filed — the scoring engine has the new credential; ${p.service} keeps passing.`); continue; }
+    p.breaking = true;
+    log(eng, 'warn', `Scored account ${p.account} rotated. The scoring engine can no longer authenticate — file the PCR or ${p.service} checks will fail.`);
   }
-  eng.pcr.breaking = true;
-  log(eng, 'warn', `Scored account ${eng.pcr.account} rotated. The scoring engine can no longer authenticate — file the PCR (inject) or ${eng.pcr.service} checks will fail.`);
 }
 
-/** The PCR inject was submitted: scoring credentials are updated and the service recovers. */
-export function notePcrFiled(state) {
+/** A PCR was accepted (the inject, or a Quotient credential-list update): scoring credentials are updated. */
+export function notePcrFiled(state, account) {
   const eng = state.engine;
-  if (!eng?.pcr) return;
-  eng.pcr.filed = true;
-  if (eng.pcr.breaking) { eng.pcr.breaking = false; log(eng, 'ok', `PCR accepted. The white team updated the scoring credential for ${eng.pcr.account}; ${eng.pcr.service} checks pass again.`); }
+  if (!eng?.pcrs) return;
+  for (const p of eng.pcrs) {
+    if (account && p.account !== account) continue;
+    p.filed = true;
+    if (p.breaking) { p.breaking = false; log(eng, 'ok', `PCR accepted. The white team updated the scoring credentials for ${p.account}; ${p.service} checks pass again.`); }
+  }
 }
 
 /** Is a given service currently failing its scored check (down, or broken by an unfiled PCR)? */
 function serviceFailing(state, svc) {
   if (svc.state !== SERVICE_STATE.UP) return true;
   const eng = state.engine;
-  if (eng?.pcr?.breaking && eng.pcr.service === svc.id) return true;
+  if (eng?.pcrs?.some((p) => p.breaking && p.service === svc.id)) return true;
   return false;
 }
 
@@ -142,9 +151,14 @@ function stepTo(state, sec) {
 
 function runCheck(state) {
   const eng = state.engine;
+  eng.round += 1;
   for (const svc of Object.values(state.services)) {
     const c = eng.checks[svc.id];
-    if (serviceFailing(state, svc)) {
+    const failing = serviceFailing(state, svc);
+    const h = eng.history[svc.id] || (eng.history[svc.id] = []);
+    h.push({ round: eng.round, at: eng.lastCheckAt, ok: !failing });
+    if (h.length > 60) h.shift();
+    if (failing) {
       c.fail += 1; c.consec += 1;
       if (c.consec === SLA_FAILS) {
         c.violations += 1; eng.slaViolations += 1; c.consec = 0;

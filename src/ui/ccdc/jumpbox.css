@@ -162,3 +162,5 @@
 .jb-tb-app { flex: 0 1 150px; min-width: 44px; }
 .jb-tb-label { display: inline; min-width: 0; }
 @media (max-width: 1000px) { .jb-tb-label { display: none; } .jb-tb-app { flex: 0 0 44px; justify-content: center; } }
+.jb-ic-quotient { background: #6b21d8; }
+.jb-ic-quotient::after { content: 'Q'; }

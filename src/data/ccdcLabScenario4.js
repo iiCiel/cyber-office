@@ -16,6 +16,18 @@ import { withRecon } from '../game/labCommands.js';
 const lines = (arr) => `${arr.join('\n')}\n`;
 
 // --- Active Directory on the DC ---------------------------------------------------------------------------------
+// Quotient's credential lists (scaled down from the day: DomainUsers had 670 names, Splunk 30). The names are the
+// ones in the team's screenshots. AD also holds accounts Quotient does NOT score with: the svc-* accounts and a
+// handful of odd ones; a PCR that includes any of them is rejected whole, which is what happened at 10:5x.
+const DOMAIN_USERS = ['john.smith', 'chris.hill', 'jessica.smith', 'chris.brown', 'mike.jones', 'michael.johnson', 'mark.smith', 'sarah.smith', 'anil.kumar', 'manoj.kumar', 'ashley.smith', 'vijay.kumar', 'kevin.smith', 'david.johnson', 'chris.jones', 'sunil.kumar', 'ryan.smith', 'robert.smith', 'david.jones', 'brian.smith', 'jennifer.smith', 'ahmed.ali', 'steve.smith', 'rajesh.kumar', 'brian.wilson', 'rick.smith', 'david.green', 'harish.kumar', 'gagandeep.singh', 'mike.martin', 'mike.jackson', 'david.roberts', 'dave.jones', 'mike.walker', 'michael.allen', 'jeff.williams', 'rizwan.khan', 'kim.jones', 'juan.martinez', 'muhammad.usman', 'christopher.jones', 'adam.brown', 'jason.thomas', 'sue.smith', 'warehouse.kiosk', 'front.desk'];
+const SPLUNK_USERS = ['chris.hill', 'brian.wilson', 'rick.smith', 'david.green', 'harish.kumar', 'mike.martin', 'david.roberts', 'kim.jones', 'juan.martinez', 'adam.brown', 'jason.thomas', 'sue.smith'];
+const AD_ONLY = ['agrapplernamedsam', 'jerry', 'shadbrown', 'johnford', 'daviddurkee', 'jimmy'];
+const cap = (w) => w.charAt(0).toUpperCase() + w.slice(1);
+const plainUser = (sam) => {
+  const [f, l] = sam.includes('.') ? sam.split('.') : [sam, ''];
+  return { sam, first: cap(f), last: cap(l || 'User'), ou: 'Operations', pwdLastSet: '2026-09-14', memberOf: SPLUNK_USERS.includes(sam) ? ['Splunk Users'] : [] };
+};
+
 const DC_DIR = makeDirectory({
   domain: 'underpressure.local',
   netbios: 'UNDERPRESSURE',
@@ -29,6 +41,8 @@ const DC_DIR = makeDirectory({
     { sam: 'svc-palo', first: 'Palo', last: 'Service', ou: 'ServiceAccounts', desc: 'Palo Alto User-ID service account (legitimate)', pwdLastSet: '2026-10-21' },
     { sam: 'john.smith', first: 'John', last: 'Smith', ou: 'Operations', title: 'Plant Operator', pwdLastSet: '2026-09-14' },
     { sam: 'chris.hill', first: 'Chris', last: 'Hill', ou: 'Operations', title: 'SCADA Analyst', memberOf: ['Splunk Users'], pwdLastSet: '2026-09-14' },
+    ...DOMAIN_USERS.filter((u) => u !== 'john.smith' && u !== 'chris.hill').map(plainUser),
+    ...AD_ONLY.map(plainUser),
   ],
   computers: [
     { name: 'AD-DNS', ip: '172.20.240.100', role: 'Domain Controller', os: 'Windows Server 2022' },
@@ -228,9 +242,17 @@ export const CCDC_LAB_4 = {
   ],
 
   // Rotating domain user passwords without a PCR in Quotient breaks every check that logs in with an AD account.
-  pcr: {
-    account: 'DomainUsers', host: 'dc', service: 'webmail-imap', injectId: 'pcr',
-    rotateMatch: [/set-adaccountpassword/],
+  // One record per Quotient credential list. Submitting the list in Quotient FIRST pre-approves the rotation.
+  pcr: [
+    { account: 'DomainUsers', host: 'dc', service: 'webmail-imap', rotateMatch: [/set-adaccountpassword/], rotateUnless: [/set-adaccountpassword\s+(-identity\s+)?["']?(svc-|administrator)/] },
+    { account: 'Splunk', host: 'dc', service: 'splunk-query', rotateMatch: [/set-adaccountpassword/, /get-aduser|import-csv|get-content|foreach|%/] },
+  ],
+  quotient: {
+    lists: {
+      DomainUsers: { users: DOMAIN_USERS, desc: 'Domain users the scorer logs in with (webmail IMAP/SMTP).' },
+      Splunk: { users: SPLUNK_USERS, desc: 'AD users the scorer searches Splunk with (splunk-query).' },
+      MssqlService: { users: ['waterops_svc'], desc: 'Local SQL Server login on the 2019 MSSQL box.' },
+    },
   },
 
   services: [
@@ -637,7 +659,7 @@ export const CCDC_LAB_4 = {
         why: 'Remove-ADGroupMember "Domain Admins" svc-splunk -Confirm:$false, and the same for "Enterprise Admins". Leave it in Splunk Users / Splunk Admins.',
       },
       traps: [
-        { id: 'reset-svc-splunk', match: [[/set-adaccountpassword/, /svc-splunk/], [/get-aduser -filter/, /set-adaccountpassword/]], drops: ['splunk-query'], note: 'svc-splunk\'s password changed in AD but not in Splunk\'s bindDNpassword: every Splunk login against AD now fails (it happened twice on Nov 14).', output: ['Password for svc-splunk reset.', '(on the Splunk box, splunkd.log: ERROR ScopedLDAPConnection - Error binding to LDAP. reason="Invalid credentials")'], why: 'Exclude every svc-* account from bulk resets. If you must rotate one, change it in AD and in the application\'s config together, then restart the application.' },
+        { id: 'reset-svc-splunk', match: [[/set-adaccountpassword/, /svc-splunk/], [/get-aduser -filter/, /set-adaccountpassword/]], unless: [/-notlike\s+["']?svc-|-notmatch\s+["']?\^?svc|-ne\s+["']svc-splunk/], drops: ['splunk-query'], note: 'svc-splunk\'s password changed in AD but not in Splunk\'s bindDNpassword: every Splunk login against AD now fails (it happened twice on Nov 14).', output: ['Password for svc-splunk reset.', '(on the Splunk box, splunkd.log: ERROR ScopedLDAPConnection - Error binding to LDAP. reason="Invalid credentials")'], why: 'Exclude every svc-* account from bulk resets. If you must rotate one, change it in AD and in the application\'s config together, then restart the application.' },
       ],
     },
   ],
