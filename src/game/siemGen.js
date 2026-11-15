@@ -327,8 +327,13 @@ export function createSiem(scenario, opts = {}) {
 
   // kind thresholds (per mille)
   const hasMail = !!P.mail;
-  const W = { web: 330, auth: 140, fw: 190, win: 110, ws: 20, mail: hasMail ? 80 : 0, db: 50, cron: 80 };
+  // A network without a database server or a separate workstation in scope (the Invitational replay) gives
+  // those log shares to web traffic, the same way a network without mail does.
+  const hasDb = P.db !== null; const hasWs = P.ws !== null;
+  const W = { web: 330, auth: 140, fw: 190, win: 110, ws: hasWs ? 20 : 0, mail: hasMail ? 80 : 0, db: hasDb ? 50 : 0, cron: 80 };
   if (!hasMail) W.web += 80;
+  if (!hasDb) W.web += 50;
+  if (!hasWs) W.web += 20;
   const cum = []; let acc = 0;
   for (const k of KIND_ORDER) { acc += W[k]; cum.push(acc); }
 

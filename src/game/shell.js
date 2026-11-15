@@ -359,6 +359,8 @@ function exec(cmd, args, stdin, ctx) {
     case 'curl':
     case 'wget':
     case 'ping':
+      // A box can supply its own (e.g. curl against its own web server in the CCDC labs).
+      if (ctx.commands?.[cmd]) { const res = ctx.commands[cmd](args, stdin, ctx); return typeof res === 'string' ? { out: res } : res; }
       return { out: `${cmd}: (6) Could not resolve host: ${args.find((a) => !a.startsWith('-')) || 'host'}. This jump host has no internet access, which is how it should be on a SOC network.\n` };
     case 'man':
       return { out: args[0] ? `No manual entry for ${args[0]}\n` : 'What manual page do you want?\n' };

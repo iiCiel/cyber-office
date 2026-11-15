@@ -44,6 +44,11 @@ export class PuttyApp {
     const d = this.o.dev;
     const t = (text, cls = 'sys') => ({ cls, text });
     if (this.fw) return [t(`Using username "admin".`), t(`Keyboard-interactive authentication prompts from server:`), t(`End of keyboard-interactive prompts from server`), ...(this.o.banner || []).map((x) => t(x))];
+    // A box can bring its own login message (VyOS, PAN-OS, Debian and Rocky all greet you differently).
+    if (Array.isArray(d.motd)) {
+      return [t(`login as: ${d.user || 'analyst'}`), t(`${d.user || 'analyst'}@${d.ip}'s password:`), ...d.motd.map((x) => t(x)),
+        t(`(Simulated competition box — nothing you type runs anywhere. Type "help" for what this box understands.)`, 'note')];
+    }
     const os = /ubuntu\s*([\d.]+)/i.exec(d.os || '');
     const ver = os ? os[1] : '20.04';
     return [

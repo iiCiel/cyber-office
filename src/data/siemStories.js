@@ -341,6 +341,60 @@ function buildRidgeview(ctx) {
   return out;
 }
 
+
+// =====================================================================================================
+// Under Pressure Water Authority (MWCCDC Invitational replay, Nov 14 2026). Reconstructed from what the team
+// found on the boxes that day: a planted root key on Splunk, the svc-chrony backdoor, firewall-flush cron jobs,
+// svc-splunk slipped into Domain Admins, the fake scoringengine beacon, and password guessing against sysadmin
+// on the DC from 198.51.100.12. The 13:57 mass password reset is the team's own (a decoy: legitimate, harmful).
+// =====================================================================================================
+const ATT4 = '198.51.100.28';
+const SPRAY4 = '198.51.100.12';
+const C2_4 = '198.51.100.45';
+const UP_PROFILE = {
+  web: 'ecom', db: null, mail: 'email', dc: 'dc', ws: null, fw: 'vyos',
+  linux: ['ecom', 'email', 'splunk'], linuxUsers: ['sysadmin', 'splunk', 'john.smith'],
+  adUsers: ['john.smith', 'chris.hill', 'matthew.brown', 'robert.johnson', 'nick.johnson', 'ashish.kumar', 'sarah.lee', 'brian.wilson', 'svc-splunk', 'svc-palo'],
+  privUsers: ['Administrator', 'svc-splunk'], winMachines: ['AD-DNS', 'MSSQL', 'WIN11-WKST'],
+  lanHosts: ['ecom', 'email', 'splunk', 'dc'], lanPrefix: '172.20.240', publicHost: 'shop.underpressure.example',
+  domain: 'underpressure.local', netbios: 'UNDERPRESSURE', dbKind: 'mysql', wp: false,
+};
+
+function buildUnderPressure(ctx) {
+  const N = (base, min) => Math.max(min, Math.round(base * ctx.scale));
+  const ECOM = 'ecom'; const MAIL = 'email'; const SPL = 'splunk'; const DC = 'dc'; const FW = 'vyos';
+  const out = [];
+  const wan = ctx.P.wanIp; const L = (id) => ctx.P.ip(id);
+  const PORTS = [22, 25, 53, 80, 135, 139, 143, 443, 445, 1433, 3389, 5985, 8000, 8089];
+  // 1. Recon of every public address the night before
+  span(at('2026-11-14 04:51:10'), at('2026-11-14 04:54:40'), PORTS.length, (k, t) => out.push(fw(t, FW, ATT4, wan, pr(k + 2), PORTS[k], 'pass', 'in')));
+  // 2. First login: a planted key for root on the Splunk server
+  const FP = 'Jr7Qm2Vx9KdL4wP1sZ8nB3cF6tH0yU5eA2gR7iO9kWq';
+  out.push(auth(at('2026-11-14 05:12:44'), SPL, 'accepted_key', 'root', ATT4, { fp: FP }));
+  out.push(auth(at('2026-11-14 05:12:44'), SPL, 'session_open', 'root', ATT4));
+  // 3. Backdoor account and its passwordless sudo rule, then the firewall wipers
+  out.push(sudo(at('2026-11-14 05:14:02'), SPL, 'root', '/root', '/usr/sbin/useradd -r -m -d /var/lib/svc-chrony -s /bin/bash -c "Chrony daemon" svc-chrony'));
+  out.push(sudo(at('2026-11-14 05:14:30'), SPL, 'root', '/root', '/usr/bin/tee /etc/sudoers.d/svc-chrony'));
+  out.push(sudo(at('2026-11-14 05:16:11'), SPL, 'svc-chrony', '/var/lib/svc-chrony', '/usr/bin/systemctl enable --now systemd-helper sssd-sync systemd-kworker'));
+  const flush = 'iptables -F 2>/dev/null ; iptables -P INPUT ACCEPT 2>/dev/null ; nft flush ruleset 2>/dev/null';
+  const c0 = at('2026-11-14 05:20:00'); const nC = Math.min(N(400, 60), Math.floor((ctx.roundStart - c0) / 60));
+  span(c0, c0 + nC * 60, nC, (k, t) => { out.push(cron(t, SPL, flush)); if (k % 2 === 0) out.push(cron(t + 1, ECOM, flush)); });
+  // 4. Pivot to the DC with svc-splunk's bind password (readable on the Splunk box); svc-splunk made Domain Admin
+  out.push(win(at('2026-11-14 05:31:08'), DC, 4624, { user: 'svc-splunk', Account_Name: 'svc-splunk', Logon_Type: 3, src_ip: L(SPL), src_port: 50214, Workstation_Name: 'SPLUNK', Account_Domain: 'UNDERPRESSURE' }));
+  out.push(win(at('2026-11-14 05:31:40'), DC, 4728, { Subject_Account_Name: 'Administrator', Subject_Account_Domain: 'UNDERPRESSURE', Target_Account_Name: 'svc-splunk', user: 'svc-splunk', Group_Name: 'Domain Admins', Group_Rid: 512 }));
+  out.push(win(at('2026-11-14 05:31:52'), DC, 4756, { Subject_Account_Name: 'Administrator', Subject_Account_Domain: 'UNDERPRESSURE', Target_Account_Name: 'svc-splunk', user: 'svc-splunk', Group_Name: 'Enterprise Admins', Group_Rid: 519 }));
+  // decoy: a legitimate Splunk Users addition the week before
+  out.push(win(at('2026-11-12 10:02:15'), DC, 4728, { Subject_Account_Name: 'Administrator', Subject_Account_Domain: 'UNDERPRESSURE', Target_Account_Name: 'chris.hill', user: 'chris.hill', Group_Name: 'Splunk Users', Group_Rid: 1112 }));
+  // 5. The goose kit on the web store: the fake scoringengine beacons out every five minutes
+  out.push(sudo(at('2026-11-14 05:44:19'), ECOM, 'root', '/root', '/usr/bin/install -m 755 /tmp/se /bin/scoringengine'));
+  const b0 = at('2026-11-14 05:50:00'); const nB = Math.floor((ctx.roundStart - b0) / 300);
+  span(b0, b0 + nB * 300, nB, (k, t) => out.push(fw(t, FW, L(ECOM), C2_4, pr(k + 500), 8443, 'pass', 'out')));
+  // 6. Password guessing against sysadmin on the DC (session 1, ~10:50)
+  const nS = N(60, 18);
+  span(at('2026-11-14 10:48:02'), at('2026-11-14 10:52:40'), nS, (k, t) => out.push(win(t, DC, 4625, { user: 'sysadmin', Account_Name: 'sysadmin', Logon_Type: 3, src_ip: SPRAY4, src_port: pr(k), Workstation_Name: 'DESKTOP-0132U9D', Account_Domain: 'UNDERPRESSURE', Status: '0xC000006D', Sub_Status: '0xC0000064' })));
+  return out;
+}
+
 const DAY72 = 72 * 3600;
 const roundStart = at('2026-10-31 09:00:00');
 
@@ -382,6 +436,19 @@ export const STORIES = {
       { id: 'first_login_time', q: 'What time (hh:mm, EDT, 24h or am/pm) was the first successful login?', accept: /\b02:36\b|\b2:36(:\d\d)?\s*am\b/i, explain: 'The Accepted publickey line for redis from the attacker IP is at 02:36:19 on Oct 29.' },
       { id: 'backdoor_account', q: 'Which backdoor account was created in Active Directory?', accept: /svc-hl7/i, explain: 'EventCode 4720 on dc01, then 4728 adding it to Domain Admins. The same morning, f.ortega was a legitimate HR creation.' },
       { id: 'c2', q: 'Where does the workstation beacon to (IP:port)?', accept: /198\.51\.100\.77\D{1,5}9001/, explain: 'Firewall pass lines every five minutes from 10.30.40.55 to 198.51.100.77:9001, starting minutes after Defender was disabled.' },
+    ],
+  },
+  'underpressure-invitational-2026': {
+    id: 'underpressure-invitational-2026', spanSec: DAY72, roundStart: at('2026-11-14 13:00:00'), profile: UP_PROFILE, attacker: ATT4, c2: `${C2_4}:8443`,
+    build: buildUnderPressure,
+    waveLines: waveLinesGeneric(ATT4, UP_PROFILE),
+    hunt: [
+      { id: 'attacker_ip', q: 'What external IP first logged in to the Splunk server?', accept: /198\.51\.100\.28/, explain: 'It sweeps every public port on the router at 04:51, then logs in to splunk as root with an SSH key at 05:12. Do not confuse it with .12, which only guessed passwords later.' },
+      { id: 'vector', q: 'How did that first login authenticate?', accept: /ssh[- ]?key|public ?key|publickey|planted key|authorized_keys/i, explain: 'linux_secure: "Accepted publickey for root from 198.51.100.28". No password failures before it: the key was already planted.' },
+      { id: 'first_account', q: 'Which account did the attacker log in as first?', accept: /^\s*root\s*$/i, explain: 'The Accepted publickey line names root. A minute later root creates svc-chrony.' },
+      { id: 'first_login_time', q: 'What time (hh:mm, 24h or am/pm) was the first successful login?', accept: /\b05:12\b|\b5:12(:\d\d)?\s*am\b/i, explain: 'Accepted publickey for root from 198.51.100.28 at 05:12:44 on Nov 14.' },
+      { id: 'backdoor_account', q: 'Which domain account was added to Domain Admins overnight?', accept: /svc-splunk/i, explain: 'EventCode 4728 (Domain Admins) and 4756 (Enterprise Admins) at 05:31, right after svc-splunk logged on from the Splunk server. chris.hill joining Splunk Users on Nov 12 was routine.' },
+      { id: 'c2', q: 'Where does the web store beacon to (IP:port)?', accept: /198\.51\.100\.45\D{1,5}8443/, explain: 'Outbound passes every five minutes from 172.20.240.10 to 198.51.100.45:8443, starting minutes after /bin/scoringengine was installed.' },
     ],
   },
 };

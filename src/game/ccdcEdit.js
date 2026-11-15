@@ -66,6 +66,22 @@ function splitRedirect(line) {
 
 // Translate one `s/a/b/flags` sed script into a JS replace on the text.
 function applySed(script, text) {
+  // `/start/,/end/d` — delete each block from a line matching start through the next line matching end
+  // (inclusive), the way GNU sed does. Used to cut a planted BEGIN/END block out of a config.
+  const range = script.match(/^\/(.*?)\/,\/(.*)\/d$/s);
+  if (range) {
+    let a; let b;
+    try { a = new RegExp(range[1]); b = new RegExp(range[2]); } catch { return { error: `sed: bad regex in ${script}` }; }
+    const kept = [];
+    let inBlock = false;
+    for (const ln of text.split('\n')) {
+      // GNU sed starts looking for the end on the line AFTER the start line.
+      if (!inBlock && a.test(ln)) { inBlock = true; continue; }
+      if (inBlock) { if (b.test(ln)) inBlock = false; continue; }
+      kept.push(ln);
+    }
+    return { text: kept.join('\n') };
+  }
   // `/pattern/d` — delete every line matching pattern.
   const del = script.match(/^\/(.*)\/d$/s);
   if (del) {

@@ -95,6 +95,15 @@ export function newGame(scenario, opts = {}) {
 
   const services = {};
   for (const s of serviceList) services[s.id] = { ...s, state: SERVICE_STATE.UP, downBy: {}, drops: 0 };
+  // A finding may start the round with services already DOWN (`downAtStart`): the player sits down to a red
+  // board and has to diagnose it. Its fix (restores) brings them back.
+  for (const f of findingList) {
+    for (const id of asList(f.downAtStart)) {
+      if (!services[id]) continue;
+      services[id].downBy[f.id] = `${f.title} (down when you sat down)`;
+      services[id].state = SERVICE_STATE.DOWN;
+    }
+  }
 
   const findings = {};
   for (const f of findingList) findings[f.id] = { status: 'open', triggeredTraps: {}, steps: {} };
@@ -162,7 +171,9 @@ export function runLine(state, deviceId, rawLine) {
   const dev = state.deviceList.find((d) => d.id === deviceId);
   if (!dev) return { lines: [{ cls: 'err', text: 'No such device on this seat.' }], effects: {} };
   const ds = state.devState[deviceId];
-  const line = norm(rawLine);
+  // Boxes marked `sudo: true` (the Invitational replay) accept the habit of typing sudo: it is stripped and the
+  // command runs as the admin it would run as.
+  const line = dev.sudo ? norm(rawLine).replace(/^sudo\s+/i, '') : norm(rawLine);
   if (!line) return { lines: [], effects: {} };
   if (/^(clear|cls)$/i.test(line)) return { lines: [], effects: { clear: true } };
   ds.history.push(line);
