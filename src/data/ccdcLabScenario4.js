@@ -322,7 +322,7 @@ export const CCDC_LAB_4 = {
   // Rotating domain user passwords without a PCR in Quotient breaks every check that logs in with an AD account.
   // One record per Quotient credential list. Submitting the list in Quotient FIRST pre-approves the rotation.
   pcr: [
-    { account: 'DomainUsers', host: 'dc', service: ['webmail-imap', 'webmail-smtp', 'webmail-ssh', 'splunk-ssh', 'mssql-smb'], rotateMatch: [/set-adaccountpassword/], rotateUnless: [/set-adaccountpassword\s+(-identity\s+)?["']?(svc-|administrator)/] },
+    { account: 'DomainUsers', host: 'dc', service: ['webmail-imap', 'webmail-smtp', 'webmail-ssh', 'webmail-interactive', 'splunk-ssh', 'mssql-smb'], rotateMatch: [/set-adaccountpassword/], rotateUnless: [/set-adaccountpassword\s+(-identity\s+)?["']?(svc-|administrator)/] },
     { account: 'Splunk', host: 'dc', service: 'splunk-query', rotateMatch: [/set-adaccountpassword/, /get-aduser|import-csv|get-content|foreach|%/] },
     { account: 'MssqlService', host: 'mssql', service: 'mssql-mssql', rotateMatch: [/waterops_svc/, /net user waterops_svc \S|set-localuser|alter login|sp_password|-password/] },
   ],
@@ -337,15 +337,20 @@ export const CCDC_LAB_4 = {
   services: [
     { id: 'ecomm-ping', name: 'Ecom ping', proto: 'icmp', ports: [0], host: 'ecom', ip: '172.25.34.10', points: 60, check: 'ICMP echo reply from the public IP' },
     { id: 'ecomm-http', name: 'Ecom web store', proto: 'tcp', ports: [80, 443], host: 'ecom', ip: '172.25.34.10', points: 120, check: 'GET / follows the 301 to https and the nopCommerce page matches' },
+    { id: 'webmail-ping', name: 'Webmail ping', proto: 'icmp', ports: [0], host: 'email', ip: '172.25.34.15', points: 40, check: 'ICMP echo reply from the public IP' },
+    { id: 'webmail-interactive', name: 'Webmail (interactive)', proto: 'tcp', ports: [443], host: 'email', ip: '172.25.34.15', points: 100, check: 'Logs in to the webmail site as an AD user and opens the inbox' },
     { id: 'webmail-smtp', name: 'SMTP', proto: 'tcp', ports: [25], host: 'email', ip: '172.25.34.15', points: 100, check: 'Sends a message through postfix as an AD user' },
     { id: 'webmail-imap', name: 'IMAP', proto: 'tcp', ports: [143], host: 'email', ip: '172.25.34.15', points: 100, check: 'Logs in to dovecot as a random AD user from the DomainUsers list and reads the inbox' },
     { id: 'webmail-ssh', name: 'Webmail SSH', proto: 'tcp', ports: [22], host: 'email', ip: '172.25.34.15', points: 80, check: 'SSH login as an AD user (seconds-long session from a random address)' },
+    { id: 'splunk-ping', name: 'Splunk ping', proto: 'icmp', ports: [0], host: 'splunk', ip: '172.25.34.20', points: 40, check: 'ICMP echo reply from the public IP' },
     { id: 'splunk-ssh', name: 'Splunk SSH', proto: 'tcp', ports: [22], host: 'splunk', ip: '172.25.34.20', points: 80, check: 'SSH login as an AD user from the Splunk list' },
     { id: 'splunk-chrony', name: 'Splunk NTP (chrony)', proto: 'udp', ports: [123], host: 'splunk', ip: '172.25.34.20', points: 60, check: 'NTP query answered by chronyd' },
     { id: 'splunk-mgmt', name: 'Splunk management', proto: 'tcp', ports: [8089], host: 'splunk', ip: '172.25.34.20', points: 80, check: 'Authenticates to the Splunk REST API on 8089' },
     { id: 'splunk-query', name: 'Splunk query', proto: 'tcp', ports: [8089], host: 'splunk', ip: '172.25.34.20', points: 120, check: 'Logs in as an AD user and searches for the "waterplant operational report" events' },
+    { id: 'ad-ping', name: 'AD ping', proto: 'icmp', ports: [0], host: 'dc', ip: '172.25.34.100', points: 40, check: 'ICMP echo reply from the public IP' },
     { id: 'ad-dns', name: 'AD DNS', proto: 'any', ports: [53], host: 'dc', ip: '172.25.34.100', points: 100, check: 'A-record lookups for underpressure.local resolve' },
     { id: 'ad-winrm', name: 'AD WinRM', proto: 'tcp', ports: [5985], host: 'dc', ip: '172.25.34.100', points: 100, check: 'Authenticates to WinRM and runs a PowerShell command' },
+    { id: 'mssql-ping', name: 'MSSQL ping', proto: 'icmp', ports: [0], host: 'mssql', ip: '172.25.34.120', points: 40, check: 'ICMP echo reply from the public IP' },
     { id: 'mssql-smb', name: 'MSSQL SMB (SOP share)', proto: 'tcp', ports: [445], host: 'mssql', ip: '172.25.34.120', points: 100, check: 'Logs in to \\\\MSSQL\\SOP as an AD user and reads the SOP documents' },
     { id: 'mssql-rdp', name: 'MSSQL RDP', proto: 'tcp', ports: [3389], host: 'mssql', ip: '172.25.34.120', points: 80, check: 'RDP logon as an AD user' },
     { id: 'mssql-mssql', name: 'MSSQL database', proto: 'tcp', ports: [1433], host: 'mssql', ip: '172.25.34.120', points: 120, check: 'Logs in to SQL Server as waterops_svc (MssqlService list) and runs a SELECT' },
@@ -391,10 +396,10 @@ export const CCDC_LAB_4 = {
         'set mgt-config users admin password',
         'set profile-group inspect virus default spyware default vulnerability default',
         'set rulebase security rules ecomm from external to internal destination 172.20.240.10 application [ web-browsing ssl ping ] service application-default action allow profile-setting group inspect',
-        'set rulebase security rules webmail from external to internal destination 172.20.240.15 application [ smtp imap ssh ] service application-default action allow profile-setting group inspect',
-        'set rulebase security rules splunk from external to internal destination 172.20.240.20 application [ ssh ntp splunk ssl ] service application-default action allow profile-setting group inspect',
-        'set rulebase security rules ad-dns from external to internal destination 172.20.240.100 application dns service application-default action allow profile-setting group inspect',
-        'set rulebase security rules mssql from external to internal destination 172.20.240.120 application [ ms-ds-smb ms-rdp mssql-db ] service application-default action allow profile-setting group inspect',
+        'set rulebase security rules webmail from external to internal destination 172.20.240.15 application [ smtp imap ssh ssl web-browsing ping ] service application-default action allow profile-setting group inspect',
+        'set rulebase security rules splunk from external to internal destination 172.20.240.20 application [ ssh ntp splunk ssl ping ] service application-default action allow profile-setting group inspect',
+        'set rulebase security rules ad-dns from external to internal destination 172.20.240.100 application [ dns ping ] service application-default action allow profile-setting group inspect',
+        'set rulebase security rules mssql from external to internal destination 172.20.240.120 application [ ms-ds-smb ms-rdp mssql-db ping ] service application-default action allow profile-setting group inspect',
         'set rulebase security rules ad-winrm from external to internal destination 172.20.240.100 application any service tcp-5985 action allow profile-setting group inspect',
         'set rulebase security rules "Permit Inbound" disabled yes',
         'set rulebase security rules "Permit Outbound" disabled yes',
@@ -562,7 +567,7 @@ export const CCDC_LAB_4 = {
     {
       id: 'vyos-backdoor', host: 'vyos', title: 'Router: factory password and a planted SSH key', severity: 'Critical',
       teach: 'The router carries every scored service, so it is the first box to secure. A key named cyberrange-lab logs in without any password, and vyos/vyos is printed in the team packet everyone has. Change the password, delete the key, then commit. In session 1 this was skipped, red team took the console, and the reboot that followed never came back.',
-      exploitable: true, compromise: { impact: 'Red team logs in with the planted key, takes over the router console and overwrites its boot disk; every scored service loses its path.', penalty: 80, drops: ['ecomm-http', 'ecomm-ping', 'webmail-imap', 'webmail-smtp', 'webmail-ssh', 'splunk-ssh', 'splunk-query', 'ad-dns', 'ad-winrm'] },
+      exploitable: true, compromise: { impact: 'Red team logs in with the planted key, takes over the router console and overwrites its boot disk; every scored service loses its path.', penalty: 80, drops: ['ecomm-http', 'ecomm-ping', 'webmail-ping', 'webmail-imap', 'webmail-smtp', 'webmail-ssh', 'webmail-interactive', 'splunk-ping', 'splunk-ssh', 'splunk-query', 'ad-ping', 'ad-dns', 'ad-winrm', 'mssql-ping', 'mssql-smb', 'mssql-rdp', 'mssql-mssql'] },
       fix: {
         steps: [
           { id: 'pw', accept: [/set system login user vyos authentication plaintext-password \S+/], verify: removeKey('/config/default-password'), label: 'Changed the vyos password', output: ['Password for vyos set (pending commit).'], todo: 'set a new password (set system login user vyos authentication plaintext-password …)' },
@@ -572,7 +577,7 @@ export const CCDC_LAB_4 = {
         why: 'configure → set the vyos password → delete the public key → commit → save. Nothing in VyOS is live until commit, and nothing survives a reboot until save.',
       },
       traps: [
-        { id: 'reboot', match: [/^(run )?reboot/], drops: ['ecomm-http', 'ecomm-ping', 'webmail-imap', 'webmail-smtp', 'webmail-ssh', 'splunk-ssh', 'splunk-query', 'ad-dns', 'ad-winrm'], note: 'You rebooted the router. With its boot disk overwritten it never came back (session 1, 11:40 CST).', output: ['Rebooting... SeaBIOS: Select boot device: 1. virtio-scsi HARDDISK  2. iPXE …', 'Booting from Hard Disk… (nyan cat fills the console; VyOS never loads)'], why: 'Never reboot a compromised core device, least of all late in the round. Contain it while it still routes, and call the White Team.' },
+        { id: 'reboot', match: [/^(run )?reboot/], drops: ['ecomm-http', 'ecomm-ping', 'webmail-ping', 'webmail-imap', 'webmail-smtp', 'webmail-ssh', 'webmail-interactive', 'splunk-ping', 'splunk-ssh', 'splunk-query', 'ad-ping', 'ad-dns', 'ad-winrm', 'mssql-ping', 'mssql-smb', 'mssql-rdp', 'mssql-mssql'], note: 'You rebooted the router. With its boot disk overwritten it never came back (session 1, 11:40 CST).', output: ['Rebooting... SeaBIOS: Select boot device: 1. virtio-scsi HARDDISK  2. iPXE …', 'Booting from Hard Disk… (nyan cat fills the console; VyOS never loads)'], why: 'Never reboot a compromised core device, least of all late in the round. Contain it while it still routes, and call the White Team.' },
         { id: 'del-nat-900', match: [[/delete nat source rule 900/]], output: ['NAT rule 900 removed — the inside servers can no longer reach the internet (updates, ClamAV definitions, DNS forwarders).'], why: 'Rule 900 has an odd description but it is the normal outbound masquerade on eth2 (External). Check the interface before deleting a rule.' },
       ],
     },

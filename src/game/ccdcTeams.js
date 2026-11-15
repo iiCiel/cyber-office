@@ -134,6 +134,7 @@ function simTeam(state, t, sec) {
   return {
     score: Math.round(scoreNow), delta: Math.round(scoreNow - scorePrev), status,
     uptimePct: all ? Math.round((up / all) * 100) : 100, sla, injects: injDone,
+    svcUptime: Object.fromEntries(svcs.map((s) => [s.id, nChecks ? Math.round((okCount[s.id] / nChecks) * 100) : -1])),
   };
 }
 
@@ -173,6 +174,7 @@ function playerRow(state, no) {
   return {
     team: `Team ${pad2(no)}`, you: true, score: liveTeamScore(state), services,
     uptimePct: all ? Math.round((ok / all) * 100) : 100, sla: eng ? eng.slaViolations : 0, injects,
+    svcUptime: Object.fromEntries(state.serviceList.map((s) => { const c = eng?.checks?.[s.id]; const n = c ? c.ok + c.fail : 0; return [s.id, n ? Math.round((c.ok / n) * 100) : -1]; })),
   };
 }
 
@@ -185,7 +187,7 @@ export function teamsAt(state, clockSec) {
       out.push({ ...playerRow(state, t.no), no: t.no, delta: 0 });
     } else {
       const r = simTeam(state, t, sec);
-      out.push({ team: t.team, no: t.no, you: false, score: r.score, services: r.status, uptimePct: r.uptimePct, sla: r.sla, injects: r.injects, delta: r.delta });
+      out.push({ team: t.team, no: t.no, you: false, score: r.score, services: r.status, uptimePct: r.uptimePct, svcUptime: r.svcUptime, sla: r.sla, injects: r.injects, delta: r.delta });
     }
   }
   return out;
@@ -213,3 +215,23 @@ export function rankOf(state, clockSec) {
 }
 
 export { maxPoints };
+
+/**
+ * Every team's score at each scoring round so far (Quotient's "Scores Over Time"). Rival teams are recomputed for
+ * each round (they are deterministic); the player's past scores come from the samples the scene records each round
+ * (state.scoreSamples[round] = score), with the live score for the current round.
+ */
+export function scoreHistory(state, clockSec) {
+  const sec = Math.max(0, Math.floor(clockSec ?? state.engine?.clock ?? 0));
+  const rounds = Math.floor(sec / CHECK_INTERVAL);
+  const teams = roster(state);
+  const series = teams.map((t) => ({ no: t.no, team: t.team, you: t.you, data: [] }));
+  const samples = state.scoreSamples || {};
+  let last = 0;
+  for (let k = 1; k <= rounds; k++) {
+    teams.forEach((t, i) => {
+      if (t.you) { const v = k === rounds ? liveTeamScore(state) : samples[k]; if (v !== undefined) last = v; series[i].data.push(last); } else series[i].data.push(simTeam(state, t, k * CHECK_INTERVAL).score);
+    });
+  }
+  return series;
+}

@@ -22,6 +22,9 @@ await page.locator('.ccx-btn.primary').click();
 await page.waitForSelector('.jb-taskbar');
 await page.locator('.jb-tb-app[data-open="quotient"]').click();
 const W = page.locator('.jb-win[data-win="quotient"]');
+await W.locator('.qt-svc').first().waitFor();
+check(await W.locator('.qt-svc').count() === 19, `Services page: ${await W.locator('.qt-svc').count()} service cards`);
+await W.locator('.qt-nl[data-page="pcr"]').click();
 await W.locator('.qt-select').waitFor();
 const pcr = () => page.evaluate(() => window.__game.scene.getScene('CcdcLab').state.engine.pcrs.map((p) => `${p.account}:${p.filed ? 'filed' : '-'}:${p.breaking ? 'BREAKING' : 'ok'}`).join(' '));
 
@@ -53,9 +56,25 @@ await page.waitForTimeout(200);
 // advance two scoring rounds, then open the service page
 await page.evaluate(async () => { const m = await import('/cyber-office/src/game/ccdcEngine.js'); const s = window.__game.scene.getScene('CcdcLab').state; m.tickTo(s, s.engine.clock + 125); });
 await W.locator('.qt-nl[data-page="services"]').click();
-await W.locator('tr[data-svc="splunk-query"]').click();
+await W.locator('.qt-svc[data-svc="splunk-query"]').click();
 const t = await W.locator('.qt-rounds').innerText();
 check(/false/.test(t), 'splunk-query round table shows false');
+await W.locator('.qt-back').click();
+await page.screenshot({ path: `${out}/services.png` });
+const red = await W.locator('.qt-svc[data-svc="splunk-query"] .qt-r.down').count();
+check(red >= 1, `splunk-query card shows ${red} red round(s), newest first`);
+check(await W.locator('.qt-svc[data-svc="splunk-query"] .qt-rounds10 .qt-r').first().evaluate((e) => e.classList.contains('down')), 'newest round is the leftmost icon');
+await W.locator('.qt-nl[data-page="graphs"]').click();
+await W.locator('.qt-chart').first().waitFor();
+const selfRows = await W.locator('svg rect[data-team="self"]').count();
+const otherRows = await W.locator('svg rect[data-team="other"]').count();
+check(selfRows === 38 && otherRows >= 38 * 9, `Graphs: heatmaps cover every team (${selfRows} self cells, ${otherRows} other cells)`);
+check(await W.locator('text.qt-yl.self').count() >= 3, 'your row is highlighted in purple');
+check(await W.locator('polyline[data-self="1"]').count() === 1, 'Scores Over Time has your line');
+check(await W.locator('rect[data-rank]').count() >= 10, 'Leaderboard lists every team');
+await page.screenshot({ path: `${out}/graphs.png`, fullPage: false });
+await W.locator('.qt-main').evaluate((m) => { m.scrollTop = 900; });
+await page.screenshot({ path: `${out}/graphs-2.png` });
 await page.screenshot({ path: `${out}/service-splunk-query.png` });
 
 // File the Splunk list from its Usernames tab.

@@ -198,7 +198,7 @@ export class CcdcLabScene extends Phaser.Scene {
     const e = res.effects || {};
     if (this.guided && e.why) res.lines = [...res.lines, { cls: 'note', text: `Coach: ${e.why}` }];
     if (e.pcrRotated) notePasswordRotated(this.state, e.pcrAccounts);
-    if ((e.dropped && e.dropped.length) || e.trapId) this.jb?.toast({ app: 'Scoring Engine', title: 'Service check failing', text: `${(e.dropped || []).join(', ') || 'a service'} stopped answering after that change.`, cls: 'bad', open: 'score' });
+    if ((e.dropped && e.dropped.length) || e.trapId) this.jb?.toast({ app: this.scenario?.quotient ? 'Quotient' : 'Scoring Engine', title: 'Service check failing', text: `${(e.dropped || []).join(', ') || 'a service'} stopped answering after that change.`, cls: 'bad', open: this.scoreWin() });
     this.sound2?.play(e.fixed ? 'select' : (e.dropped && e.dropped.length) || e.trapId ? 'error' : 'click');
     return res;
   }
@@ -209,12 +209,15 @@ export class CcdcLabScene extends Phaser.Scene {
     return r;
   }
 
+  scoreWin() { return this.scenario?.quotient ? 'quotient' : 'score'; }
+
   windows() {
     const st = this.state;
     const sc = this.scenario;
     const wins = [];
     const fw = st.deviceList.find((d) => d.kind === 'firewall');
-    wins.push({ id: 'score', kind: 'browser', icon: 'score', pinned: true, desktop: 'Scoring Engine', title: 'Scoring Engine', short: 'Scoreboard', tabLabel: 'Overview · Scoring Engine', url: 'https://scoring.ccdc.local/overview',
+    // Events that used Quotient (MWCCDC) show it instead of the generic scoring engine site.
+    if (!sc.quotient) wins.push({ id: 'score', kind: 'browser', icon: 'score', pinned: true, desktop: 'Scoring Engine', title: 'Scoring Engine', short: 'Scoreboard', tabLabel: 'Overview · Scoring Engine', url: 'https://scoring.ccdc.local/overview',
       create: () => new ScoreboardApp({ state: st, clock: () => this.elapsed() }) });
     if (st.injectList.length) {
       wins.push({ id: 'injects', kind: 'browser', icon: 'inject', pinned: true, desktop: 'Inject Portal', title: 'Inject Portal', short: 'Injects', tabLabel: `Injects · Team ${this.tn()}`, url: `https://injects.ccdc.local/team/${this.tn()}`,
@@ -231,7 +234,7 @@ export class CcdcLabScene extends Phaser.Scene {
     }
     // Quotient (MWCCDC's scoring engine): credential lists and the PCR form, plus each service's round history.
     if (sc.quotient) {
-      wins.push({ id: 'quotient', kind: 'browser', icon: 'quotient', pinned: true, desktop: 'Quotient', title: 'Quotient', short: 'Quotient', tabLabel: 'Quotient', url: 'https://quotient.ccdc.events/pcr',
+      wins.push({ id: 'quotient', kind: 'browser', icon: 'quotient', pinned: true, desktop: 'Quotient', title: 'Quotient', short: 'Quotient', tabLabel: 'Quotient', url: 'https://quotient.ccdc.events/services',
         create: () => new QuotientApp({ state: st, team: this.tn(), onSubmit: (list, text) => this.submitPcr(list, text) }) });
     }
     // A Palo Alto with a web UI: reached by typing its management IP into a browser on the team workstation.
@@ -287,7 +290,7 @@ export class CcdcLabScene extends Phaser.Scene {
     // Start where a real team starts: the scoreboard open, the first box behind it.
     const first = this.state.deviceList[0];
     if (first) this.jb.open(first.kind === 'pwsh' ? `rdp-${first.id}` : first.kind === 'firewall' ? 'pf' : `ssh-${first.id}`);
-    this.jb.open('score');
+    this.jb.open(this.scoreWin());
     if (this.guided) this.jb.open('playbook');
     this.jb.toast({ app: 'Discord', title: 'Captain', text: this.guided ? 'Practice round. Playbook is on the desktop. Scoreboard is live.' : 'Clock is running. Check the scoreboard, then get on your boxes.', open: 'chat' });
   }
@@ -314,6 +317,9 @@ export class CcdcLabScene extends Phaser.Scene {
     if (sec === this.lastSec) return;
     this.lastSec = sec;
     tickTo(this.state, sec);
+    // Quotient's Scores Over Time needs the player's score at every round.
+    const rnd = this.state.engine?.round || 0;
+    if (rnd && (this.state.scoreSamples ||= {})[rnd] === undefined) this.state.scoreSamples[rnd] = liveTeamScore(this.state);
     this.siem?.liveAt?.(sec);
     this.drainEvents();
     if (!this.guided && Date.now() >= this.deadline) { this.deadline = 0; expire(this.state); this.timedOut = true; this.finishRound(); return; }
@@ -326,7 +332,7 @@ export class CcdcLabScene extends Phaser.Scene {
     for (; this.seenEvents < evs.length; this.seenEvents++) {
       const e = evs[this.seenEvents];
       if (e.cls === 'inject') this.jb?.toast({ app: 'Inject Portal', title: 'New inject released', text: e.text, open: 'injects' });
-      else if (e.cls === 'bad' && /SLA/.test(e.text)) this.jb?.toast({ app: 'Scoring Engine', title: 'SLA violation', text: e.text, cls: 'bad', open: 'score' });
+      else if (e.cls === 'bad' && /SLA/.test(e.text)) this.jb?.toast({ app: this.scenario?.quotient ? 'Quotient' : 'Scoring Engine', title: 'SLA violation', text: e.text, cls: 'bad', open: this.scoreWin() });
       else if (e.cls === 'bad' && /Compromise/.test(e.text)) this.jb?.toast({ app: 'Discord', title: 'Linux lead', text: 'Something is very wrong on one of our boxes — check Splunk.', cls: 'bad', open: 'siem' });
       else if (e.cls === 'alert') this.jb?.toast({ app: 'Discord', title: e.text.match(/^\[([^\]]+)\]/)?.[1] || 'Team', text: e.text.replace(/^\[[^\]]+\]\s*/, ''), cls: 'warn', open: 'chat' });
       else if (e.cls === 'red') this.jb?.toast({ app: 'Splunk', title: 'Alert: spike in authentication failures', text: 'Inbound attack traffic is rising. Search the last 15 minutes.', cls: 'warn', open: 'siem' });

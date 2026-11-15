@@ -29,6 +29,11 @@ export function initialPan() {
 export const PAN_SERVICE_MAP = {
   'ecomm-http': { ip: '172.20.240.10', apps: ['web-browsing', 'ssl'], ports: ['tcp-80', 'tcp-443'] },
   'ecomm-ping': { ip: '172.20.240.10', apps: ['ping', 'icmp'], ports: [] },
+  'webmail-ping': { ip: '172.20.240.15', apps: ['ping', 'icmp'], ports: [] },
+  'webmail-interactive': { ip: '172.20.240.15', apps: ['ssl', 'web-browsing'], ports: ['tcp-443'] },
+  'splunk-ping': { ip: '172.20.240.20', apps: ['ping', 'icmp'], ports: [] },
+  'ad-ping': { ip: '172.20.240.100', apps: ['ping', 'icmp'], ports: [] },
+  'mssql-ping': { ip: '172.20.240.120', apps: ['ping', 'icmp'], ports: [] },
   'webmail-smtp': { ip: '172.20.240.15', apps: ['smtp'], ports: ['tcp-25'] },
   'webmail-imap': { ip: '172.20.240.15', apps: ['imap'], ports: ['tcp-143'] },
   'webmail-ssh': { ip: '172.20.240.15', apps: ['ssh'], ports: ['tcp-22'] },

@@ -43,10 +43,10 @@ await page.screenshot({ path: `${out}/profile-groups.png` });
 await W.locator('.pan-tab[data-tab="Policies"]').click();
 const RULES = [
   ['ecomm', '172.20.240.10', 'web-browsing, ssl, ping', null],
-  ['webmail', '172.20.240.15', 'smtp, imap, ssh', null],
-  ['splunk', '172.20.240.20', 'ssh, ntp, splunk, ssl', null],
-  ['ad-dns', '172.20.240.100', 'dns', null],
-  ['mssql', '172.20.240.120', 'ms-ds-smb, ms-rdp, mssql-db', null],
+  ['webmail', '172.20.240.15', 'smtp, imap, ssh, ssl, web-browsing, ping', null],
+  ['splunk', '172.20.240.20', 'ssh, ntp, splunk, ssl, ping', null],
+  ['ad-dns', '172.20.240.100', 'dns, ping', null],
+  ['mssql', '172.20.240.120', 'ms-ds-smb, ms-rdp, mssql-db, ping', null],
   ['ad-winrm', '172.20.240.100', '', 'tcp-5985'],
 ];
 for (const [name, ip, apps, port] of RULES) {

@@ -18,19 +18,19 @@ const GOOD = {
   pcr: 'Open each Quotient credential list (DomainUsers, Splunk) and copy its Usernames tab. Build username,password CSV lines for exactly those names and submit the PCR in Quotient first, then run Set-ADAccountPassword. Exclude svc- service accounts. Check Quotient after one round.',
 };
 
-test('scenario 4: registered fourth, shape — 7 devices, 18 findings, 14 scored services, 5 injects', () => {
+test('scenario 4: registered fourth, shape — 7 devices, 18 findings, 19 scored services, 5 injects', () => {
   assert.equal(CCDC_SCENARIOS[3], CCDC_LAB_4);
   const s = fresh();
   assert.equal(s.deviceList.length, 7);
   assert.equal(s.findingList.length, 18);
-  assert.equal(Object.keys(s.services).length, 14);
+  assert.equal(Object.keys(s.services).length, 19);
   assert.equal(s.injectList.length, 5);
 });
 
 test('scenario 4: the board starts red where it did on Nov 14 (ecomm-http, ecomm-ping, ad-winrm)', () => {
   const s = fresh();
   for (const id of ['ecomm-http', 'ecomm-ping', 'ad-winrm']) assert.equal(up(s, id), false, `${id} starts down`);
-  assert.equal(progress(s).servicesUp, 11);
+  assert.equal(progress(s).servicesUp, 16);
 });
 
 test('scenario 4: the checklist hardens every finding and brings every service up', () => {
@@ -38,7 +38,7 @@ test('scenario 4: the checklist hardens every finding and brings every service u
   for (const d of s.deviceList) for (const c of d.checklist) runLine(s, d.id, c);
   const p = progress(s);
   assert.equal(p.fixed, 18);
-  assert.equal(p.servicesUp, 14);
+  assert.equal(p.servicesUp, 19);
 });
 
 test('scenario 4: no checklist item is prose or a missing command', () => {
