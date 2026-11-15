@@ -23,6 +23,7 @@ import { finalSweep, tickTo } from './ccdcEngine.js';
 import { initHostState, applyHostChange, applyAdChange } from './hostState.js';
 import { makeDirectory } from './directory.js';
 import { initialPan, applyPan } from './panMap.js';
+import { incidentResults, coveredByIncident } from './incidents.js';
 
 export const SERVICE_STATE = { UP: 'up', DOWN: 'down' };
 export const MODES = { GUIDED: 'guided', COMPETITION: 'competition' };
@@ -518,18 +519,24 @@ export function score(state) {
     return g.pts >= g.max;
   };
   const charged = state.compromises.map((c) => {
-    const halved = reportedFull(c.id);
+    const halved = reportedFull(c.id) || coveredByIncident(state, c.id);
     return { ...c, halved, charged: Math.round(c.penalty * (halved ? 0.5 : 1)) };
   });
   const compromisePenalty = charged.reduce((n, c) => n + c.charged, 0);
 
+  // Incident reports (scenarios that define real incidents): best report per incident.
+  const incBest = incidentResults(state);
+  const incidentResultsList = (sc.incidents || []).map((inc) => ({ id: inc.id, title: inc.title, points: incBest[inc.id]?.pts || 0, max: inc.points }));
+  const incidentPts = incidentResultsList.reduce((n, r) => n + r.points, 0);
+  const incidentMax = incidentResultsList.reduce((n, r) => n + r.max, 0);
+
   const fixed = state.findingList.filter((f) => state.findings[f.id].status === 'fixed').length;
-  const raw = servicePts + injectPts - slaPenalty - compromisePenalty;
-  const max = serviceMax + injectMax;
+  const raw = servicePts + injectPts + incidentPts - slaPenalty - compromisePenalty;
+  const max = serviceMax + injectMax + incidentMax;
   const pct = max ? Math.max(0, Math.round((raw / max) * 100)) : 0;
 
   return {
-    servicePts, serviceMax, injectPts, injectMax, slaPenalty, slaCount, compromisePenalty,
+    servicePts, serviceMax, injectPts, injectMax, incidentPts, incidentMax, incidentResults: incidentResultsList, slaPenalty, slaCount, compromisePenalty,
     compromises: charged, injectResults, serviceBreakdown, uptimeScored: !!eng, fixed, findingsTotal: state.findingList.length,
     raw, max, pct, letter: letterFor(pct),
   };

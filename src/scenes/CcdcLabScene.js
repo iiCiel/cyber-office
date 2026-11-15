@@ -26,6 +26,8 @@ import '../ui/ccdc/ccdcdoc.css';
 import '../ui/ccdc/pfsense.css';
 import { PanOsApp } from '../ui/ccdc/PanOsApp.js';
 import { QuotientApp } from '../ui/ccdc/QuotientApp.js';
+import { NiseApp } from '../ui/ccdc/NiseApp.js';
+import { submitIncident } from '../game/incidents.js';
 import { submitPcr } from '../game/quotient.js';
 import '../ui/ccdc/panos.css';
 
@@ -220,9 +222,11 @@ export class CcdcLabScene extends Phaser.Scene {
     if (!sc.quotient) wins.push({ id: 'score', kind: 'browser', icon: 'score', pinned: true, desktop: 'Scoring Engine', title: 'Scoring Engine', short: 'Scoreboard', tabLabel: 'Overview · Scoring Engine', url: 'https://scoring.ccdc.local/overview',
       create: () => new ScoreboardApp({ state: st, clock: () => this.elapsed() }) });
     if (st.injectList.length) {
-      wins.push({ id: 'injects', kind: 'browser', icon: 'inject', pinned: true, desktop: 'Inject Portal', title: 'Inject Portal', short: 'Injects', tabLabel: `Injects · Team ${this.tn()}`, url: `https://injects.ccdc.local/team/${this.tn()}`,
+      wins.push({ id: 'injects', kind: 'browser', icon: 'inject', pinned: true, desktop: sc.portal === 'nise' ? 'NISE' : 'Inject Portal', title: sc.portal === 'nise' ? 'NISE' : 'Inject Portal', short: sc.portal === 'nise' ? 'NISE' : 'Injects', tabLabel: sc.portal === 'nise' ? 'NISE · Injects' : `Injects · Team ${this.tn()}`, url: sc.portal === 'nise' ? 'https://injects.ccdc.events/injects' : `https://injects.ccdc.local/team/${this.tn()}`,
         badge: () => (this.jb?.app('injects')?.unreadCount?.() ?? this.unreleasedUnread()),
-        create: () => new InjectsApp({ state: st, guided: this.guided, clock: () => this.elapsed(), onSubmit: (id, text) => this.submitInject(id, text) }) });
+        create: () => (sc.portal === 'nise'
+          ? new NiseApp({ state: st, team: Number(this.tn()), clock: () => this.elapsed(), onSubmit: (id, text) => this.submitInject(id, text), onIncident: (r) => this.submitIncident(r) })
+          : new InjectsApp({ state: st, guided: this.guided, clock: () => this.elapsed(), onSubmit: (id, text) => this.submitInject(id, text) })) });
     }
     wins.push({ id: 'siem', kind: 'browser', icon: 'splunk', pinned: true, desktop: 'Splunk', title: 'Splunk', short: 'Splunk', tabLabel: 'Search | Splunk 9.2.1', url: `https://siem.${sc.id.split('-')[0]}.local:8000/en-US/app/search/search`,
       create: () => new SiemApp({ siem: this.siem, hunt: this.story?.hunt || [], clock: () => this.elapsed(), onHuntAnswer: (qid, text) => this.huntAnswer(qid, text) }) });
@@ -360,6 +364,12 @@ export class CcdcLabScene extends Phaser.Scene {
       this.fedProbes[fid] = outcome;
       try { this.siem?.onWave?.(fid, this.state.engine.clock, outcome); } catch (err) { console.error(err); }
     }
+  }
+
+  submitIncident(report) {
+    const r = submitIncident(this.state, report);
+    this.sound2?.play(r.ok && r.matched ? 'select' : 'click');
+    return r;
   }
 
   submitInject(id, text) {

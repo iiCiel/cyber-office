@@ -1,4 +1,5 @@
 import { panVerdict, PAN_PREDEFINED } from '../game/panMap.js';
+import { historyOf } from '../game/incidents.js';
 // Fourth CCDC hands-on scenario: "Under Pressure Water Authority" — a replay of the network Soliman's team (team 14)
 // defended at the MWCCDC Invitational on Nov 14, 2026. Same hands-on model as the other companies (open each box's
 // own terminal and TYPE the commands), but every finding, trap and inject is something that really happened that
@@ -428,6 +429,7 @@ export const CCDC_LAB_4 = {
   id: 'underpressure-invitational-2026',
   teamNumber: 14, // the team's real number at the Invitational
   roundStartMs: Date.UTC(2026, 10, 14, 13, 0, 0),
+  portal: 'nise', // injects came through NISE as PDFs; answers were PDF uploads
   onLine: (state, id, line, ds) => snmpOnLine(state, id, line, ds), // Windows clocks show the afternoon session of Nov 14
   company: 'Under Pressure Water Authority (Invitational replay)',
   tagline: 'A replay of the network team 14 defended at the MWCCDC Invitational on Nov 14, 2026. Red team had a head start: backdoor accounts, hidden SSH keys, cron jobs that wipe the host firewall every minute, a fake scoring engine, a service account in Domain Admins. Two services are already red. Everything here really happened that day, including the mistakes.',
@@ -439,6 +441,34 @@ export const CCDC_LAB_4 = {
     { n: 1, at: 180, label: 'goose kit wakes up: fake scoringengine, firewall wipers, wall broadcasts' },
     { n: 2, at: 450, label: 'domain abuse: svc-splunk in Domain Admins, password spraying from 198.51.100.12' },
     { n: 3, at: 720, label: 'router console takeover (the session 1 ending)' },
+  ],
+
+  // The six incidents team 14 reported in session 2. Not listed anywhere in the game: the team has to find them.
+  incidents: [
+    { id: 'ir-scoringengine', title: 'Fake scoring engine (goose kit) on Rocky and Ubuntu', points: 15, hosts: ['ecom', 'email'],
+      iocs: [/scoringengine/i, /\b7484\b/, /198\.51\.100\.45|:8443\b/, /honk|ttygoose|goose/i, /\/usr\/lib\/\.honk|\/dev\/shm/i],
+      findings: ['ecom-goose', 'email-goose'], evidenceHint: 'ps on Rocky or Ubuntu',
+      evidence: (st) => historyOf(st, ['ecom', 'email']).some((l) => /^ps\b|pstree|ls -la? \/bin/.test(l)) },
+    { id: 'ir-fw-wipers', title: 'Cron jobs that flush the host firewall every minute', points: 15, hosts: ['ecom', 'splunk'],
+      iocs: [/ansible/i, /firewall (local|global)/i, /e2scrub/i, /crontab|cron\.d/i, /prompt_command|\/etc\/profile/i, /iptables -f|nft flush|flush/i],
+      findings: ['ecom-fw-wiper', 'splunk-fw-wiper'], evidenceHint: 'crontab -l or the cron.d files',
+      evidence: (st) => historyOf(st, ['ecom', 'splunk', 'email']).some((l) => /crontab -l|\/etc\/cron|cat \/etc\/profile|grep .*prompt_command/i.test(l)) },
+    { id: 'ir-fake-services', title: 'Fake systemd services that restart the kit', points: 15, hosts: ['splunk'],
+      iocs: [/sssd-sync|journal-sync|systemd-helper|systemd-kworker|kworker/i, /fake (unit|service)|systemd/i, /\.service\b/i],
+      findings: ['splunk-fake-services'], evidenceHint: 'systemctl on the Splunk box',
+      evidence: (st) => historyOf(st, ['splunk']).some((l) => /systemctl (list|status|cat)|ls \/etc\/systemd/.test(l)) },
+    { id: 'ir-splunk-backdoor', title: 'Backdoor account and hidden SSH keys on Splunk', points: 15, hosts: ['splunk'],
+      iocs: [/svc-chrony/i, /sudoers|nopasswd/i, /authorizedkeysfile|\/etc\/ssh\/\.ssh/i, /cyberrange-lab/i],
+      findings: ['splunk-backdoor-user', 'splunk-ssh-keys'], evidenceHint: '/etc/passwd, sudoers or sshd_config on Splunk',
+      evidence: (st) => historyOf(st, ['splunk']).some((l) => /passwd|sudoers|sshd_config|authorized_keys/.test(l)) },
+    { id: 'ir-svc-da', title: 'svc-splunk added to Domain Admins and Enterprise Admins', points: 15, hosts: ['dc'],
+      iocs: [/svc-splunk/i, /domain admins|enterprise admins/i, /\b(4728|4756)\b/, /05:31|privilege escalation/i],
+      findings: ['dc-svc-da'], evidenceHint: 'Get-ADGroupMember on the DC',
+      evidence: (st) => historyOf(st, ['dc']).some((l) => /get-adgroupmember|get-adprincipalgroupmembership|net group/i.test(l)) },
+    { id: 'ir-dc-fwlock', title: 'DC firewall locked (FirewallPolicy registry ACL)', points: 15, hosts: ['dc'],
+      iocs: [/firewallpolicy/i, /access is denied/i, /\bacl\b|permission|owner/i, /profile\.ps1|profile hook/i, /psexec|system/i],
+      findings: ['dc-fw-lock'], evidenceHint: 'netsh / Get-Acl / the profile on the DC',
+      evidence: (st) => historyOf(st, ['dc']).some((l) => /netsh|get-acl|get-netfirewall|profile\.ps1/i.test(l)) },
   ],
 
   // Fixing a mistake that lives on another box: svc-splunk reset in AD (by you, or by the 13:57 bulk reset) breaks
@@ -1072,6 +1102,7 @@ export const CCDC_LAB_4 = {
 
   injects: [
     {
+      doc: { style: 'table', name: "Firewall Setup & Configuration", code: 'TOOL23T', description: ["Review and modified the security policies of the perimeter firewall in accordance with the analysis of currently exposed services and required services (ingress & egress) for the services and other devices on the internal network.", "Configure the security policies so that only expected outbound and inbound packets are allowed.", "Write the polices at the application-layer as much as possible rather than layer-3 protocol and ports.", "Enable packet inspection as available in the specific firewall’s IPS and scanning features.", "All denied packets should be logged."], deliverable: ["Respond with a business memo that describes the security polices as initial configured (as you found them) and what changes are made to bring them in alignment with the goal of only allowing needed and expected packet flows.", "Use screen shots to document the configuration changes and enabling of packet inspection."] },
       id: 'tool23t', title: 'TOOL23T — Perimeter firewall policy review', from: 'IT Director', points: 30, releaseAt: 0,
       prompt: 'Review the Palo Alto security policy as you found it, tighten it so only required business services are allowed in and out, turn on packet inspection, and log everything you deny. Send a memo with screenshots.',
       model: 'As found: two allow-all rules (Permit Inbound / Permit Outbound), no security profiles, no deny logging. Changes: an allow rule per scored service (by application, inside IPs because VyOS does the NAT), a security profile group on every allow rule, the old rules disabled not deleted, a final deny-all with logging, and services verified green afterwards.',
@@ -1084,6 +1115,7 @@ export const CCDC_LAB_4 = {
       ],
     },
     {
+      doc: { style: 'midwest', name: "Implement Anti-malware Tool on End Devices", code: 'SRVA07A', description: ["Select an open-source anti-malware tool and implement this software on the Linux and Windows devices. There may be a different tool for each platform, if needed."], deliverable: ["Respond with a business memo which documents the successful implementation on all the Linux and Windows platforms.  Use screenshots to document the implementation on one device for each platform.  List all the devices on which the tool(s) has been implemented."] },
       id: 'srva07a', title: 'SRVA07A — Anti-malware on every system', from: 'CISO', points: 25, releaseAt: 120,
       prompt: 'Install free anti-malware on every Linux and Windows system, update its definitions, and run a test scan. Report the tool, the devices and the evidence.',
       model: 'ClamAV on Linux (apt/dnf + freshclam) and Windows (msi + freshclam): one free open-source tool for every OS. Definitions updated, scans of small folders only (no full scan on the DC), a table of devices, and screenshots.',
@@ -1095,6 +1127,7 @@ export const CCDC_LAB_4 = {
       ],
     },
     {
+      doc: { style: 'table', name: "Login Banner", code: 'BANNER', description: ["Login banners are important when pursuing legal remedies for unauthorized access to an organization’s infrastructure.", "1.  Identify the key concepts that should be in a login banner that will aid in the prosecution of unauthorized access.", "2.  Compose a login banner for the organization that includes these key concepts.", "3.  Configure/install this banner on all the network reachable devices."], deliverable: ["Respond with a business memo that enumerates the key concepts and provide the text of a login banner that the organization can use on its devices.  Provide screenshots of this banner installed on each server and network device."] },
       id: 'banner', title: 'Inject — Legal login banner', from: 'Legal', points: 20, releaseAt: 240,
       prompt: 'Put a legal warning banner on every server and network device, shown before login, and explain the key elements it must contain.',
       model: 'Authorized use only; activity monitored and recorded; using the system means consent and no expectation of privacy; unauthorized use leads to discipline and prosecution; evidence may go to law enforcement; displayed BEFORE login (issue.net + sshd Banner, legalnoticecaption/text, PAN-OS login banner, VyOS pre-login banner).',
@@ -1106,6 +1139,7 @@ export const CCDC_LAB_4 = {
       ],
     },
     {
+      doc: { style: 'midwest', name: "External Service Evaluation", code: 'EVAL14A', description: ["The CISO is concerned that our external network presence may be presenting a larger attack surface than necessary.  Use an appropriate tool to scan the external interface of the POD to determine what services are available and that may be vectors for security attacks."], deliverable: ["Respond with a business memo that documents the findings. Identify the tool used to accomplish this.  List the available services and corresponding protocols that an attacker may leverage.  Make an assessment as to whether this service is necessary to be exposed to the external network."] },
       id: 'eval14a', title: 'EVAL14A — External service evaluation', from: 'CISO', points: 25, releaseAt: 360,
       prompt: 'Scan the external interface of the pod with an appropriate tool. List the services and protocols an attacker could use, and say whether each one needs to be exposed.',
       model: 'Nmap from Kali (outside the firewall) against your own 172.25.34.x only. Per host: open ports, service and protocol, needed or not. E.g. SSH on Ecom not needed (not scored); RPC 135, NetBIOS 139, HTTP/UPnP 80 and WinRM 5985 on MSSQL not needed; plain-text POP3/IMAP should move to 993/995; DC filtered entirely (blocks scored DNS/WinRM too).',
@@ -1117,6 +1151,7 @@ export const CCDC_LAB_4 = {
       ],
     },
     {
+      doc: { style: 'ccdc', name: "Implement SNMP", code: 'SA103', description: ["Implement SNMPv2c on each server and network device. Make provisions to security policies so that SNMP read-only access is available to the external network, so that a network monitoring provider can reach each device with SNMP."], deliverable: ["Provide a business memo that enumerates the following information for each device:", "•  External IP Address", "•  Public Community string for Read-Only access", "•  Host name of the device"] },
       id: 'sa103', title: 'SA103 — Implement SNMP', from: 'IT Director', points: 30, releaseAt: 300,
       prompt: 'Implement SNMPv2c on each server and network device. Make provisions to security policies so that SNMP read-only access is available to the external network, so that a network monitoring provider can reach each device with SNMP. Deliverable: a business memo that enumerates, for each device: external IP address, public community string for read-only access, host name of the device.',
       model: 'Community ccdc14ro (read-only, v2c, not "public"). Ecomm 172.25.34.10, WEBMAIL 172.25.34.15, Splunk 172.25.34.20, AD-DNS 172.25.34.100, MSSQL 172.25.34.120, EdgeRouter (VyOS) 172.31.34.2, PA-VM (management profile with SNMP). Linux: snmpd with rocommunity ccdc14ro default and agentaddress udp:161 (the package listens on 127.0.0.1 only). Windows: SNMP Service feature, ValidCommunities ccdc14ro = 4 (read-only), PermittedManagers cleared. VyOS: set service snmp community ccdc14ro authorization ro. Palo Alto: snmp app allowed inbound. Verified with snmpwalk -v2c -c ccdc14ro from Kali.',
