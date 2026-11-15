@@ -1,0 +1,53 @@
+/* PAN-OS 11 web interface (PA-VM), matched to docs/reference/panos-policies-security.png */
+.pan { display: flex; flex-direction: column; height: 100%; background: #fff; color: #333; font: 12px/1.35 "Open Sans", Arial, Helvetica, sans-serif; overflow: hidden; }
+.pan-top { display: flex; align-items: center; height: 46px; background: #1b2532; color: #c9d1db; padding: 0 12px; flex: none; }
+.pan-brand { display: flex; align-items: center; gap: 8px; width: 200px; color: #fff; font: 700 19px/1 Arial, sans-serif; letter-spacing: .5px; }
+.pan-brand-mark { width: 22px; height: 22px; background: #fbb034; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
+.pan-tabs { display: flex; height: 100%; }
+.pan-tab { display: flex; align-items: center; padding: 0 16px; font-size: 12.5px; letter-spacing: .3px; color: #c9d1db; }
+.pan-tab.on { background: #2b3746; color: #fbb034; }
+.pan-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+.pan-commit { background: transparent; color: #9aa6b5; border: 1px solid #5c6877; border-radius: 3px; padding: 4px 12px; font: 11.5px Arial, sans-serif; }
+.pan-hic { color: #9aa6b5; font-size: 14px; }
+.pan-subbar { display: flex; justify-content: flex-end; gap: 10px; height: 26px; align-items: center; padding: 0 10px; background: #e1e3e6; border-bottom: 1px solid #c8cbcf; flex: none; }
+.pan-sub-ic { color: #444; font-size: 14px; }
+.pan-main { display: flex; flex: 1; min-height: 0; }
+.pan-nav { width: 196px; flex: none; border-right: 1px solid #cfd2d6; background: #fff; display: flex; flex-direction: column; }
+.pan-tree { list-style: none; margin: 6px 0; padding: 0; }
+.pan-tree li { display: flex; align-items: center; gap: 6px; padding: 2.5px 10px 2.5px 18px; color: #333; }
+.pan-tree li.on { background: #e4e6ea; font-weight: 700; }
+.pan-tree-ic { width: 13px; height: 11px; border: 1px solid #4b6fa5; border-radius: 2px; background: #dfe9f7; flex: none; }
+.pan-ti-security { border-color: #c0392b; background: #f6d4d0; }
+.pan-ti-nat { border: 0; background: none; position: relative; }
+.pan-ti-nat::before { content: '⇢'; color: #2c7cc0; font-size: 13px; position: absolute; top: -4px; }
+.pan-ti-dos, .pan-ti-sd-wan { border-radius: 50%; }
+.pan-opt { margin-top: auto; border-top: 1px solid #cfd2d6; }
+.pan-opt-h { display: flex; justify-content: space-between; padding: 6px 10px; font-size: 13px; }
+.pan-opt ul { list-style: none; margin: 0; padding: 0 0 6px; }
+.pan-opt li { display: flex; align-items: center; gap: 6px; padding: 2.5px 10px 2.5px 22px; }
+.pan-opt li b { margin-left: auto; font-weight: 400; }
+.pan-ti-opt { border-color: #2c7cc0; background: #fff; }
+.pan-content { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.pan-filter { display: flex; align-items: center; gap: 6px; padding: 4px 6px; }
+.pan-f-ic { color: #555; font-size: 14px; }
+.pan-f-box { flex: 1; height: 18px; border: 1px solid #9aa0a6; border-radius: 9px; display: flex; justify-content: flex-end; align-items: center; padding: 0 8px; font-size: 11px; color: #333; }
+.pan-grid-wrap { flex: 1; overflow: auto; }
+.pan-grid { border-collapse: collapse; min-width: 1500px; width: 100%; }
+.pan-grid th { font-weight: 400; color: #555; font-size: 11px; text-align: left; padding: 16px 6px 6px; border: 1px solid #dadde1; border-top: 0; background: #fff; vertical-align: bottom; white-space: nowrap; }
+.pan-grid .pan-grp th { padding-top: 6px; }
+.pan-grid th.pan-grp-h { text-align: center; padding: 6px; font-size: 11.5px; color: #555; }
+.pan-grid td { padding: 6px; border-left: 1px solid #e6e8eb; border-right: 1px solid #e6e8eb; white-space: nowrap; vertical-align: top; height: 28px; }
+.pan-grid .pan-num { width: 22px; text-align: center; color: #333; }
+.pan-grid tbody tr { border-bottom: 1px solid #e6e8eb; }
+.pan-grid tbody tr.pan-alt { background: #eef3f8; }
+.pan-grid tbody tr.pan-pre { background: #fdeebc; border-top: 2px solid #f4c13d; border-bottom: 2px solid #f4c13d; }
+.pan-link { color: #1f6db5; }
+.pan-zone { display: inline-flex; align-items: center; gap: 4px; }
+.pan-zone-ic { width: 14px; height: 10px; background: repeating-linear-gradient(135deg, #222 0 3px, #f5b400 3px 6px); }
+.pan-gear { display: block; width: 11px; height: 11px; margin: 3px 0 0 74px; border-radius: 50%; background: radial-gradient(circle, #fff 2px, #3e9e3e 3px); }
+.pan-gear-o { background: radial-gradient(circle, #fff 2px, #e8781f 3px); }
+.pan-act { display: inline-flex; align-items: center; gap: 4px; }
+.pan-act i { width: 10px; height: 10px; border-radius: 50%; }
+.pan-act-allow i { background: #2e9b44; }
+.pan-act-deny i { background: #d33a2c; }
+.pan-opt-ic { display: inline-block; width: 12px; height: 9px; border: 1px solid #888; border-radius: 1px; }

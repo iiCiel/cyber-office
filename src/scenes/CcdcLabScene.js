@@ -24,6 +24,8 @@ import '../ui/screen.css';
 import '../ui/competitions.css';
 import '../ui/ccdc/ccdcdoc.css';
 import '../ui/ccdc/pfsense.css';
+import { PanOsApp } from '../ui/ccdc/PanOsApp.js';
+import '../ui/ccdc/panos.css';
 
 // CCDC as a full simulation. The player logs in to their team's jump box (a Windows 10 workstation) and works
 // the round the way a real team does: PuTTY into the Linux boxes, Remote Desktop into the Windows boxes, the
@@ -218,6 +220,11 @@ export class CcdcLabScene extends Phaser.Scene {
         create: () => new PfSenseApp({ state: st, dev: fw, clock: () => this.elapsed(), run: (l) => this.run(fw.id, l) }) });
       wins.push({ id: `ssh-${fw.id}`, kind: 'putty', icon: 'putty', title: `${fw.ip} - PuTTY`, short: `${fw.host} (SSH)`,
         create: () => new PuttyApp({ dev: fw, session: this.sessions[fw.id], banner: pfConsoleBanner(fw), run: (l) => this.run(fw.id, l) }) });
+    }
+    // A Palo Alto with a web UI: reached by typing its management IP into a browser on the team workstation.
+    for (const pan of st.deviceList.filter((d) => d.webui === 'panos')) {
+      wins.push({ id: `web-${pan.id}`, kind: 'browser', icon: 'pan', pinned: true, desktop: 'Palo Alto', title: `${pan.panHost || 'PA-VM'} - Palo Alto Networks`, short: 'Palo Alto', tabLabel: `${pan.panHost || 'PA-VM'}`, url: `https://${pan.ip}/#policies::vsys1::policies/security-rulebase`,
+        create: () => new PanOsApp({ dev: pan }) });
     }
     for (const d of st.deviceList) {
       if (d.kind === 'bash') {

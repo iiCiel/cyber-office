@@ -30,6 +30,8 @@
 .jb-ic-splunk::after { content: '>'; color: #65a637; font: 800 13px Arial, sans-serif; }
 .jb-ic-pf { background: #212121; }
 .jb-ic-pf::after { content: 'pf'; color: #fff; font: 700 italic 9px Arial, sans-serif; }
+.jb-ic-pan { background: #1b2532; }
+.jb-ic-pan::after { content: 'PA'; color: #fbb034; font: 700 9px Arial, sans-serif; }
 .jb-ic-score { background: #337ab7; }
 .jb-ic-score::after { content: 'SE'; }
 .jb-ic-inject { background: #f0ad4e; }

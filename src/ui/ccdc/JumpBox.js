@@ -12,7 +12,7 @@ import './jumpbox.css';
 
 const ICONS = {
   chrome: 'jb-ic-chrome', putty: 'jb-ic-putty', rdp: 'jb-ic-rdp', chat: 'jb-ic-chat', splunk: 'jb-ic-splunk',
-  pf: 'jb-ic-pf', inject: 'jb-ic-inject', score: 'jb-ic-score', folder: 'jb-ic-folder',
+  pf: 'jb-ic-pf', pan: 'jb-ic-pan', inject: 'jb-ic-inject', score: 'jb-ic-score', folder: 'jb-ic-folder',
 };
 
 export class JumpBox {

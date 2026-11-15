@@ -266,6 +266,7 @@ export const CCDC_LAB_4 = {
     },
     {
       id: 'pa', name: 'Palo Alto firewall', host: 'pa', ip: '172.20.240.200', os: 'PAN-OS 11.0.2', role: 'network', kind: 'bash',
+      webui: 'panos', panHost: 'PA-VM',
       prompt: 'admin@PA-VM>', user: 'admin', cwd: '/home/admin',
       motd: ['Last login: Sat Nov 14 12:58:03 2026 from 172.20.240.5', '', 'Number of failed attempts since last successful login: 0', '', ''],
       brief: 'The perimeter firewall still has the factory admin / Changeme123 login, and two allow-everything rules (that is an inject, not a finding here). On PAN-OS nothing you change is live until you commit.',
