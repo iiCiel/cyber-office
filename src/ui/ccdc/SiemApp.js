@@ -99,7 +99,7 @@ export class SiemApp {
     this.exBtn = h('button', { class: 'sx-link sx-exbtn', type: 'button', onclick: () => { this.exMenu.hidden = !this.exMenu.hidden; } }, 'Saved Searches ▾');
     this.exMenu = h('div', { class: 'sx-menu sx-exmenu', hidden: true },
       h('div', { class: 'sx-mh' }, 'Example searches'),
-      ...EXAMPLES.map(([t, q]) => h('button', { type: 'button', class: 'sx-mi sx-ex', title: q, onclick: () => { this.input.value = q; this.exMenu.hidden = true; this.run(); } }, h('b', {}, t), h('code', {}, q))),
+      ...EXAMPLES.map(([t, q]) => [t, this.siem?.profile?.fwKind === 'vyos' ? q.replace('sourcetype=pfsense:filterlog', 'sourcetype=vyos:firewall') : q]).map(([t, q]) => h('button', { type: 'button', class: 'sx-mi sx-ex', title: q, onclick: () => { this.input.value = q; this.exMenu.hidden = true; this.run(); } }, h('b', {}, t), h('code', {}, q))),
       h('div', { class: 'sx-mh' }, 'Search help'),
       ...HELP.map((t) => h('div', { class: 'sx-help' }, t)));
     const title = h('div', { class: 'sx-title' }, h('h1', {}, 'New Search'), h('span', { class: 'sx-spacer' }), h('span', { class: 'sx-menuwrap' }, this.exBtn, this.exMenu), h('span', { class: 'sx-btn sx-off' }, 'Save As ▾'), h('span', { class: 'sx-btn sx-off' }, 'Close'));

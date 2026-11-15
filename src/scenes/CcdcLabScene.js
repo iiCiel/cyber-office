@@ -151,7 +151,7 @@ export class CcdcLabScene extends Phaser.Scene {
   }
 
   // The team number comes from the scoring engine's seeded roster, so the packet, the jump box and the scoreboard agree.
-  tn() { if (this.seed == null) this.seed = Math.floor(Math.random() * 1e9); return String(roster({ seed: this.seed }).find((t) => t.you).no).padStart(2, '0'); }
+  tn() { if (this.seed == null) this.seed = Math.floor(Math.random() * 1e9); return String(roster({ seed: this.seed, scenario: this.scenario }).find((t) => t.you).no).padStart(2, '0'); }
 
   seatBoxes(roleId) {
     const ds = devicesForRole(this.scenario, roleId).map((d) => d.host);

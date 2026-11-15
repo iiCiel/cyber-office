@@ -275,6 +275,7 @@ const NYAN = [
 
 export const CCDC_LAB_4 = {
   id: 'underpressure-invitational-2026',
+  teamNumber: 14, // the team's real number at the Invitational
   roundStartMs: Date.UTC(2026, 10, 14, 13, 0, 0), // Windows clocks show the afternoon session of Nov 14
   company: 'Under Pressure Water Authority (Invitational replay)',
   tagline: 'A replay of the network team 14 defended at the MWCCDC Invitational on Nov 14, 2026. Red team had a head start: backdoor accounts, hidden SSH keys, cron jobs that wipe the host firewall every minute, a fake scoring engine, a service account in Domain Admins. Two services are already red. Everything here really happened that day, including the mistakes.',
@@ -353,7 +354,7 @@ export const CCDC_LAB_4 = {
   devices: [
     {
       id: 'vyos', name: 'VyOS router', host: 'vyos', ip: '172.31.34.2', os: 'VyOS 1.4', role: 'network', kind: 'bash', sudo: true,
-      prompt: 'vyos@vyos:~$', user: 'vyos', cwd: '/home/vyos',
+      prompt: 'vyos@EdgeRouter:~$', user: 'vyos', cwd: '/home/vyos',
       motd: ['Welcome to VyOS!', '', '   ┌── ┐', '   . VyOS 1.4.0', '   └ ──┘  sagitta', '', ' * Documentation:  https://docs.vyos.io/en/sagitta', ' * Project news:   https://blog.vyos.io', ' * Bug reports:    https://vyos.dev', '', 'You can change this banner using "set system login banner post-login" command.', '', 'Last login: Sat Nov 14 05:12:41 2026 from 172.17.0.2'],
       brief: 'Every packet to every scored service crosses this router (1:1 NAT from 172.25.34.x to 172.20.240.x). In session 1 nobody secured it, red team took over its console and overwrote its boot disk, and every service died for the last 20 minutes. Secure it FIRST: factory password, a planted SSH key, SSH open on every interface. Never reboot it.',
       checklist: [
@@ -368,7 +369,7 @@ export const CCDC_LAB_4 = {
         'show system commit',
       ],
       ctx: {
-        user: 'vyos', host: 'vyos', cwd: '/home/vyos', history: [],
+        user: 'vyos', host: 'EdgeRouter', cwd: '/home/vyos', history: [],
         fs: {
           '/home/vyos/README.txt': 'VyOS 1.4 edge router. eth2 = External (172.31.34.2), eth0 = Internal toward the Palo Alto, eth1 = Kali.\nNAT rule 900 (masquerade out eth2) is what lets the inside boxes reach the internet. It is legitimate.\n',
           '/config/keys/cyberrange-lab': 'ssh-ed25519 ... cyberrange-lab',

@@ -39,8 +39,10 @@ const pad2 = (n) => String(n).padStart(2, '0');
 export function roster(state) {
   const sd = seedNum(state.seed);
   const others = 9 + Math.floor(hash01(sd, 1) * 3);
-  const total = others + 1;
-  const youNo = 1 + Math.floor(hash01(sd, 2) * total);
+  // A replay of a real day keeps the team number the team actually had (scenario.teamNumber, e.g. 14).
+  const fixed = state.scenario?.teamNumber;
+  const total = Math.max(others + 1, fixed || 0);
+  const youNo = fixed || 1 + Math.floor(hash01(sd, 2) * total);
   const teams = [];
   for (let n = 1; n <= total; n++) {
     const you = n === youNo;

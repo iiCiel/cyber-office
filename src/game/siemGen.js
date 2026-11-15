@@ -207,7 +207,27 @@ function cronRaw(e) {
   if (e.sub === 'cron_open') return `${pre} CRON[${f.pid}]: pam_unix(cron:session): session opened for user ${f.user} by (uid=0)`;
   return `${pre} CRON[${f.pid}]: (${f.user}) CMD (${f.command})`;
 }
+// VyOS 1.4 (nftables) logs a rule hit through the kernel log with the rule's prefix, e.g.
+//   Nov 14 13:02:11 EdgeRouter kernel: [ipv4-FWD-filter-10-D]IN=eth2 OUT=eth0 MAC=... SRC=... DST=... PROTO=TCP SPT=.. DPT=..
+// (rule names as in `show firewall` on the day: ipv4-FWD-filter-10-D / ipv4-INP-filter-10-D; default-A when the
+// default action is logged).
+const oct = (x) => ((x >>> 0) & 255).toString(16).padStart(2, '0');
+const strHash = (str) => [...String(str)].reduce((a, c) => (Math.imul(a, 31) + c.charCodeAt(0)) >>> 0, 7);
+const MAC = (n) => ['52', '54', '00', oct(n), oct(n >>> 8), oct(n >>> 16)].join(':');
+function vyosRaw(e) {
+  const f = e.fields;
+  const inbound = f.dir === 'in';
+  const toRouter = inbound && f.dest_ip === e.P.wanIp;
+  const chain = toRouter ? 'INP' : 'FWD';
+  const prefix = `[ipv4-${chain}-filter-${f.action === 'pass' ? 'default-A' : '10-D'}]`;
+  const ifs = toRouter ? 'IN=eth2 OUT=' : inbound ? 'IN=eth2 OUT=eth0' : 'IN=eth0 OUT=eth2';
+  const proto = f.proto.toUpperCase();
+  const ports = f.proto === 'icmp' ? 'TYPE=8 CODE=0 ID=' + (f.ipid % 4096) + ' SEQ=1' : `SPT=${f.src_port} DPT=${f.dest_port}`;
+  const tcp = f.proto === 'tcp' ? ` WINDOW=${f.window || 64240} RES=0x00 SYN URGP=0` : f.proto === 'udp' ? ` LEN=${(f.length || 76) - 20}` : '';
+  return `${fmtSyslog(e.t)} ${e.host} kernel: ${prefix}${ifs} MAC=${MAC(strHash(f.dest_ip))}:${MAC(strHash(f.src_ip))}:08:00 SRC=${f.src_ip} DST=${f.dest_ip} LEN=${f.length || 60} TOS=0x00 PREC=0x00 TTL=${f.ttl} ID=${f.ipid}${f.proto === 'tcp' ? ' DF' : ''} PROTO=${proto} ${ports}${tcp}`;
+}
 function fwRaw(e) {
+  if (e.P.fwKind === 'vyos') return vyosRaw(e);
   const f = e.fields;
   const proto = f.proto;
   const tail = proto === 'tcp' ? `${f.length || 60},${f.src_ip},${f.dest_ip},${f.src_port},${f.dest_port},0,${f.flags || 'S'},${f.seq || hash(e.i)},,${f.window || 64240},,mss` : proto === 'udp' ? `${f.length || 76},${f.src_ip},${f.dest_ip},${f.src_port},${f.dest_port},${(f.length || 76) - 8}` : `${f.length || 84},${f.src_ip},${f.dest_ip},request`;
@@ -252,7 +272,9 @@ const INDEX_OF = { web: 'web', auth: 'linux', cron: 'linux', fw: 'network', win:
 
 class Ev {
   constructor(i, t, kind, sub, host, P, fields) {
-    this.i = i; this.t = t; this.kind = kind; this.sub = sub; this.host = host; this.P = P; this.fields = fields;
+    // A firewall can log under its own hostname (VyOS on Nov 14: EdgeRouter) rather than the device id.
+    this.i = i; this.t = t; this.kind = kind; this.sub = sub; this.host = kind === 'fw' && P?.fwHostName ? P.fwHostName : host; this.P = P; this.fields = fields;
+    if (kind === 'fw' && P?.fwKind === 'vyos' && fields) fields.iface = fields.dir === 'out' ? 'eth0' : 'eth2';
     this._raw = undefined;
   }
   get raw() { return this._raw !== undefined ? this._raw : (this._raw = TEMPLATES[this.kind](this)); }
@@ -262,7 +284,7 @@ class Ev {
       case 'web': return '/var/log/apache2/access.log';
       case 'auth': return '/var/log/auth.log';
       case 'cron': return '/var/log/syslog';
-      case 'fw': return 'udp:514';
+      case 'fw': return this.P.fwKind === 'vyos' ? '/var/log/messages' : 'udp:514';
       case 'win': return this.fields.EventCode === 808 ? 'WinEventLog:Microsoft-Windows-PrintService/Admin' : 'WinEventLog:Security';
       case 'mail': return '/var/log/mail.log';
       default: return this.P.dbKind === 'postgres' ? '/var/log/postgresql/postgresql-14-main.log' : '/var/log/mysql/error.log';
@@ -273,7 +295,7 @@ class Ev {
       case 'web': return 'access_combined';
       case 'auth': return 'linux_secure';
       case 'cron': return 'syslog';
-      case 'fw': return 'pfsense:filterlog';
+      case 'fw': return this.P.fwKind === 'vyos' ? 'vyos:firewall' : 'pfsense:filterlog';
       case 'win': return this.fields.EventCode === 808 ? 'WinEventLog:Microsoft-Windows-PrintService/Admin' : 'WinEventLog:Security';
       case 'mail': return this.sub.startsWith('imap') ? 'dovecot' : 'postfix';
       default: return this.P.dbKind === 'postgres' ? 'postgresql' : 'mysqld_error';

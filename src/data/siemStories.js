@@ -353,6 +353,7 @@ const SPRAY4 = '198.51.100.12';
 const C2_4 = '198.51.100.45';
 const UP_PROFILE = {
   web: 'ecom', db: null, mail: 'email', dc: 'dc', ws: null, fw: 'vyos',
+  fwKind: 'vyos', fwHostName: 'EdgeRouter',
   linux: ['ecom', 'email', 'splunk'], linuxUsers: ['sysadmin', 'splunk', 'john.smith'],
   adUsers: ['john.smith', 'chris.hill', 'matthew.brown', 'robert.johnson', 'nick.johnson', 'ashish.kumar', 'sarah.lee', 'brian.wilson', 'svc-splunk', 'svc-palo'],
   privUsers: ['Administrator', 'svc-splunk'], winMachines: ['AD-DNS', 'MSSQL', 'WIN11-WKST'],
