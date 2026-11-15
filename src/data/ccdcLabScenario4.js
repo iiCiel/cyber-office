@@ -252,6 +252,27 @@ const DC_FW_COMMANDS = {
 };
 const PS_HOOK_TEXT = "# Windows PowerShell machine profile\nfunction Get-NetFirewallRule { param([Parameter(ValueFromRemainingArguments)]$a) }\nfunction Get-NetFirewallProfile { param([Parameter(ValueFromRemainingArguments)]$a) }\n$null = Register-EngineEvent PowerShell.OnIdle -Action { }\n";
 
+// Wall broadcast from the goose kit (ttygoose --wall), as it landed on the Rocky and Ubuntu consoles.
+const GOOSE_WALL = (host, n = 0) => [
+  { cls: 'warn', text: '' },
+  { cls: 'warn', text: `Broadcast message from root@${host === 'ecom' ? 'ecom' : 'webmail'} (somewhere) (Sat Nov 14 ${['14:31:07', '14:42:51', '14:54:19'][n] || '14:59:40'} 2026):` },
+  { cls: 'warn', text: '' },
+  { cls: 'warn', text: '        __' },
+  { cls: 'warn', text: '      <(o )___' },
+  { cls: 'warn', text: '       ( ._> /' },
+  { cls: 'warn', text: '        `---\'   HONK' },
+  { cls: 'warn', text: '' },
+  { cls: 'warn', text: 'HONK. you are now the incident.' },
+  { cls: 'warn', text: '' },
+];
+const NYAN = [
+  { cls: 'bad', text: '' },
+  { cls: 'bad', text: '[ the VyOS console is gone: a looping animation fills the screen and no keys do anything ]' },
+  { cls: 'bad', text: '' },
+  { cls: 'bad', text: 'Connection to 172.16.0.1 closed by remote host.' },
+  { cls: 'bad', text: 'ssh: connect to host 172.16.0.1 port 22: No route to host' },
+];
+
 export const CCDC_LAB_4 = {
   id: 'underpressure-invitational-2026',
   roundStartMs: Date.UTC(2026, 10, 14, 13, 0, 0), // Windows clocks show the afternoon session of Nov 14
@@ -265,6 +286,36 @@ export const CCDC_LAB_4 = {
     { n: 1, at: 180, label: 'goose kit wakes up: fake scoringengine, firewall wipers, wall broadcasts' },
     { n: 2, at: 450, label: 'domain abuse: svc-splunk in Domain Admins, password spraying from 198.51.100.12' },
     { n: 3, at: 720, label: 'router console takeover (the session 1 ending)' },
+  ],
+
+  // What happened on the day, on the round clock. Each only fires if the thing that caused it is still there.
+  liveEvents: [
+    ...[200, 380, 560].map((at, i) => ({
+      id: `goose-wall-${i + 1}`, at,
+      when: (st) => st.findings['ecom-goose'].status !== 'fixed' || st.findings['email-goose'].status !== 'fixed',
+      apply: (st) => ({
+        log: i === 0 ? [['red', 'Goose kit: wall broadcasts on the Linux consoles ("you are now the incident").']] : [],
+        broadcast: ['ecom', 'email'].filter((h) => st.findings[`${h}-goose`].status !== 'fixed').map((host) => ({ host, lines: GOOSE_WALL(host, i) })),
+      }),
+    })),
+    {
+      id: 'teammate-bulk-reset', at: 600,
+      apply: () => ({
+        log: [['team', '[Windows lead] reset EVERY AD password to ZipsBlue2026x! so red team is locked out 👍'],
+          ['alert', '[Windows lead] reset EVERY AD password to ZipsBlue2026x! so red team is locked out 👍'],
+          ['warn', 'Bulk AD password reset at 13:57: every check that logs in with an AD account uses the new password from now on.']],
+        rotate: ['DomainUsers', 'Splunk'],
+      }),
+    },
+    {
+      id: 'router-takeover', at: 725,
+      when: (st) => st.findings['vyos-backdoor'].status !== 'fixed',
+      avoided: 'Red team tried the cyberrange-lab key on the router and was refused: the key is gone.',
+      apply: () => ({
+        log: [['bad', 'Router console taken over: an animation loops on the VyOS console, SSH to 172.16.0.1 says "No route to host".']],
+        broadcast: [{ host: 'vyos', lines: NYAN }],
+      }),
+    },
   ],
 
   // Rotating domain user passwords without a PCR in Quotient breaks every check that logs in with an AD account.

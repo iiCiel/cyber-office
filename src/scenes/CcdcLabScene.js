@@ -328,7 +328,23 @@ export class CcdcLabScene extends Phaser.Scene {
       if (e.cls === 'inject') this.jb?.toast({ app: 'Inject Portal', title: 'New inject released', text: e.text, open: 'injects' });
       else if (e.cls === 'bad' && /SLA/.test(e.text)) this.jb?.toast({ app: 'Scoring Engine', title: 'SLA violation', text: e.text, cls: 'bad', open: 'score' });
       else if (e.cls === 'bad' && /Compromise/.test(e.text)) this.jb?.toast({ app: 'Discord', title: 'Linux lead', text: 'Something is very wrong on one of our boxes — check Splunk.', cls: 'bad', open: 'siem' });
+      else if (e.cls === 'alert') this.jb?.toast({ app: 'Discord', title: e.text.match(/^\[([^\]]+)\]/)?.[1] || 'Team', text: e.text.replace(/^\[[^\]]+\]\s*/, ''), cls: 'warn', open: 'chat' });
       else if (e.cls === 'red') this.jb?.toast({ app: 'Splunk', title: 'Alert: spike in authentication failures', text: 'Inbound attack traffic is rising. Search the last 15 minutes.', cls: 'warn', open: 'siem' });
+    }
+    // Live events that write into a box's terminal (wall broadcasts, a console taken over): straight into that
+    // session's scrollback, live if its window is open.
+    const bc = this.state.engine.broadcasts || [];
+    for (this.seenBroadcasts = this.seenBroadcasts || 0; this.seenBroadcasts < bc.length; this.seenBroadcasts++) {
+      const b = bc[this.seenBroadcasts];
+      const ses = this.sessions[b.host];
+      if (!ses) continue;
+      const term = this.jb?.app(`ssh-${b.host}`)?.term;
+      if (term) term.print(b.lines); else ses.buffer.push(...b.lines);
+      this.toastedHosts = this.toastedHosts || {};
+      if (!this.toastedHosts[b.host]) {
+        this.toastedHosts[b.host] = true;
+        this.jb?.toast({ app: 'PuTTY', title: `${b.host}: message on the console`, text: [...b.lines].reverse().find((l) => l.text.trim())?.text || '', cls: 'warn', open: `ssh-${b.host}` });
+      }
     }
     // Feed every probe/compromise into the SIEM so the red team's work is findable in the logs.
     const probes = this.state.engine.probes;

@@ -244,3 +244,42 @@ test('scenario 4 MSSQL: the SOP share and the waterops_svc login are there to fi
   const r = runLine(s, 'mssql', 'net user waterops_svc N3wPass!2026');
   assert.deepEqual(r.effects.pcrAccounts, ['MssqlService'], 'changing waterops_svc is an MssqlService rotation');
 });
+
+// --- live events (what happened on the day, on the round clock) ------------------------------------------------
+import { attachEngine, tickTo } from '../src/game/ccdcEngine.js';
+
+test('scenario 4 live: goose wall broadcasts land on ecom/email while the kit is running, and stop once removed', () => {
+  const s = attachEngine(fresh());
+  tickTo(s, 210);
+  assert.deepEqual(s.engine.broadcasts.map((b) => b.host), ['ecom', 'email']);
+  assert.ok(s.engine.broadcasts[0].lines.some((l) => /you are now the incident/.test(l.text)));
+  const fixAll = (dev, id) => { for (const c of CCDC_LAB_4.devices.find((d) => d.id === dev).checklist) runLine(s, dev, c); assert.equal(open(s, id), false); };
+  fixAll('ecom', 'ecom-goose'); fixAll('email', 'email-goose');
+  tickTo(s, 600);
+  assert.equal(s.engine.broadcasts.length, 2, 'no more broadcasts after both kits are gone');
+});
+
+test('scenario 4 live: the 13:57 teammate bulk reset breaks AD-login checks unless the PCRs were filed first', async () => {
+  const { submitPcr, quotientLists } = await import('../src/game/quotient.js');
+  let s = attachEngine(fresh());
+  tickTo(s, 610);
+  assert.ok(s.engine.pcrs.find((p) => p.account === 'DomainUsers').breaking);
+  assert.ok(s.engine.events.some((e) => e.cls === 'team' && /reset EVERY AD password/.test(e.text)));
+  s = attachEngine(fresh());
+  const L = quotientLists(CCDC_LAB_4);
+  for (const n of ['DomainUsers', 'Splunk']) submitPcr(s, n, L[n].users.map((u) => `${u},ZipsBlue2026x!`).join('\n'));
+  tickTo(s, 610);
+  assert.ok(!s.engine.pcrs.some((p) => p.breaking), 'PCR first: the reset is pre-approved');
+});
+
+test('scenario 4 live: router console takeover at 12:05 only if the planted key is still there', () => {
+  let s = attachEngine(fresh());
+  tickTo(s, 730);
+  assert.ok(s.engine.broadcasts.some((b) => b.host === 'vyos' && b.lines.some((l) => /No route to host/.test(l.text))));
+  assert.equal(up(s, 'webmail-imap'), false, 'wave 3 confirms the router compromise: services lose their path');
+  s = attachEngine(fresh());
+  for (const c of CCDC_LAB_4.devices.find((d) => d.id === 'vyos').checklist) runLine(s, 'vyos', c);
+  tickTo(s, 730);
+  assert.ok(!s.engine.broadcasts.some((b) => b.host === 'vyos'));
+  assert.ok(s.engine.events.some((e) => /was refused/.test(e.text)));
+});

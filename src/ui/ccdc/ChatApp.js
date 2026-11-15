@@ -179,7 +179,7 @@ export class ChatApp {
     } else if (e.cls === 'team') {
       const m = t.match(/^\[(.+?)\]\s*(.*)$/);
       if (!m) return;
-      const who = /white/i.test(m[1]) ? 'white' : /orange/i.test(m[1]) ? 'orange' : 'captain';
+      const who = /white/i.test(m[1]) ? 'white' : /orange/i.test(m[1]) ? 'orange' : Object.keys(TEAMMATES).find((k) => TEAMMATES[k].role && TEAMMATES[k].role.toLowerCase() === m[1].toLowerCase()) || 'captain';
       this._post('general', who, m[2], at);
     }
   }

@@ -46,6 +46,9 @@ export function attachEngine(state) {
     // the first one for older scenarios and the debrief.
     pcrs: (Array.isArray(sc.pcr) ? sc.pcr : sc.pcr ? [sc.pcr] : []).map((p) => ({ ...p, rotated: false, filed: false, breaking: false })),
     history: {}, // svcId -> [{ round, at, ok }] newest last (Quotient's per-service round table)
+    // Scripted moments from a real day (scenario.liveEvents): { id, at, when?(state), apply(state) -> { log, broadcast } }.
+    live: (sc.liveEvents || []).map((e) => ({ ...e, fired: false })),
+    broadcasts: [], // { at, host, lines:[{cls,text}] } written into that box's terminal by the scene
     round: 0,
     teamFeed: (sc.teamFeed || DEFAULT_TEAM_FEED).map((m) => ({ ...m, fired: false })),
   };
@@ -140,6 +143,17 @@ function stepTo(state, sec) {
     if (w.fired || sec < w.at) continue;
     w.fired = true;
     runWave(state, w);
+  }
+
+  // Scripted live events (after the waves, so an event can depend on what a wave just did).
+  for (const ev of eng.live) {
+    if (ev.fired || sec < ev.at) continue;
+    ev.fired = true;
+    if (ev.when && !ev.when(state)) { if (ev.avoided) log(eng, 'ok', ev.avoided); continue; }
+    const out = ev.apply ? ev.apply(state) || {} : {};
+    for (const [cls, text] of out.log || []) log(eng, cls, text);
+    for (const b of out.broadcast || []) eng.broadcasts.push({ at: sec, host: b.host, lines: b.lines });
+    if (out.rotate) notePasswordRotated(state, out.rotate);
   }
 
   // Scored checks on the interval.
