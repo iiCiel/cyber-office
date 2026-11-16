@@ -19,8 +19,8 @@ const GOOD = {
   pcr: 'Open each Quotient credential list (DomainUsers, Splunk) and copy its Usernames tab. Build username,password CSV lines for exactly those names and submit the PCR in Quotient first, then run Set-ADAccountPassword. Exclude svc- service accounts. Check Quotient after one round.',
 };
 
-test('scenario 4: registered fourth, shape — 10 devices, 19 findings, 19 scored services, 6 injects', () => {
-  assert.equal(CCDC_SCENARIOS[3], CCDC_LAB_4);
+test('scenario 4: registered, shape — 10 devices, 19 findings, 19 scored services, 6 injects', () => {
+  assert.ok(CCDC_SCENARIOS.includes(CCDC_LAB_4));
   const s = fresh();
   assert.equal(s.deviceList.length, 10);
   assert.equal(s.findingList.length, 19);
@@ -292,7 +292,7 @@ test('scenario 4 Splunk bind: resetting svc-splunk breaks splunk-query until bin
   run(s, 'dc', "Set-ADAccountPassword svc-splunk -Reset -NewPassword (ConvertTo-SecureString 'splunk.bind.2026' -AsPlainText -Force)");
   assert.equal(up(s, 'splunk-query'), false);
   assert.match(txt(s, 'splunk', `sed -i 's/^bindDNpassword.*/bindDNpassword = wrongpass/' ${AUTH}`), /not svc-splunk's new password/);
-  assert.match(txt(s, 'splunk', 'systemctl restart Splunkd'), /./);
+  run(s, 'splunk', 'systemctl restart Splunkd');
   assert.equal(up(s, 'splunk-query'), false, 'restart alone does not help');
   run(s, 'splunk', `sed -i 's/^bindDNpassword.*/bindDNpassword = splunk.bind.2026/' ${AUTH}`, 'systemctl restart Splunkd');
   assert.equal(up(s, 'splunk-query'), true);
@@ -301,6 +301,8 @@ test('scenario 4 Splunk bind: resetting svc-splunk breaks splunk-query until bin
 
 test('scenario 4 Splunk bind: the 13:57 teammate reset knocks splunk-query down the same way', () => {
   const s = attachEngine(fresh());
+  // Secure the router first, or wave 2 takes it over and every service loses its path anyway.
+  for (const l of s.deviceList.find((d) => d.id === 'vyos').checklist) runLine(s, 'vyos', l);
   tickTo(s, 610);
   assert.equal(up(s, 'splunk-query'), false);
   run(s, 'splunk', `sed -i 's/^bindDNpassword.*/bindDNpassword = ZipsBlue2026x!/' ${AUTH}`, 'sudo systemctl restart Splunkd');
@@ -323,7 +325,7 @@ test('scenario 4 Kali: nmap from outside shows what the EVAL14A memo needs, and 
 test('scenario 4 Ubuntu Wkst: passwd + removing the planted key; splunkfwd is legit', () => {
   const s = fresh();
   assert.match(txt(s, 'wkst', 'cat ~/.ssh/authorized_keys'), /cyberrange-lab/);
-  run(s, 'wkst', 'passwd', "sed -i '/cyberrange-lab/d' /home/sysadmin/.ssh/authorized_keys");
+  run(s, 'wkst', 'passwd', 'Bluegill-Pump-2026!', 'Bluegill-Pump-2026!', "sed -i '/cyberrange-lab/d' /home/sysadmin/.ssh/authorized_keys");
   assert.equal(open(s, 'wkst-default'), false);
   assert.match(txt(fresh(), 'wkst', 'userdel splunkfwd'), /forwarder/);
 });
@@ -364,7 +366,7 @@ test('scenario 4 SNMP: VyOS needs commit; a hardened Palo Alto must allow the sn
 test('scenario 4: after the router is rebooted (or taken over) its SSH session is dead', () => {
   const s = fresh();
   run(s, 'vyos', 'reboot');
-  assert.match(txt(s, 'vyos', 'show interfaces'), /No route to host/);
+  assert.match(txt(s, 'vyos', 'show interfaces'), /No route to host|timed out/);
   assert.equal(open(s, 'vyos-backdoor'), true, 'fix lines no longer reach the box');
   run(s, 'vyos', 'delete system login user vyos authentication public-keys cyberrange-lab');
   assert.equal(s.findings['vyos-backdoor'].steps.key, undefined);

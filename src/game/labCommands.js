@@ -24,19 +24,19 @@ export function linuxRecon(opts = {}) {
       if ((args || [])[0] === 'is-active' && ctx?.live) return `${ctx.live.units?.[String(args[1] || '').replace(/\.service$/, '').replace(/^sshd$/, 'ssh')] || 'unknown'}\n`;
       if (/list-units|list-unit-files/.test(a)) return lines(['UNIT                     LOAD   ACTIVE SUB     DESCRIPTION', 'ssh.service              loaded active running OpenBSD Secure Shell server', `${opts.appUnit || 'apache2.service'}        loaded active running ${opts.appDesc || 'The Apache HTTP Server'}`, 'cron.service             loaded active running Regular background program processing daemon']);
       if (/list-timers/.test(a)) return lines(['NEXT                        LEFT       UNIT                     ACTIVATES', 'Wed 2026-10-31 10:05:00 EDT 4min       apt-daily.timer          apt-daily.service']);
-      if (/^status/.test(a) || a.includes('status')) return lines([`● ${args[1] || 'unit'} - service`, '   Loaded: loaded (/lib/systemd/system)', '   Active: active (running) since 09:00:11 EDT', '   (simulated)']);
-      return lines([`${args[1] || 'unit'}: active (running) [simulated]`]);
+      if (/^status/.test(a) || a.includes('status')) return lines([`● ${args[1] || 'unit'} - service`, '   Loaded: loaded (/lib/systemd/system)', '   Active: active (running) since 09:00:11 EDT' ]);
+      return '';
     },
-    journalctl: (args) => lines(['-- Logs begin at 09:00:00 EDT --', '09:14:02 ' + host + ' sshd[742]: Server listening on 0.0.0.0 port 22.', '09:16:41 ' + host + ' sudo:  analyst : TTY=pts/0 ; PWD=/home/analyst ; USER=root', '(simulated — use journalctl -u <unit> for one service)']),
+    journalctl: (args) => lines(['-- Logs begin at 09:00:00 EDT --', '09:14:02 ' + host + ' sshd[742]: Server listening on 0.0.0.0 port 22.', '09:16:41 ' + host + ' sudo:  analyst : TTY=pts/0 ; PWD=/home/analyst ; USER=root']),
     iptables: (args) => ((args || []).join(' ').includes('-L')
-      ? lines(['Chain INPUT (policy ACCEPT)', 'target     prot opt source               destination', 'Chain FORWARD (policy ACCEPT)', 'Chain OUTPUT (policy ACCEPT)', '(no host firewall rules — the edge firewall is the control point)'])
-      : lines(['iptables: use -L to list rules (simulated)'])),
+      ? lines(['Chain INPUT (policy ACCEPT)', 'target     prot opt source               destination', 'Chain FORWARD (policy ACCEPT)', 'Chain OUTPUT (policy ACCEPT)'])
+      : ''),
     ufw: (args, _stdin, ctx) => ((args || [])[0] === 'status' || !(args || []).length
       ? (ctx?.live ? ufwStatus(ctx.live) : null) || lines(['Status: active', 'To                         Action      From', '--                         ------      ----', '(no rules — default allow inbound)'])
-      : lines([`Rule added (simulated): ${(args || []).join(' ')}`])),
-    lsof: (args) => lines(['COMMAND  PID  USER   FD   TYPE DEVICE NAME', 'sshd     742  root    3u  IPv4  tcp  *:22 (LISTEN)', '(simulated)']),
+      : ''),
+    lsof: (args) => lines(['COMMAND  PID  USER   FD   TYPE DEVICE NAME', 'sshd     742  root    3u  IPv4  tcp  *:22 (LISTEN)']),
     who: () => lines(['analyst  pts/0        2026-10-31 09:12 (10.10.10.5)']),
-    last: () => lines(['analyst  pts/0   10.10.10.5    Fri 09:12   still logged in', 'root     pts/1   203.0.113.66  Fri 02:03 - 02:41  (00:38)   <- off-hours login from an external address', 'wtmp begins Fri 02:03']),
+    last: () => lines(['analyst  pts/0   10.10.10.5    Fri 09:12   still logged in', 'root     pts/1   203.0.113.66  Fri 02:03 - 02:41  (00:38)', 'wtmp begins Fri 02:03']),
   };
 }
 

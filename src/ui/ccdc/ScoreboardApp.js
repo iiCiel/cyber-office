@@ -16,8 +16,10 @@ const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart
 function portsText(s) { return (s.ports || []).join(', ') || '-'; }
 
 export class ScoreboardApp {
-  constructor({ state, clock, injects = null, teamLabel = null }) {
+  constructor({ state, clock, injects = null, teamLabel = null, full = true, onRevert = null }) {
     this.state = state;
+    this.full = full;
+    this.onRevert = onRevert;
     this.clock = clock || (() => state.engine?.clock || 0);
     this.injectsApp = injects;
     this.tab = 'overview';
@@ -29,7 +31,7 @@ export class ScoreboardApp {
     this.teamLabel = teamLabel || this.me.team.toLowerCase().replace(' ', '');
     this.el = h('div', { class: 'sb' });
     this._build();
-    this.show('overview');
+    this.show(this.full ? 'overview' : 'services');
     this.refresh();
   }
 
@@ -38,7 +40,7 @@ export class ScoreboardApp {
   _build() {
     const nav = h('nav', { class: 'sb-nav' },
       h('a', { class: 'sb-brand', href: '#', onclick: (e) => { e.preventDefault(); this.show('overview'); } }, h('span', { class: 'sb-brand-icon' }, 'SE'), 'Scoring Engine'),
-      h('ul', { class: 'sb-navlist' }, TABS.map(([id, label]) => {
+      h('ul', { class: 'sb-navlist' }, TABS.filter(([id]) => this.full || id === 'services').map(([id, label]) => {
         const a = h('a', { href: '#', class: 'sb-navlink', onclick: (e) => { e.preventDefault(); this.show(id); } }, label);
         this.navLinks[id] = a;
         return h('li', {}, a);
@@ -80,17 +82,29 @@ export class ScoreboardApp {
     const sstat = (k, label) => { this.sv.stats[k] = h('div', { class: 'sb-statval' }); return h('div', { class: 'sb-stat' }, h('div', { class: 'sb-statlabel' }, label), this.sv.stats[k]); };
     this.pages.services = h('div', { class: 'sb-page' },
       h('div', { class: 'sb-titlebar' }, h('h1', {}, 'Services')),
-      h('div', { class: 'sb-stats sb-stats6' }, sstat('team', 'Team'), sstat('place', 'Place'), sstat('score', 'Score'), sstat('up', 'Services Up'), sstat('down', 'Services Down'), sstat('uptime', 'Uptime')),
+      h('div', { class: 'sb-stats sb-stats6' }, sstat('team', 'Team'), this.full ? sstat('place', 'Place') : null, this.full ? sstat('score', 'Score') : null, sstat('up', 'Services Up'), sstat('down', 'Services Down'), sstat('uptime', 'Uptime')),
       h('div', { class: 'sb-card sb-scroll' }, h('table', { class: 'sb-table sb-svc' },
-        h('thead', {}, h('tr', {}, ['Service', 'Host', 'Port', 'Status', 'Teams Up', 'Score Earned', 'Max Score', '% Earned', 'Pts Per Check', 'Trending'].map((t, i) => h('th', { class: i >= 4 && i <= 8 ? 'sb-r' : '' }, t)))),
-        this.sv.body)));
+        h('thead', {}, h('tr', {}, (this.full ? ['Service', 'Host', 'Port', 'Status', 'Teams Up', 'Score Earned', 'Max Score', '% Earned', 'Pts Per Check', 'Trending'] : ['Service', 'Host', 'Port', 'Status', 'Last checks']).map((t, i) => h('th', { class: this.full && i >= 4 && i <= 8 ? 'sb-r' : '' }, t)))),
+        this.sv.body)),
+      this.onRevert ? h('div', { class: 'sb-card sb-scroll sb-vms' }, h('table', { class: 'sb-table' },
+        h('thead', {}, h('tr', {}, ['Virtual machine', 'Address', 'Tech Support'].map((t) => h('th', {}, t)))),
+        h('tbody', {}, this.state.deviceList.map((d) => h('tr', {}, h('td', {}, d.host), h('td', {}, d.ip), h('td', {}, this._revertBtn(d))))))) : null);
 
     // --- injects (embedded portal)
     this.pages.injects = h('div', { class: 'sb-page sb-page-injects' });
   }
 
+  // Reverting wipes your own work on the box too, so it takes a second click.
+  _revertBtn(d) {
+    const b = h('button', { type: 'button', class: 'sb-revert', 'data-revert': d.id, onclick: () => {
+      if (b.dataset.armed !== '1') { b.dataset.armed = '1'; b.textContent = 'Confirm revert'; return; }
+      b.dataset.armed = ''; b.textContent = 'Request revert'; this.onRevert(d.id);
+    } }, 'Request revert');
+    return b;
+  }
+
   show(tab) {
-    if (!this.pages[tab]) tab = 'overview';
+    if (!this.pages[tab] || (!this.full && tab !== 'services')) tab = this.full ? 'overview' : 'services';
     this.tab = tab;
     for (const [id, a] of Object.entries(this.navLinks)) a.classList.toggle('active', id === tab);
     clear(this.main);
@@ -227,8 +241,8 @@ export class ScoreboardApp {
     const down = svcs.filter((s) => me.services[s.id] !== 'up').length;
     const st = this.sv.stats;
     st.team.textContent = me.team;
-    st.place.textContent = String(me.rank);
-    st.score.textContent = fmt(me.score);
+    if (st.place) st.place.textContent = String(me.rank);
+    if (st.score) st.score.textContent = fmt(me.score);
     st.up.textContent = String(svcs.length - down);
     st.up.className = 'sb-statval sb-ok';
     st.down.textContent = String(down);
@@ -239,7 +253,7 @@ export class ScoreboardApp {
       let e = this.sv.rows[s.id];
       if (!e) {
         e = this.sv.rows[s.id] = { tr: h('tr', {}), status: h('span', { class: 'sb-badge' }), rank: h('td', { class: 'sb-r' }), earned: h('td', { class: 'sb-r' }), pct: h('td', { class: 'sb-r' }), trend: h('td', { class: 'sb-trend' }) };
-        e.tr.append(h('td', {}, h('a', { href: '#', onclick: (ev) => ev.preventDefault() }, s.name)), h('td', {}, `${s.host} (${s.ip})`), h('td', {}, portsText(s)), h('td', {}, e.status), e.rank, e.earned, h('td', { class: 'sb-r' }, fmt(s.points || 0)), e.pct, h('td', { class: 'sb-r' }, (Math.round(((s.points || 0) / per) * 100) / 100).toString()), e.trend);
+        e.tr.append(h('td', {}, h('a', { href: '#', onclick: (ev) => ev.preventDefault() }, s.name)), h('td', {}, `${s.host} (${s.ip})`), h('td', {}, portsText(s)), h('td', {}, e.status), ...(this.full ? [e.rank, e.earned, h('td', { class: 'sb-r' }, fmt(s.points || 0)), e.pct, h('td', { class: 'sb-r' }, (Math.round(((s.points || 0) / per) * 100) / 100).toString())] : []), e.trend);
         this.sv.body.append(e.tr);
       }
       const up = me.services[s.id] === 'up';

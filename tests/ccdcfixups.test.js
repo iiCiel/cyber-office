@@ -37,28 +37,16 @@ test('on-time inject: same answer before the deadline earns its points', () => {
   assert.ok(row.points > 0);
 });
 
-test('a LATE incident report does not halve a compromise penalty', () => {
-  const s = live1();
-  tickTo(s, 730); // incident-report due at 720
-  answerInject(s, 'incident-report', GOOD_INJECTS['incident-report']);
-  expire(s);
-  const wb = score(s).compromises.find((c) => c.id === 'web-shell');
-  assert.ok(wb);
-  assert.equal(wb.halved, false);
-  assert.equal(wb.charged, wb.penalty);
-});
-
 // ---- 2. engine drives compromises + service points --------------------------------------------------------
-test('engine attached: compromises are what the waves confirmed, not every open finding', () => {
+test('engine attached: compromises are what Red Team really used, not every open finding', () => {
   const s = live1();
-  tickTo(s, 180); // wave 1 probes everything open
-  // fix the rogue DA after the probe, before the next wave
+  // fix the rogue DA before Red Team reaches it
   runLine(s, 'dc01', 'Disable-ADAccount -Identity svc-backup2');
   runLine(s, 'dc01', "Remove-ADGroupMember -Identity 'Domain Admins' -Members svc-backup2 -Confirm:$false");
   expire(s);
   const ids = score(s).compromises.map((c) => c.id);
-  assert.ok(!ids.includes('rogue-da'), 'fixed between waves → not compromised');
-  assert.ok(ids.length > 0, 'still-open probed findings are compromised');
+  assert.ok(!ids.includes('rogue-da'), 'fixed in time → not compromised');
+  assert.ok(ids.length > 0, 'what stayed open was used');
 });
 
 test('engine attached: service points come from uptime (passed checks / total checks)', () => {

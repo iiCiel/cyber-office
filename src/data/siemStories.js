@@ -341,6 +341,43 @@ function buildRidgeview(ctx) {
   return out;
 }
 
+// =====================================================================================================
+// Driftless Managed Services (Midwest invitational network): web shell -> reused root password -> rogue Domain Admin
+// =====================================================================================================
+const ATT4 = '198.51.100.61';
+const C2_4 = '203.0.113.140';
+const MW_PROFILE = {
+  web: 'web', db: 'ecom', mail: 'mail', dc: 'ad', ws: 'win10', fw: 'pan',
+  linux: ['web', 'web', 'ecom', 'mail', 'dns'], linuxUsers: ['sysadmin', 'deploy', 'backup'],
+  adUsers: ['a.hansen', 'b.lindqvist', 'c.novak', 'd.oyelaran', 'e.ramirez', 'f.schultz', 'g.vang', 'h.whitehorse', 'svc_backup'],
+  privUsers: ['Administrator', 'svc_backup'], winMachines: ['WIN10', 'UBUNTU-WKS', 'AD', 'DOCKER'],
+  lanHosts: ['win10', 'web', 'ecom', 'mail', 'ad'], lanPrefix: '172.20.242', publicHost: 'www.driftless.example',
+  domain: 'driftless.local', netbios: 'DRIFTLESS', dbKind: 'mysql', wp: false,
+};
+
+function buildMidwest(ctx) {
+  const N = (base, min) => Math.max(min, Math.round(base * ctx.scale));
+  const WEB = 'web'; const ECOM = 'ecom'; const DC = 'ad'; const FW = 'pan';
+  const out = [];
+  const L = (id) => ctx.P.ip(id);
+  const PORTS = [21, 22, 25, 53, 80, 110, 135, 443, 445, 2375, 3306, 3389, 5985, 8000, 8089];
+  span(at('2026-11-13 21:12:03'), at('2026-11-13 21:15:20'), PORTS.length, (k, t) => out.push(fw(t, FW, ATT4, L(WEB), pr(k + 3), PORTS[k], 'pass', 'in')));
+  // Upload through the unrestricted thumbnail form, then commands through the shell it left behind.
+  out.push(web(at('2026-11-13 21:31:40'), WEB, ATT4, 'POST', '/uploads/upload.php', 200, 212, 'python-requests/2.25.1'));
+  const n = N(60, 16);
+  span(at('2026-11-13 21:33:02'), at('2026-11-13 21:49:10'), n, (k, t) => out.push(web(t, WEB, ATT4, 'POST', '/uploads/thumb.php', 200, 180 + k, 'python-requests/2.25.1')));
+  // The admin reused the root password on the store server.
+  out.push(auth(at('2026-11-13 21:52:37'), ECOM, 'accepted_pw', 'root', L(WEB)));
+  out.push(auth(at('2026-11-13 21:52:37'), ECOM, 'session_open', 'root', L(WEB)));
+  out.push(sudo(at('2026-11-13 21:58:11'), ECOM, 'root', '/root', '/usr/bin/tee /etc/cron.d/sysstat-upd'));
+  const c0 = at('2026-11-13 22:00:00'); const nC = Math.floor((ctx.roundStart - c0) / 600);
+  span(c0, c0 + nC * 600, nC, (k, t) => { out.push(cron(t, ECOM, '/usr/local/sbin/sysstat-upd >/dev/null 2>&1')); out.push(fw(t + 1, FW, L(ECOM), C2_4, pr(k + 900), 443, 'pass', 'out')); });
+  // Domain admin from a credential found on the store server.
+  out.push(win(at('2026-11-13 22:41:09'), DC, 4624, { user: 'Administrator', Account_Name: 'Administrator', Logon_Type: 3, src_ip: L(ECOM), src_port: 49122, Workstation_Name: 'ECOMM', Account_Domain: 'DRIFTLESS' }));
+  out.push(win(at('2026-11-13 22:43:52'), DC, 4720, { Subject_Account_Name: 'Administrator', Subject_Account_Domain: 'DRIFTLESS', Target_Account_Name: 'svc_audit', user: 'svc_audit' }));
+  out.push(win(at('2026-11-13 22:44:15'), DC, 4728, { Subject_Account_Name: 'Administrator', Subject_Account_Domain: 'DRIFTLESS', Target_Account_Name: 'svc_audit', user: 'svc_audit', Group_Name: 'Domain Admins', Group_Rid: 512 }));
+  return out;
+}
 
 // =====================================================================================================
 // Under Pressure Water Authority (MWCCDC Invitational replay, Nov 14 2026). Reconstructed from what the team
@@ -348,9 +385,9 @@ function buildRidgeview(ctx) {
 // svc-splunk slipped into Domain Admins, the fake scoringengine beacon, and password guessing against sysadmin
 // on the DC from 198.51.100.12. The 13:57 mass password reset is the team's own (a decoy: legitimate, harmful).
 // =====================================================================================================
-const ATT4 = '198.51.100.28';
-const SPRAY4 = '198.51.100.12';
-const C2_4 = '198.51.100.45';
+const ATT_UP = '198.51.100.28';
+const SPRAY_UP = '198.51.100.12';
+const C2_UP = '198.51.100.45';
 const UP_PROFILE = {
   web: 'ecom', db: null, mail: 'email', dc: 'dc', ws: null, fw: 'vyos',
   fwKind: 'vyos', fwHostName: 'EdgeRouter',
@@ -368,11 +405,11 @@ function buildUnderPressure(ctx) {
   const wan = ctx.P.wanIp; const L = (id) => ctx.P.ip(id);
   const PORTS = [22, 25, 53, 80, 135, 139, 143, 443, 445, 1433, 3389, 5985, 8000, 8089];
   // 1. Recon of every public address the night before
-  span(at('2026-11-14 04:51:10'), at('2026-11-14 04:54:40'), PORTS.length, (k, t) => out.push(fw(t, FW, ATT4, wan, pr(k + 2), PORTS[k], 'pass', 'in')));
+  span(at('2026-11-14 04:51:10'), at('2026-11-14 04:54:40'), PORTS.length, (k, t) => out.push(fw(t, FW, ATT_UP, wan, pr(k + 2), PORTS[k], 'pass', 'in')));
   // 2. First login: a planted key for root on the Splunk server
   const FP = 'Jr7Qm2Vx9KdL4wP1sZ8nB3cF6tH0yU5eA2gR7iO9kWq';
-  out.push(auth(at('2026-11-14 05:12:44'), SPL, 'accepted_key', 'root', ATT4, { fp: FP }));
-  out.push(auth(at('2026-11-14 05:12:44'), SPL, 'session_open', 'root', ATT4));
+  out.push(auth(at('2026-11-14 05:12:44'), SPL, 'accepted_key', 'root', ATT_UP, { fp: FP }));
+  out.push(auth(at('2026-11-14 05:12:44'), SPL, 'session_open', 'root', ATT_UP));
   // 3. Backdoor account and its passwordless sudo rule, then the firewall wipers
   out.push(sudo(at('2026-11-14 05:14:02'), SPL, 'root', '/root', '/usr/sbin/useradd -r -m -d /var/lib/svc-chrony -s /bin/bash -c "Chrony daemon" svc-chrony'));
   out.push(sudo(at('2026-11-14 05:14:30'), SPL, 'root', '/root', '/usr/bin/tee /etc/sudoers.d/svc-chrony'));
@@ -389,10 +426,10 @@ function buildUnderPressure(ctx) {
   // 5. The goose kit on the web store: the fake scoringengine beacons out every five minutes
   out.push(sudo(at('2026-11-14 05:44:19'), ECOM, 'root', '/root', '/usr/bin/install -m 755 /tmp/se /bin/scoringengine'));
   const b0 = at('2026-11-14 05:50:00'); const nB = Math.floor((ctx.roundStart - b0) / 300);
-  span(b0, b0 + nB * 300, nB, (k, t) => out.push(fw(t, FW, L(ECOM), C2_4, pr(k + 500), 8443, 'pass', 'out')));
+  span(b0, b0 + nB * 300, nB, (k, t) => out.push(fw(t, FW, L(ECOM), C2_UP, pr(k + 500), 8443, 'pass', 'out')));
   // 6. Password guessing against sysadmin on the DC (session 1, ~10:50)
   const nS = N(60, 18);
-  span(at('2026-11-14 10:48:02'), at('2026-11-14 10:52:40'), nS, (k, t) => out.push(win(t, DC, 4625, { user: 'sysadmin', Account_Name: 'sysadmin', Logon_Type: 3, src_ip: SPRAY4, src_port: pr(k), Workstation_Name: 'DESKTOP-0132U9D', Account_Domain: 'UNDERPRESSURE', Status: '0xC000006D', Sub_Status: '0xC0000064' })));
+  span(at('2026-11-14 10:48:02'), at('2026-11-14 10:52:40'), nS, (k, t) => out.push(win(t, DC, 4625, { user: 'sysadmin', Account_Name: 'sysadmin', Logon_Type: 3, src_ip: SPRAY_UP, src_port: pr(k), Workstation_Name: 'DESKTOP-0132U9D', Account_Domain: 'UNDERPRESSURE', Status: '0xC000006D', Sub_Status: '0xC0000064' })));
   return out;
 }
 
@@ -400,6 +437,17 @@ const DAY72 = 72 * 3600;
 const roundStart = at('2026-10-31 09:00:00');
 
 export const STORIES = {
+  'mwccdc-invitational-2026': {
+    id: 'mwccdc-invitational-2026', spanSec: DAY72, roundStart: at('2026-11-14 08:00:00'), profile: MW_PROFILE, attacker: ATT4, c2: `${C2_4}:443`,
+    build: buildMidwest,
+    waveLines: waveLinesGeneric(ATT4, MW_PROFILE),
+    hunt: [
+      { id: 'attacker_ip', q: 'What outside address got in first?', accept: /198\.51\.100\.61/, explain: 'The same address sweeps the ports, then POSTs to the upload form and the shell in uploads/.' },
+      { id: 'vector', q: 'Which file on the web server did it use to run commands?', accept: /thumb\.php/i, explain: 'Repeated POSTs to /uploads/thumb.php: a data directory should not be running code.' },
+      { id: 'pivot', q: 'Which box did it move to next, and as which user?', accept: /ecomm?.*root|root.*ecomm?/i, explain: 'An Accepted password for root on ecomm from 172.20.242.10, the web server. The root password had been reused.' },
+      { id: 'rogue', q: 'Which account was created and made a Domain Admin?', accept: /svc_audit/i, explain: 'Event 4720 then 4728 on the domain controller for svc_audit.' },
+    ],
+  },
   'cedarline-lab-2026': {
     id: 'cedarline-lab-2026', spanSec: DAY72, roundStart, profile: CED_PROFILE, attacker: ATT1, c2: `${C2_1}:8443`,
     build: buildCedarline,
@@ -440,9 +488,9 @@ export const STORIES = {
     ],
   },
   'underpressure-invitational-2026': {
-    id: 'underpressure-invitational-2026', spanSec: DAY72, roundStart: at('2026-11-14 13:00:00'), profile: UP_PROFILE, attacker: ATT4, c2: `${C2_4}:8443`,
+    id: 'underpressure-invitational-2026', spanSec: DAY72, roundStart: at('2026-11-14 13:00:00'), profile: UP_PROFILE, attacker: ATT_UP, c2: `${C2_UP}:8443`,
     build: buildUnderPressure,
-    waveLines: waveLinesGeneric(ATT4, UP_PROFILE),
+    waveLines: waveLinesGeneric(ATT_UP, UP_PROFILE),
     hunt: [
       { id: 'attacker_ip', q: 'What external IP first logged in to the Splunk server?', accept: /198\.51\.100\.28/, explain: 'It sweeps every public port on the router at 04:51, then logs in to splunk as root with an SSH key at 05:12. Do not confuse it with .12, which only guessed passwords later.' },
       { id: 'vector', q: 'How did that first login authenticate?', accept: /ssh[- ]?key|public ?key|publickey|planted key|authorized_keys/i, explain: 'linux_secure: "Accepted publickey for root from 198.51.100.28". No password failures before it: the key was already planted.' },

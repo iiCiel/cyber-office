@@ -10,10 +10,10 @@ export class PlaybookApp {
       ? h('button', { type: 'button', class: 'np-cmd', 'data-dev': dev.id, onclick: () => onPick(dev, cmd) }, text)
       : h('div', { class: 'np-line' }, text || ' '));
     add(`# ${sc.company} — first 15 minutes playbook`);
-    add('# Click a command to load it into that box. Read what it prints before you change anything.');
+    add('# Click a command to load it into that box. Log in at the console first. Read what it prints before you change anything.');
     add('');
     for (const d of state.deviceList) {
-      const how = d.kind === 'pwsh' ? `RDP to ${d.ip}, open PowerShell (or use the GUI tools)` : d.kind === 'firewall' ? `https://${d.ip}/ (webConfigurator) or SSH → 8) Shell` : `PuTTY ${d.user || 'analyst'}@${d.ip}`;
+      const how = sc.netlab ? `NETLAB+ console: the ${d.tab} button` : d.kind === 'pwsh' ? `RDP to ${d.ip}, open PowerShell (or use the GUI tools)` : d.kind === 'firewall' ? `https://${d.ip}/ (webConfigurator) or SSH → 8) Shell` : `PuTTY ${d.user || 'analyst'}@${d.ip}`;
       add(`== ${d.host} (${d.ip}) — ${d.os}`);
       add(`   access: ${how}`);
       add(`   ${d.brief || ''}`);

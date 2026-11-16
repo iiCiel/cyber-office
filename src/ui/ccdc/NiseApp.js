@@ -7,15 +7,18 @@
 //   const app = new NiseApp({ state, clock, onSubmit: (id, text) => r, onIncident: (report) => r, team: 14 });
 import { h, clear } from '../dom.js';
 import './nise.css';
+import { clockAt, dayOf } from '../../game/ccdcRound.js';
 
-const DAY0 = Date.UTC(2026, 10, 14, 13, 0, 0);
+// Times are shown on the competition clock (the same one as the desktop: the day's start plus game time).
+let cur = null;
 const cst = (sec) => (!Number.isFinite(sec) ? '— (practice, no deadline)' : cstAt(sec));
-const cstAt = (sec) => { const d = new Date(DAY0 + Math.max(0, sec) * 1000); return `11/14 ${d.getUTCHours()}:${String(d.getUTCMinutes()).padStart(2, '0')}`; };
+const cstAt = (sec) => `${dayOf(cur?.scenario).date} ${clockAt(cur?.scenario, Math.max(0, sec) * (cur?.timeScale || 1))}`;
 const fileBase = (doc, i) => `${doc?.code || i.id.toUpperCase()}_-_${(doc?.name || i.title).replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '')}`;
 
 export class NiseApp {
   constructor({ state, clock, onSubmit, onIncident, team = 14 }) {
     this.state = state;
+    cur = state;
     this.clock = clock || (() => state.engine?.clock || 0);
     this.onSubmit = onSubmit;
     this.onIncident = onIncident;

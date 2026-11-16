@@ -36,7 +36,7 @@ export const NGINX_CONF = '/etc/nginx/conf.d/ehr.conf';
 export function verifyTls(fs) {
   const text = fs[NGINX_CONF];
   if (text === undefined || !/server\s*\{/.test(text)) {
-    return { ok: false, why: 'The EHR nginx config is gone or has no server block — the website cannot start now.', trap: { id: 'nginx-wiped', drops: ['web'], note: 'ehr.conf was emptied or deleted; nginx has nothing to serve on 443.', why: 'Edit the ssl_protocols line only; never delete the server block. Restore it with listen 443 ssl and ssl_protocols TLSv1.2 TLSv1.3.' } };
+    return { ok: false, why: 'The EHR nginx config is gone or has no server block — the website cannot start now.', trap: { id: 'nginx-wiped', note: 'ehr.conf was emptied or deleted; nginx has nothing to serve on 443.', why: 'Edit the ssl_protocols line only; never delete the server block. Restore it with listen 443 ssl and ssl_protocols TLSv1.2 TLSv1.3.' } };
   }
   const line = text.split('\n').map((l) => l.replace(/#.*/, '').trim()).find((l) => /^ssl_protocols\b/.test(l));
   if (!line) return { ok: false, why: 'There is no ssl_protocols line left. Set it explicitly: ssl_protocols TLSv1.2 TLSv1.3;' };
@@ -90,7 +90,7 @@ export const CCDC_LAB_3 = {
   company: 'Ridgeview Regional Medical Clinic',
   tagline: 'A regional clinic with 140 staff and one overworked IT closet. You and your team just took over IT at 9:00 AM — an EHR web server, a MySQL database with a cache bolted on, a Windows domain and a nurse-station PC, all with habits the red team has already read about.',
   clockSeconds: 900,
-  slaPenalty: 15,
+  slaPenalty: 5,
   injectWindow: 300,
 
   redWaves: [
@@ -105,10 +105,10 @@ export const CCDC_LAB_3 = {
   },
 
   services: [
-    { id: 'web', name: 'EHR web portal', proto: 'tcp', ports: [80, 443], host: 'ehr01', ip: '10.30.40.20', points: 120, check: 'GET /login returns 200 over TLS and the EHR sign-in page renders' },
-    { id: 'hl7', name: 'HL7 lab-results interface', proto: 'tcp', ports: [2575], host: 'ehr01', ip: '10.30.40.20', points: 120, check: 'An HL7 v2 ping on 2575 returns an ACK' },
-    { id: 'dns', name: 'DNS', proto: 'any', ports: [53], host: 'dc01', ip: '10.30.40.10', points: 120, check: 'A-record lookups for ridgeview.example resolve' },
-    { id: 'db', name: 'Patient database (MySQL)', proto: 'tcp', ports: [3306], host: 'db01', ip: '10.30.40.40', points: 120, check: 'The scoring engine logs in as rv-scorecheck and SELECTs' },
+    { id: 'web', name: 'EHR web portal', units: ['nginx', 'ehr-app'], files: [NGINX_CONF, '/var/www/ehr/index.html'], content: { file: '/var/www/ehr/index.html', re: /Ridgeview/ }, healthy: (f) => !verifyTls(f).trap, deps: ['db'], proto: 'tcp', ports: [80, 443], host: 'ehr01', ip: '10.30.40.20', points: 120, check: 'GET /login returns 200 over TLS and the EHR sign-in page renders' },
+    { id: 'hl7', name: 'HL7 lab-results interface', units: ['ehr-app'], proto: 'tcp', ports: [2575], host: 'ehr01', ip: '10.30.40.20', points: 120, check: 'An HL7 v2 ping on 2575 returns an ACK' },
+    { id: 'dns', name: 'DNS', winServices: ['DNS'], proto: 'any', ports: [53], host: 'dc01', ip: '10.30.40.10', points: 120, check: 'A-record lookups for ridgeview.example resolve' },
+    { id: 'db', name: 'Patient database (MySQL)', units: ['mysql'], proto: 'tcp', ports: [3306], host: 'db01', ip: '10.30.40.40', points: 120, check: 'The scoring engine logs in as rv-scorecheck and SELECTs' },
   ],
 
   devices: [
@@ -208,7 +208,8 @@ export const CCDC_LAB_3 = {
         user: 'analyst', host: 'ehr01', cwd: '/home/analyst', history: [],
         fs: {
           '/home/analyst/README.txt': 'Ridgeview EHR web server (nginx). Site config /etc/nginx/conf.d/ehr.conf. HL7 lab interface on 2575. DB is MySQL on db01 (10.30.40.40).\nLast audit (July): "SUID binaries not reviewed" - try: find / -perm -4000 2>/dev/null\n',
-          [NGINX_CONF]: 'server {\n    listen 443 ssl;\n    server_name ehr.ridgeview.example;\n    ssl_certificate     /etc/ssl/certs/ehr.crt;\n    ssl_certificate_key /etc/ssl/private/ehr.key;\n    ssl_protocols TLSv1 TLSv1.1 TLSv1.2;   # legacy protocols still enabled\n    location / { proxy_pass http://127.0.0.1:8080; }\n}\n',
+          [NGINX_CONF]: 'server {\n    listen 443 ssl;\n    server_name ehr.ridgeview.example;\n    ssl_certificate     /etc/ssl/certs/ehr.crt;\n    ssl_certificate_key /etc/ssl/private/ehr.key;\n    ssl_protocols TLSv1 TLSv1.1 TLSv1.2;\n    location / { proxy_pass http://127.0.0.1:8080; }\n}\n',
+          '/var/www/ehr/index.html': '<html><title>Ridgeview EHR sign-in</title></html>\n',
           '/etc/ehr/db.env': 'DB_HOST=10.30.40.40\nDB_USER=ehr_app\n',
         },
         commands: bx({
@@ -239,7 +240,7 @@ export const CCDC_LAB_3 = {
         user: 'analyst', host: 'db01', cwd: '/home/analyst', history: [],
         fs: {
           '/home/analyst/README.txt': 'Ridgeview patient DB (MySQL 8) on 3306 - scored. Redis session cache on 6379 was added for the EHR portal last spring. Clients: ehr01 (10.30.40.20) and the scoring engine (rv-scorecheck).\n',
-          [REDIS_CONF]: 'bind 0.0.0.0\nprotected-mode no\nport 6379\ndaemonize yes\n# requirepass is not set\n',
+          [REDIS_CONF]: 'bind 0.0.0.0\nprotected-mode no\nport 6379\ndaemonize yes\n',
         },
         commands: bx({
           mysql: (args) => (args.join(' ').toLowerCase().includes('select')
@@ -267,7 +268,7 @@ export const CCDC_LAB_3 = {
           { id: 'db', host: 'db01', ip: '10.30.40.40', proto: 'tcp', ports: [3306], src: 'scoring' },
         ],
       },
-      fix: { restores: ['web', 'hl7', 'dns', 'db'], why: 'Allow-list exactly the scored ports per host first (MySQL only "from scoring"), then delete the any-any rule and set the default inbound policy to block. ehr01→db01 traffic is LAN and never crosses the edge.' },
+      fix: { why: 'Allow-list exactly the scored ports per host first (MySQL only "from scoring"), then delete the any-any rule and set the default inbound policy to block. ehr01→db01 traffic is LAN and never crosses the edge.' },
       traps: [],
     },
     {
@@ -280,7 +281,7 @@ export const CCDC_LAB_3 = {
         why: 'Set-SmbServerConfiguration -RequireSecuritySignature $true -Force (in production also enforce it by GPO: "Microsoft network server: Digitally sign communications (always)"). No reboot needed.',
       },
       traps: [
-        { id: 'reboot', match: [/restart-computer/, [/shutdown/, /\/r|-r/]], drops: ['dns'], note: 'The DC rebooted mid-round; DNS was down for the whole restart.', output: ['Restarting DC01... DNS will be unavailable until it comes back.'], why: 'Rebooting the DC takes DNS (a scored service) offline. SMB signing applies immediately; no restart required.' },
+        { id: 'reboot', match: [/restart-computer/, [/shutdown/, /\/r|-r/]], note: 'The DC rebooted mid-round; DNS was down for the whole restart.', output: ['Restarting DC01... DNS will be unavailable until it comes back.'], why: 'Rebooting the DC takes DNS (a scored service) offline. SMB signing applies immediately; no restart required.' },
         { id: 'disable-smb2', match: [[/set-smbserverconfiguration/, /enablesmb2protocol[ :=]+(\$false|0|false)/]], note: 'SMB2/3 disabled on the DC: SYSVOL, NETLOGON and Group Policy stop working for the whole domain.', output: ['EnableSMB2Protocol : False — domain clients can no longer read SYSVOL or apply Group Policy.'], why: 'Do not turn SMB off — require signing on it. SMBv1 is the one to be off, and it already is.' },
       ],
     },
@@ -298,7 +299,7 @@ export const CCDC_LAB_3 = {
       ],
     },
     {
-      id: 'ws-defender-off', host: 'ws01', title: 'Defender real-time protection off, with a folder exclusion', severity: 'High', reportableBy: 'incident-report',
+      id: 'ws-defender-off', path: 'local', host: 'ws01', title: 'Defender real-time protection off, with a folder exclusion', severity: 'High', reportableBy: 'incident-report',
       teach: 'Attackers turn Defender off or exclude a staging folder so their tools are never scanned. Fix both halves: re-enable real-time monitoring and remove the exclusion, or malware simply lives in the excluded folder.',
       exploitable: true, compromise: { impact: 'Red team stages tooling in C:\\ProgramData\\Updates, which Defender never scans, and moves toward the domain from the nurse station.', penalty: 45 },
       fix: {
@@ -313,25 +314,24 @@ export const CCDC_LAB_3 = {
       ],
     },
     {
-      id: 'tls-legacy', host: 'ehr01', title: 'EHR web server still accepts TLSv1.0 / TLSv1.1', severity: 'Medium',
+      id: 'tls-legacy', path: 'web', host: 'ehr01', title: 'EHR web server still accepts TLSv1.0 / TLSv1.1', severity: 'Medium',
       teach: 'Legacy TLS is downgradable (BEAST/POODLE-class attacks) and fails HIPAA-style audits. Restrict nginx to TLSv1.2 and TLSv1.3, test the config, then reload — a bad config or a stopped nginx takes the scored portal down.',
       exploitable: true, compromise: { impact: 'Red team downgrades a clinician session to TLSv1.0 and reads patient data in transit.', penalty: 40 },
       fix: {
         steps: [
           // Judged on the file the edit leaves behind (verifyTls), not on the command text.
-          { id: 'conf', accept: [/sed -i|tee|>>|>/, /ehr\.conf/], verify: verifyTls, restores: ['web'], label: 'Limited ssl_protocols to TLSv1.2 / TLSv1.3', output: ['ehr.conf: ssl_protocols now lists only TLSv1.2 and TLSv1.3.'], todo: 'edit /etc/nginx/conf.d/ehr.conf so ssl_protocols lists only TLSv1.2 TLSv1.3' },
+          { id: 'conf', accept: [/sed -i|tee|>>|>/, /ehr\.conf/], verify: verifyTls, label: 'Limited ssl_protocols to TLSv1.2 / TLSv1.3', output: ['ehr.conf: ssl_protocols now lists only TLSv1.2 and TLSv1.3.'], todo: 'edit /etc/nginx/conf.d/ehr.conf so ssl_protocols lists only TLSv1.2 TLSv1.3' },
           { id: 'reload', accept: [/systemctl|service|nginx/, /reload|restart/, /nginx/], label: 'Reloaded nginx', output: ['nginx reloaded — the new TLS settings are live.'], todo: 'reload nginx so the change takes effect (systemctl reload nginx)' },
         ],
-        restores: ['web'],
         why: 'sed the ssl_protocols line to "TLSv1.2 TLSv1.3", check with nginx -t, then systemctl reload nginx. Editing the file alone changes nothing until the running nginx reloads.',
       },
       traps: [
-        { id: 'stop-nginx', match: [[/systemctl|service/, /stop|disable/, /nginx/]], drops: ['web'], note: 'nginx was stopped; the EHR portal is down.', output: ['nginx stopped — the EHR web portal no longer answers.'], why: 'Reload nginx; do not stop it. The website is a scored service.' },
-        { id: 'rm-conf', match: [[/\brm\b/, /ehr\.conf/]], drops: ['web'], note: 'You deleted the EHR site config; nginx has nothing to serve on 443.', output: ['removed ‘/etc/nginx/conf.d/ehr.conf’ — the site is now broken.'], why: 'Edit the ssl_protocols line; never delete the site config.' },
+        { id: 'stop-nginx', match: [[/systemctl|service/, /stop|disable/, /nginx/]], note: 'nginx was stopped; the EHR portal is down.', output: ['nginx stopped — the EHR web portal no longer answers.'], why: 'Reload nginx; do not stop it. The website is a scored service.' },
+        { id: 'rm-conf', match: [[/\brm\b/, /ehr\.conf/]], note: 'You deleted the EHR site config; nginx has nothing to serve on 443.', output: ['removed ‘/etc/nginx/conf.d/ehr.conf’ — the site is now broken.'], why: 'Edit the ssl_protocols line; never delete the site config.' },
       ],
     },
     {
-      id: 'suid-find', host: 'ehr01', title: 'SUID bit on /usr/bin/find (local privilege escalation)', severity: 'High',
+      id: 'suid-find', path: 'local', host: 'ehr01', title: 'SUID bit on /usr/bin/find (local privilege escalation)', severity: 'High',
       teach: 'A SUID-root find lets any local user run `find . -exec /bin/sh \\;` and get a root shell. Remove the setuid bit (chmod u-s) — find keeps working for everyone, just without root powers. Never delete the binary.',
       exploitable: true, compromise: { impact: 'Red team, holding a low-privilege shell from the web app, runs find -exec and becomes root on the EHR server.', penalty: 50 },
       fix: {
@@ -347,18 +347,17 @@ export const CCDC_LAB_3 = {
     {
       id: 'redis-open', host: 'db01', title: 'Redis bound to every interface with no password', severity: 'Critical',
       teach: 'Unauthenticated Redis on 0.0.0.0 lets anyone on the network read the cache and, worse, use CONFIG SET dir/dbfilename to write an SSH key or cron job on the host. Bind to localhost, require a password, restart.',
-      exploitable: true, compromise: { impact: 'Red team connects to Redis with no password, writes an SSH key through CONFIG SET and lands a shell on the database server.', penalty: 60, drops: ['db'] },
+      exploitable: true, compromise: { impact: 'Red team connects to Redis with no password, writes an SSH key through CONFIG SET and lands a shell on the database server.', penalty: 60 },
       fix: {
         steps: [
           { id: 'conf', accept: [/sed -i|tee|>>|>/, /redis\.conf/], verify: verifyRedis, label: 'Bound Redis to localhost and required a password', output: ['redis.conf: bind 127.0.0.1 and requirepass set.'], todo: 'edit /etc/redis/redis.conf: bind 127.0.0.1 and add a requirepass line' },
           { id: 'restart', accept: [/systemctl|service/, /restart/, /redis/], label: 'Restarted Redis', output: ['redis-server restarted — the new bind address and password are live.'], todo: 'restart Redis so it re-reads the config (systemctl restart redis-server)' },
         ],
-        restores: ['db'],
         why: 'sed the bind line to 127.0.0.1, append a long requirepass, then systemctl restart redis-server (a reload does not re-bind). MySQL on 3306 is untouched, so the scored DB keeps answering.',
       },
       traps: [
-        { id: 'stop-mysql', match: [[/systemctl|service/, /stop|disable/, /mysql/]], drops: ['db'], note: 'MySQL was stopped; the scored patient database is down.', output: ['mysql stopped — the patient database no longer answers.'], why: 'The risky service is Redis, not MySQL. Leave 3306 alone; the scoring engine and ehr01 need it.' },
-        { id: 'deny-3306', match: [[/ufw/, /3306/, /deny|reject/]], drops: ['db'], note: 'Port 3306 blocked outright; ehr01 and the scoring engine can no longer reach the DB.', output: ['ufw: rule added — DENY 3306.'], why: 'The exposed service is Redis (6379). Blocking MySQL cuts off both legitimate clients.' },
+        { id: 'stop-mysql', match: [[/systemctl|service/, /stop|disable/, /mysql/]], note: 'MySQL was stopped; the scored patient database is down.', output: ['mysql stopped — the patient database no longer answers.'], why: 'The risky service is Redis, not MySQL. Leave 3306 alone; the scoring engine and ehr01 need it.' },
+        { id: 'deny-3306', match: [[/ufw/, /3306/, /deny|reject/]], note: 'Port 3306 blocked outright; ehr01 and the scoring engine can no longer reach the DB.', output: ['ufw: rule added — DENY 3306.'], why: 'The exposed service is Redis (6379). Blocking MySQL cuts off both legitimate clients.' },
       ],
     },
   ],

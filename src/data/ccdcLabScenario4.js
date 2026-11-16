@@ -429,11 +429,12 @@ export const CCDC_LAB_4 = {
   id: 'underpressure-invitational-2026',
   teamNumber: 14, // the team's real number at the Invitational
   roundStartMs: Date.UTC(2026, 10, 14, 13, 0, 0),
+  day: { start: 9, hours: 7, date: '11/14', iso: '2026-11-14', tz: 'CST' }, // the Invitational ran 09:00-16:00 CST
   portal: 'nise', // injects came through NISE as PDFs; answers were PDF uploads
   onLine: (state, id, line, ds) => (id === 'vyos' && routerDown(state)
     ? { block: true, lines: ['ssh: connect to host 172.31.34.2 port 22: No route to host', '(the router is gone: its boot disk was overwritten. Open its console in MyNETLAB.)'] }
     : snmpOnLine(state, id, line, ds)),
-  netlab: {
+  mynetlab: {
     crumbs: ['MyNETLAB', 'CCDC State Pod 16', 'Reservation 24144', '2027 State'],
     labels: { ecom: 'Rocky Ecom', email: 'Ubuntu Email', splunk: 'Debian Splunk', dc: '2022 AD', mssql: '2019 MSSQL', wkst: 'Ubuntu Wkst', win11: 'Window 11 Wkst', kali: 'Kali', pa: 'PAN', vyos: 'VyOS' },
     takenOver: (state) => routerDown(state),
@@ -445,6 +446,8 @@ export const CCDC_LAB_4 = {
   slaPenalty: 15,
   injectWindow: 300,
 
+  // Replay of the real day: the red team follows these waves, not the general Red Team engine.
+  scriptedRed: true,
   redWaves: [
     { n: 1, at: 180, label: 'goose kit wakes up: fake scoringengine, firewall wipers, wall broadcasts' },
     { n: 2, at: 450, label: 'domain abuse: svc-splunk in Domain Admins, password spraying from 198.51.100.12' },
@@ -819,7 +822,7 @@ export const CCDC_LAB_4 = {
       prompt: 'sysadmin@Ubuntu-Wkst:~$', user: 'sysadmin', cwd: '/home/sysadmin',
       motd: ['Welcome to Ubuntu 22.04.5 LTS (GNU/Linux 6.8.0-49-generic x86_64)', '', 'Last login: Sat Nov 14 12:33:40 2026 from 172.20.240.5'],
       brief: 'A user workstation, not scored. It still has the packet password (sysadmin/Changeme1!) and the cyberrange-lab SSH key the red team uses everywhere. splunkfwd is the real Splunk forwarder account: leave it.',
-      checklist: ["grep -vE 'nologin|false' /etc/passwd", 'getent group sudo', 'cat ~/.ssh/authorized_keys', 'passwd', "sed -i '/cyberrange-lab/d' /home/sysadmin/.ssh/authorized_keys"],
+      checklist: ["grep -vE 'nologin|false' /etc/passwd", 'getent group sudo', 'cat ~/.ssh/authorized_keys', 'passwd', 'Bluegill-Pump-2026!', 'Bluegill-Pump-2026!', "sed -i '/cyberrange-lab/d' /home/sysadmin/.ssh/authorized_keys"],
       ctx: { user: 'sysadmin', host: 'Ubuntu-Wkst', cwd: '/home/sysadmin', history: [],
         fs: {
           '/etc/passwd': 'root:x:0:0:root:/root:/bin/bash\nsync:x:4:65534:sync:/bin:/bin/sync\nsysadmin:x:1000:1000:sysadmin:/home/sysadmin:/bin/bash\nsplunkfwd:x:1001:1001:Splunk Forwarder:/opt/splunkforwarder:/bin/bash\nsshd:x:110:65534::/run/sshd:/usr/sbin/nologin\n',

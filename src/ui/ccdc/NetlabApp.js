@@ -1,181 +1,328 @@
-// MyNETLAB, the pod portal team 14 worked from on Nov 14 (matched to docs/reference/netlab-*.png): breadcrumb
-// "MyNETLAB > CCDC State Pod 16 > Reservation 24144 > 2027 State", a row of buttons (Topology, Content, Status, then
-// one per VM with a dropdown) and the selected VM's console in a red frame. Consoles are separate sessions from
-// SSH/RDP. The web console starts with the wrong keyboard layout, so Shift is lost and capitals arrive in lower case
-// (it happened on the Splunk console that day) until the layout is set to en-us from the VM's dropdown.
-// Power > Reboot goes through the game like typing reboot, so its traps apply (the router never comes back).
-//   const app = new NetlabApp({ state, run: (devId, line) => r, makeDesktop: (dev) => WinDesktop, topo }); host.append(app.el)
+// NETLAB+ VE as Midwest teams use it (docs/reference/netlab-ve-menu-2026.png, netlab-ve-vm-menu-2026.png): the
+// breadcrumb, then Topology, Content, Status and one button per virtual machine, each with its dropdown. There is
+// no SSH from outside: a console opens at the login prompt and everything is typed through it. Revert is greyed
+// out, as it is on the VE platform, and power cycling does not bring anything back.
 import { h, clear } from '../dom.js';
 import { TermView } from './TermView.js';
-import { TakeoverScreen } from './TakeoverScreen.js';
+import { WinDesktop } from './WinDesktop.js';
+import { TermEditor } from './TermEditor.js';
+import { panosPrompt } from '../../game/panos.js';
 import './netlab.css';
 
-const SVG = 'http://www.w3.org/2000/svg';
-const s = (tag, attrs = {}, ...kids) => {
-  const el = document.createElementNS(SVG, tag);
-  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
-  for (const k of kids.flat()) if (k != null) el.append(k instanceof Node ? k : document.createTextNode(String(k)));
-  return el;
-};
+const stop = (e) => e.stopPropagation();
 
-// Console login text per OS, as each VM's tty shows it.
-const CONSOLE_BANNER = {
-  ecom: ['Rocky Linux 9.4 (Blue Onyx)', 'Kernel 5.14.0-427.13.1.el9_4.x86_64 on an x86_64', '', 'Ecomm login: sysadmin', 'Password:', 'Last login: Sat Nov 14 12:58:41 on tty1'],
-  email: ['Ubuntu 22.04.5 LTS webmail tty1', '', 'webmail login: sysadmin', 'Password:', 'Last login: Sat Nov 14 12:40:02 UTC 2026 on tty1'],
-  splunk: ['Debian GNU/Linux 12 Splunk tty1', '', 'Splunk login: sysadmin', 'Password:', 'Last login: Sat Nov 14 12:41:19 CST 2026 on tty1'],
-  wkst: ['Ubuntu 22.04.5 LTS Ubuntu-Wkst tty1', '', 'Ubuntu-Wkst login: sysadmin', 'Password:'],
-  kali: ['Kali GNU/Linux Rolling kali tty1', '', 'kali login: sysadmin', 'Password:'],
-  pa: ['PA-VM login: admin', 'Password:', '', 'Number of failed attempts since last successful login: 0', ''],
-  vyos: ['Welcome to VyOS - EdgeRouter ttyS0', '', 'EdgeRouter login: vyos', 'Password:', 'Last login: Sat Nov 14 05:12:41 CST 2026 on ttyS0'],
-};
+// A text console: tty login, then the shell. Also used for the firewall's CLI.
+class TextConsole {
+  constructor({ state, dev, run, onBrowser, session, noteLine }) {
+    Object.assign(this, { state, dev, runOwner: run, onBrowser, noteLine });
+    this.fw = dev.kind === 'firewall';
+    this.ds = state.devState[dev.id];
+    this.stage = 'login';
+    this.user = '';
+    this.boots = this.ds.live?.boots || 0;
+    this.buffer = session.buffer;
+    this.notice = h('div', { class: 'nl-notice', hidden: true });
+    this.term = new TermView({
+      theme: this.fw ? 'fbsd' : 'putty', label: `${dev.tab} console`, buffer: this.buffer, history: session.history,
+      prompt: () => this.prompt(), run: (l) => this.run(l), secret: () => this.stage === 'password' || !!this.ds.pending,
+      complete: this.fw ? ['configure', 'commit', 'show', 'set', 'delete', 'move', 'rulebase', 'security', 'rules', 'application-default', 'web-browsing', 'running', 'security-policy', 'jobs', 'exit']
+        : ['service', 'systemctl', 'cat', 'grep', 'ls', 'ss', 'netstat', 'crontab', 'passwd', 'firewall-cmd', 'iptables', 'sed', 'tail', 'ps', 'last', 'who', 'find', '/etc/', '/var/log/', '/var/www/', '/home/'],
+    });
+    this.body = h('div', { class: 'nl-tty' }, this.term.el);
+    this.el = h('div', { class: 'nl-con' }, this.notice, this.body);
+    this.banner();
+  }
+
+  banner() {
+    const fs = this.ds.fs;
+    if (this.fw) this.term.print([{ text: '' }, { text: 'PA-VM login attempts are logged.' }, { text: '' }]);
+    else {
+      const issue = String(fs?.['/etc/issue'] || '').replace(/\\n/g, this.dev.host).replace(/\\l/g, 'tty1').replace(/\\r/g, '3.10.0').replace(/\\m/g, 'x86_64').trim();
+      this.term.print([{ text: '' }, ...issue.split('\n').map((text) => ({ text })), { text: '' }]);
+    }
+  }
+
+  prompt() {
+    if (this.stage === 'login') return `${this.fw ? 'PA-VM' : this.dev.host} login:`;
+    if (this.stage === 'password') return 'Password:';
+    if (this.ds.pending) return '';
+    if (this.fw) return panosPrompt(this.ds.firewall);
+    const u = this.user;
+    const cwd = this.ds.cwd === `/home/${u}` || (u === 'root' && this.ds.cwd === '/root') ? '~' : this.ds.cwd;
+    return /yum|dnf/.test(this.dev.pkg || '') ? `[${u}@${this.dev.host} ${cwd === '~' ? '~' : cwd.split('/').pop() || '/'}]${u === 'root' ? '#' : '$'}` : `${u}@${this.dev.host}:${cwd}${u === 'root' ? '#' : '$'}`;
+  }
+
+  run(raw) {
+    const line = raw.trim();
+    if (this.stage === 'login') { if (line) { this.user = line; this.stage = 'password'; } return { lines: [] }; }
+    if (this.stage === 'password') {
+      const c = this.ds.creds?.[this.user.toLowerCase()];
+      this.stage = 'login';
+      if (c && !c.locked && c.pw === raw) {
+        this.stage = 'shell';
+        return { lines: this.fw ? [{ text: 'Last login: Fri Nov 13 16:41:02 2026' }, { text: 'Number of failed attempts since last successful login: 0' }, { text: '' }] : [{ text: 'Last login: Fri Nov 13 16:41:02 on tty1' }] };
+      }
+      return { lines: [{ cls: 'err', text: 'Login incorrect' }, { text: '' }] };
+    }
+    if (!this.fw && (line === 'exit' || line === 'logout') && !this.ds.pending) { this.logout(); return { lines: [] }; }
+    const ed = !this.fw && !this.ds.pending && line.match(/^(?:sudo\s+)?(nano|vim?)\s+(\S+)$/);
+    if (ed) { this.noteLine?.(this.dev.id, line); return this.openEditor(ed[1], ed[2]); }
+    const fox = !this.fw && line.match(/^(?:firefox|chromium|google-chrome)\s+(\S+)/);
+    if (fox) return this.dev.browser ? { lines: this.onBrowser(fox[1], this.dev.id, line) } : { lines: [{ cls: 'err', text: `bash: ${line.split(' ')[0]}: command not found` }] };
+    const res = this.runOwner(line === '' && this.ds.pending ? '' : raw) || { lines: [] };
+    if (res.effects?.clear) return { clear: true, ...res };
+    if (res.effects?.logout) { setTimeout(() => this.logout(), 0); }
+    return res;
+  }
+
+  openEditor(tool, arg) {
+    if (tool === 'nano' && this.dev.noNano) return { lines: [{ cls: 'err', text: '-bash: nano: command not found' }] };
+    const cwd = this.ds.cwd || '/';
+    const parts = [];
+    for (const p of (arg.startsWith('/') ? arg : `${cwd}/${arg}`).split('/')) { if (p === '..') parts.pop(); else if (p && p !== '.') parts.push(p); }
+    const path = `/${parts.join('/')}`;
+    const isNew = this.ds.fs[path] === undefined;
+    const editor = new TermEditor({
+      tool: tool === 'nano' ? 'nano' : 'vi', path, text: this.ds.fs[path] ?? '', isNew,
+      onSave: (text) => {
+        if (this.ds.live.immutable?.includes(path)) return 'Operation not permitted';
+        this.ds.fs[path] = text;
+        // Hand the save to the engine as a no-op write of that file, so hardening checks read what the editor left.
+        this.runOwner(`printf '' | tee -a ${path}`);
+        return null;
+      },
+      onExit: () => this.closeEditor(),
+    });
+    this.editor = editor;
+    this.el.append(editor.el);
+    this.body.hidden = true;
+    return { lines: [] };
+  }
+
+  closeEditor() { this.editor?.el.remove(); this.editor = null; this.body.hidden = false; this.term.focus(); }
+
+  logout() { this.closeEditor(); this.stage = 'login'; this.user = ''; this.ds.pending = null; if (this.ds.firewall) this.ds.firewall.mode = 'op'; this.banner(); this.term.redraw(); }
+
+  refresh() {
+    const L = this.ds.live;
+    const clock = this.state.engine?.clock || 0;
+    let msg = null;
+    if (L?.off || this.ds.poweredOff) msg = 'This virtual machine is powered off.';
+    else if (L?.bricked) msg = 'Welcome to emergency mode! After logging in, type "journalctl -xb" to view system logs.\nCannot open access to console, the root account is locked.\nFailed to mount /etc/fstab entries. Open a ticket with Tech Support to recover this VM.';
+    else if (L && L.offlineUntil > clock) msg = 'Starting system...';
+    this.notice.hidden = !msg;
+    this.body.hidden = !!msg || !!this.editor;
+    if (msg) this.notice.textContent = msg;
+    const boots = L?.boots || 0;
+    if (boots !== this.boots) { this.boots = boots; this.logout(); }
+  }
+
+  focus() { if (this.editor) this.editor.focus(); else this.term.focus(); }
+  setInput(t) { this.term.setInput(t); }
+  ctrlAltDel() {}
+}
+
+// A Windows console: the lock screen waits for Send CTRL+ALT+DEL, then a password, then the desktop.
+class WinConsole {
+  constructor({ state, dev, run, session, clock, clockLabel }) {
+    Object.assign(this, { state, dev, run, session, clock, clockLabel });
+    this.ds = state.devState[dev.id];
+    this.boots = this.ds.live?.boots || 0;
+    this.stage = 'locked';
+    this.el = h('div', { class: 'nl-con nl-win' });
+    this.draw();
+  }
+
+  draw() {
+    clear(this.el);
+    this.desktop?.destroy?.();
+    this.desktop = null;
+    if (this.stage === 'desktop') {
+      this.desktop = new WinDesktop({ consoleMode: true, clockLabel: this.clockLabel, state: this.state, dev: this.dev, clock: this.clock, termBuffer: this.session.buffer, termHistory: this.session.history, run: this.run });
+      this.el.append(this.desktop.el);
+      return;
+    }
+    if (this.stage === 'locked') {
+      this.el.append(h('div', { class: 'nl-lock' }, h('div', { class: 'nl-lock-time' }, '8:02'), h('div', { class: 'nl-lock-date' }, 'Saturday, November 14'), h('div', { class: 'nl-lock-hint' }, 'Press Ctrl+Alt+Delete to unlock.')));
+      return;
+    }
+    const pw = h('input', { type: 'password', class: 'nl-pw', placeholder: 'Password', 'aria-label': 'Password', onkeydown: (e) => { stop(e); if (e.key === 'Enter') this.login(pw.value); } });
+    this.err = h('div', { class: 'nl-login-err' });
+    this.el.append(h('div', { class: 'nl-login' }, h('div', { class: 'nl-avatar' }), h('div', { class: 'nl-user' }, this.dev.login), pw, this.err));
+    setTimeout(() => pw.focus(), 0);
+  }
+
+  login(pw) {
+    const c = this.ds.creds?.[String(this.dev.login).toLowerCase()];
+    if (c && c.pw === pw && !c.locked) { this.stage = 'desktop'; this.draw(); } else if (this.err) this.err.textContent = 'The password is incorrect. Try again.';
+  }
+
+  ctrlAltDel() { if (this.stage === 'locked') { this.stage = 'password'; this.draw(); } }
+  focus() { this.desktop?.focus?.(); }
+  setInput() {}
+
+  refresh() {
+    const L = this.ds.live;
+    const boots = L?.boots || 0;
+    if (boots !== this.boots) { this.boots = boots; this.stage = 'locked'; this.draw(); }
+    const off = L?.off || (L && L.offlineUntil > (this.state.engine?.clock || 0));
+    this.el.classList.toggle('nl-offline', !!off);
+    this.desktop?.refresh?.();
+  }
+
+  openPs() { return this.desktop?.openApp?.('ps'); }
+}
+
+const MENU = (run) => [
+  ['Send CTRL+ALT+DEL', 'cad'], null, ['Undock', 'undock'], null, ['Actual Size', 'actual'], ['Scale Display', 'scale'], ['Resize Display', null], null,
+  ['Revert', null], null, ['Power On', 'on'], ['Power Off', 'off'], null, ['Take Screenshot', 'shot'],
+].map((x) => (x ? { label: x[0], act: x[1], run } : null));
 
 export class NetlabApp {
-  /** @param {{ state, run:(devId:string,line:string)=>object, makeDesktop?:(dev)=>object, labels:Object<string,string>, crumbs:string[] }} o */
   constructor(o) {
     this.o = o;
-    this.state = o.state;
-    this.view = 'topology';
-    this.layout = {}; // devId -> 'default' | 'en-us'
-    this.consoles = {}; // devId -> { el, term?, desk?, buf, hist }
+    this.vms = o.state.deviceList;
+    this.consoles = new Map();
+    this.tab = 'topology';
     this.menu = null;
-    this.bar = h('div', { class: 'nl-bar' });
-    this.stage = h('div', { class: 'nl-stage' });
+    this.undocked = new Set();
+    this.scale = true;
+    this.nav = h('div', { class: 'nl-tabs' });
+    this.view = h('div', { class: 'nl-view' });
     this.el = h('div', { class: 'nl' },
-      h('header', { class: 'nl-top' }, h('b', { class: 'nl-logo' }, 'ccdc'), h('span', { class: 'nl-nav' }, '⌂ Home'), h('span', { class: 'nl-nav' }, 'Pod ▾'), h('span', { class: 'nl-nav' }, 'Reservations ▾')),
-      h('div', { class: 'nl-crumbs' }, (o.crumbs || []).map((c, i) => [i ? h('span', { class: 'nl-sep' }, '›') : null, h('span', { class: i ? '' : 'nl-c0' }, c)])),
-      this.bar, this.stage);
-    this.onDoc = (e) => { if (this.menu && !this.menu.contains(e.target) && !e.target.closest('.nl-caret')) this.closeMenu(); };
-    document.addEventListener('mousedown', this.onDoc);
-    this.render();
+      h('div', { class: 'nl-crumb' }, h('a', {}, 'MyNETLAB'), h('i', {}, '>'), `CCDC Team ${Number(o.team)}`, h('i', {}, '>'), `Reservation ${o.scenario.reservation}`, h('i', {}, '>'), o.scenario.labName),
+      this.nav, this.view);
+    this.el.addEventListener('pointerdown', (e) => { if (this.menu && !e.target.closest('.nl-menu, .nl-btn')) this.closeMenu(); }, true);
+    this.draw();
   }
 
-  devices() { return Object.keys(this.o.labels).map((id) => this.state.deviceList.find((d) => d.id === id)).filter(Boolean); }
+  locked() { return !!this.o.locked?.(); }
 
-  render() {
-    clear(this.bar);
-    const btn = (id, icon, label, caret) => h('span', { class: `nl-btn${this.view === id ? ' on' : ''}`, 'data-view': id },
-      h('span', { class: 'nl-btn-main', onclick: () => this.show(id) }, h('i', { class: `nl-ic nl-ic-${icon}`, 'aria-hidden': 'true' }), label),
-      caret ? h('span', { class: 'nl-caret', 'data-menu': id, onclick: (e) => this.openMenu(id, e.currentTarget) }, '▾') : null);
-    this.bar.append(btn('topology', 'img', 'Topology'), btn('content', 'book', 'Content', true), btn('status', 'chart', 'Status'),
-      ...this.devices().map((d) => btn(d.id, this.view === d.id ? 'kbd' : 'pc', this.o.labels[d.id], true)));
-    clear(this.stage);
-    if (this.view === 'topology') this.stage.append(this.topology());
-    else if (this.view === 'status') this.stage.append(this.status());
-    else if (this.view === 'content') this.stage.append(this.content());
-    else this.stage.append(this.console(this.view));
-  }
-
-  show(id) { this.closeMenu(); this.view = id; this.render(); this.consoles[id]?.term?.focus(); }
-
-  // ---- per-VM dropdown ---------------------------------------------------------------------------------------
-  openMenu(id, anchor) {
-    this.closeMenu();
-    const dev = this.state.deviceList.find((d) => d.id === id);
-    const items = id === 'content'
-      ? [['Team Packet (PDF)', () => this.show('content')], ['Topology', () => this.show('topology')]]
-      : [['Console', () => this.show(id)],
-        [`Keyboard: ${this.layout[id] === 'en-us' ? 'en-us ✓' : 'default (en-us ✗)'}`, () => { this.layout[id] = this.layout[id] === 'en-us' ? 'default' : 'en-us'; this.show(id); }],
-        ['Send Ctrl+Alt+Del', () => this.show(id)],
-        ['Power ▸ Reboot', () => this.reboot(dev)]];
-    this.menu = h('div', { class: 'nl-menu', role: 'menu' }, items.map(([label, fn]) => h('div', { class: 'nl-mi', role: 'menuitem', 'data-mi': label.split(' ')[0].toLowerCase(), onclick: () => { this.closeMenu(); fn(); } }, label)));
-    const r = anchor.getBoundingClientRect(); const host = this.el.getBoundingClientRect();
-    Object.assign(this.menu.style, { left: `${r.left - host.left - 120}px`, top: `${r.bottom - host.top + 2}px` });
-    this.el.append(this.menu);
-  }
-
-  closeMenu() { this.menu?.remove(); this.menu = null; }
-
-  // Power cycling from the portal is the same as typing the reboot command on the box (same traps).
-  reboot(dev) {
-    const line = dev.kind === 'pwsh' ? 'Restart-Computer -Force' : 'reboot';
-    const r = this.o.run(dev.id, line) || { lines: [] };
-    const c = this.consoleFor(dev);
-    c.term?.print([{ cls: 'sys', text: `[MyNETLAB] Power ▸ Reboot sent to ${this.o.labels[dev.id]}` }, ...(r.lines || [])]);
-    this.show(dev.id);
-  }
-
-  // ---- console ---------------------------------------------------------------------------------------------
-  consoleFor(dev) {
-    if (this.consoles[dev.id]) return this.consoles[dev.id];
-    const c = { buf: [], hist: [] };
-    if (dev.kind === 'pwsh' && this.o.makeDesktop) {
-      c.desk = this.o.makeDesktop(dev);
-      c.el = h('div', { class: 'nl-con nl-con-win' }, c.desk.el);
-    } else {
-      c.buf.push(...(CONSOLE_BANNER[dev.id] || [`${dev.host} login: ${dev.user}`, 'Password:']).map((text) => ({ cls: '', text })));
-      c.term = new TermView({
-        theme: 'fbsd', label: `${this.o.labels[dev.id]} console`, buffer: c.buf, history: c.hist,
-        prompt: () => (dev.id === 'kali' ? 'sysadmin@kali:~$' : dev.prompt || `${dev.user}@${dev.host}:~$`),
-        run: (line) => this.o.run(dev.id, line),
-        mapLine: (line) => (this.layout[dev.id] === 'en-us' ? line : line.toLowerCase()),
-      });
-      c.el = h('div', { class: 'nl-con' }, c.term.el);
-    }
-    this.consoles[dev.id] = c;
-    return c;
+  /** Is someone signed in at this console? */
+  loggedIn(id) {
+    const c = this.consoles.get(id);
+    return !!c && (c.stage === 'shell' || c.stage === 'desktop');
   }
 
   console(id) {
-    const dev = this.state.deviceList.find((d) => d.id === id);
-    // The router after the takeover: the console is gone (original animation, not the art from the day).
-    if (id === 'vyos' && this.o.takenOver?.()) {
-      this.takeover = this.takeover || new TakeoverScreen({ menu: !!this.o.rebooted?.() });
-      return h('div', { class: 'nl-frame' }, this.takeover.el);
+    let c = this.consoles.get(id);
+    if (!c) {
+      const dev = this.vms.find((d) => d.id === id);
+      const args = { state: this.o.state, dev, session: this.o.sessions[id], run: (l) => this.o.run(id, l), clock: this.o.clock, clockLabel: this.o.clockLabel, noteLine: (i, l) => this.o.noteLine?.(i, l), onBrowser: (u, id, line) => this.o.onBrowser(u, id, line) };
+      c = dev.kind === 'pwsh' ? new WinConsole(args) : new TextConsole(args);
+      this.consoles.set(id, c);
     }
-    const c = this.consoleFor(dev);
-    const hint = dev.kind !== 'pwsh' && this.layout[id] !== 'en-us' ? h('div', { class: 'nl-hint' }, 'Keyboard layout: default') : null;
-    return h('div', { class: 'nl-frame' }, c.el, hint);
+    return c;
   }
 
-  // ---- other pages -----------------------------------------------------------------------------------------
-  status() {
-    const rows = this.devices().map((d) => {
-      const dead = (d.id === 'vyos' && this.o.takenOver?.()) || this.o.down?.(d.id);
-      return h('tr', {}, h('td', {}, this.o.labels[d.id]), h('td', {}, d.os), h('td', {}, h('span', { class: `nl-pw ${dead ? 'bad' : 'ok'}` }, dead ? 'Running (no response)' : 'Running')), h('td', {}, d.ip));
+  button(id, label, opts = {}) {
+    const on = this.tab === id;
+    return h('div', { class: 'nl-btn-wrap' },
+      h('button', { type: 'button', class: `nl-btn${on ? ' on' : ''}`, 'data-nl': id, onclick: (e) => (opts.menu && (opts.content || e.target.closest('.nl-caret-hit')) ? this.toggleMenu(id) : this.show(id)) },
+        h('i', { class: `nl-i nl-i-${opts.icon || 'vm'}` }), label, opts.menu ? h('span', { class: 'nl-caret-hit' }, h('b', { class: 'nl-caret' })) : null),
+      this.menu === id ? this.menuEl(id, opts) : null);
+  }
+
+  menuEl(id, opts) {
+    if (opts.content) {
+      return h('div', { class: 'nl-menu' }, ['Lab Manual', 'Network Topology', 'Team Packet'].map((t) => h('button', { type: 'button', class: 'nl-mi', onclick: () => { this.closeMenu(); this.show('content'); } }, t)));
+    }
+    return h('div', { class: 'nl-menu', role: 'menu' }, MENU().map((m) => (m ? h('button', { type: 'button', class: `nl-mi${m.act === 'scale' && this.scale ? ' sel' : ''}${m.act === 'actual' && !this.scale ? ' sel' : ''}`, disabled: m.act ? null : true, 'data-act': m.act || '', onclick: () => this.act(id, m.act) }, m.label) : h('div', { class: 'nl-sep' }))));
+  }
+
+  toggleMenu(id) {
+    if (this.menu === id) { this.closeMenu(); return; }
+    if (id !== 'content') this.show(id, true);
+    this.menu = id;
+    this.drawNav();
+  }
+
+  closeMenu() { this.menu = null; this.drawNav(); }
+
+  act(id, a) {
+    this.menu = null;
+    const c = this.locked() ? null : this.console(id);
+    if (a === 'cad') c?.ctrlAltDel();
+    if (a === 'on' || a === 'off') this.o.onPower(id, a === 'on');
+    if (a === 'undock' && c) this.undock(id);
+    if (a === 'actual' || a === 'scale') { this.scale = a === 'scale'; this.view.classList.toggle('nl-actual', !this.scale); }
+    this.drawNav();
+    this.drawView();
+  }
+
+  undock(id) {
+    const holder = this.o.undock(id);
+    if (!holder) return;
+    this.undocked.add(id);
+    holder.el.append(this.console(id).el);
+  }
+
+  dock(id) { this.undocked.delete(id); this.o.closeUndock(id); this.drawView(); }
+
+  show(id, keepMenu) { this.tab = id; if (!keepMenu) this.menu = null; this.draw(); if (this.consoles.has(id)) this.consoles.get(id).focus(); }
+  openVm(id) { this.show(id); return this.locked() ? null : this.console(id); }
+
+  draw() { this.drawNav(); this.drawView(); }
+
+  drawNav() {
+    clear(this.nav).append(this.button('topology', 'Topology', { icon: 'map' }), this.button('content', 'Content', { icon: 'book', menu: true, content: true }), this.button('status', 'Status', { icon: 'line' }), ...this.vms.map((d) => this.button(d.id, d.tab, { menu: true })));
+  }
+
+  statusRows() {
+    const clock = this.o.state.engine?.clock || 0;
+    return this.vms.map((d) => {
+      const ds = this.o.state.devState[d.id];
+      const off = ds.live?.off || ds.poweredOff;
+      const boot = ds.live && ds.live.offlineUntil > clock && !off;
+      return { d, state: off ? 'off' : boot ? 'booting' : 'on' };
     });
-    return h('div', { class: 'nl-page' }, h('h3', {}, 'Status'), h('table', { class: 'nl-table' }, h('tr', {}, ['VM', 'OS', 'Power', 'Address'].map((t) => h('th', {}, t))), rows));
+  }
+
+  drawView() {
+    clear(this.view);
+    if (this.tab === 'topology') { this.view.append(this.topology()); return; }
+    if (this.tab === 'content') { this.view.append(this.content()); return; }
+    if (this.tab === 'status') {
+      this.statusBody = h('tbody', {});
+      this.view.append(h('div', { class: 'nl-page' }, h('h3', {}, 'Virtual Machine Status'), h('table', { class: 'nl-tbl' }, h('thead', {}, h('tr', {}, ['Virtual Machine', 'Operating System', 'Power'].map((t) => h('th', {}, t)))), this.statusBody)));
+      this.fillStatus();
+      return;
+    }
+    if (this.locked()) { this.view.append(h('div', { class: 'nl-wait' }, 'This console opens at the drop flag.', h('br'), 'Submit the Welcome Inject in NISE first.')); return; }
+    if (this.undocked.has(this.tab)) { this.view.append(h('div', { class: 'nl-wait' }, 'This virtual machine is undocked. ', h('button', { type: 'button', class: 'nl-link', onclick: () => this.dock(this.tab) }, 'Dock it here'))); return; }
+    this.view.append(this.console(this.tab).el);
+  }
+
+  fillStatus() {
+    if (!this.statusBody) return;
+    clear(this.statusBody).append(...this.statusRows().map(({ d, state }) => h('tr', {}, h('td', {}, d.tab), h('td', {}, d.os), h('td', { class: `nl-pw-${state}` }, state === 'on' ? 'Running' : state === 'off' ? 'Powered off' : 'Starting'))));
+  }
+
+  topology() {
+    const zone = (name, net, list) => h('div', { class: 'nl-zone' }, h('div', { class: 'nl-zone-h' }, `${name}  ${net}`), h('div', { class: 'nl-zone-b' }, list.map((d) => h('button', { type: 'button', class: 'nl-node', onclick: () => this.show(d.id) }, h('b', {}, d.tab), h('span', {}, d.ip)))));
+    const byZone = (z) => this.vms.filter((d) => d.zone === z);
+    const fw = this.vms.find((d) => d.kind === 'firewall');
+    return h('div', { class: 'nl-topo' },
+      h('div', { class: 'nl-core' }, `Core  172.31.${20 + Number(this.o.team)}.1/29`),
+      h('div', { class: 'nl-link-v' }),
+      fw ? h('button', { type: 'button', class: 'nl-node nl-fw', onclick: () => this.show(fw.id) }, h('b', {}, fw.tab), h('span', {}, 'e1/1 Public  e1/2 Internal  e1/3 Core  e1/4 User')) : null,
+      h('div', { class: 'nl-link-v' }),
+      h('div', { class: 'nl-zones' }, zone('Public', '172.20.241.0/24', byZone('Public')), zone('Internal', '172.20.240.0/24', byZone('Internal')), zone('User', '172.20.242.0/24', byZone('User'))));
   }
 
   content() {
-    return h('div', { class: 'nl-page' }, h('h3', {}, 'Content'), h('ul', { class: 'nl-docs' },
-      h('li', {}, h('b', {}, 'MWCCDC Invitational Team Packet.pdf'), h('span', { class: 'nl-muted' }, ' · default credentials, scored services, rules of engagement')),
-      h('li', {}, h('b', {}, 'Topology.png'), h('span', { class: 'nl-muted' }, ' · see Topology'))));
-  }
-
-  // Topology, redrawn in the style of the pod's diagram: internet, VyOS router (with the Kali workstation on its side),
-  // firewall, then one switch with the servers and workstations below.
-  topology() {
-    const W = 1100; const H = 600;
-    const g = s('svg', { viewBox: `0 0 ${W} ${H}`, class: 'nl-topo', role: 'img', 'aria-label': 'Pod topology' });
-    const C = '#3b5998'; const L = '#4f87c9';
-    const text = (x, y, lines) => lines.map((t, i) => s('text', { x, y: y + i * 17, 'text-anchor': 'middle', class: 'nl-tl' }, t));
-    const server = (x, y) => [s('rect', { x: x - 20, y, width: 40, height: 64, fill: C }), s('circle', { cx: x + 10, cy: y + 12, r: 3, fill: '#cfe0f5' }), ...[0, 1, 2].map((k) => s('rect', { x: x - 12, y: y + 34 + k * 6, width: 22, height: 2, fill: '#cfe0f5' }))];
-    const pc = (x, y) => [s('rect', { x: x - 30, y, width: 60, height: 42, fill: C, rx: 2 }), s('rect', { x: x - 25, y: y + 5, width: 50, height: 32, fill: '#2d4b88' }), s('rect', { x: x - 4, y: y + 42, width: 8, height: 6, fill: C }), s('path', { d: `M${x - 34} ${y + 58} L${x - 28} ${y + 48} L${x + 28} ${y + 48} L${x + 34} ${y + 58} Z`, fill: C })];
-    const cloud = s('path', { d: 'M520 80 a26 26 0 0 1 30 -32 a30 30 0 0 1 52 6 a22 22 0 0 1 20 34 Z', fill: C });
-    g.append(cloud, s('line', { x1: 570, y1: 82, x2: 570, y2: 130, stroke: L, 'stroke-width': 2 }));
-    g.append(s('rect', { x: 530, y: 130, width: 80, height: 30, fill: C, rx: 2 }), s('rect', { x: 586, y: 136, width: 18, height: 18, fill: '#9cc3ef' }), ...[0, 1, 2, 3].map((k) => s('rect', { x: 538 + k * 11, y: 140, width: 7, height: 4, fill: '#fff' })));
-    g.append(s('line', { x1: 610, y1: 145, x2: 700, y2: 145, stroke: L, 'stroke-width': 2 }), ...pc(735, 118), ...text(735, 200, ['Wkst', 'Linux']), ...text(570, 188, ['VyOS   Router']));
-    g.append(s('line', { x1: 570, y1: 160, x2: 570, y2: 225, stroke: L, 'stroke-width': 2 }));
-    for (let r = 0; r < 6; r++) for (let k = 0; k < 4; k++) g.append(s('rect', { x: 534 + k * 18 + (r % 2 ? 9 : 0) - (r % 2 && k === 3 ? 9 : 0), y: 225 + r * 10, width: 16, height: 8, fill: C }));
-    g.append(s('line', { x1: 570, y1: 285, x2: 570, y2: 335, stroke: L, 'stroke-width': 2 }), ...text(605, 302, ['Firewall']));
-    g.append(s('rect', { x: 200, y: 335, width: 720, height: 10, fill: C }));
-    const nodes = [['Ecom', 'Rocky', 'Linux'], ['Email', 'Ubuntu', 'Server'], ['Splunk', 'Debian'], ['AD', 'Windows'], ['MSSQL', 'Windows'], ['Wkst', 'Ubuntu'], ['Wkst', 'Windows']];
-    nodes.forEach((lbl, i) => {
-      const x = 235 + i * 108;
-      g.append(s('line', { x1: x, y1: 345, x2: x, y2: 400, stroke: L, 'stroke-width': 2 }), ...(i >= 5 ? pc(x, 402) : server(x, 400)), ...text(x, 488, lbl));
-    });
-    return h('div', { class: 'nl-page nl-topowrap' }, g);
+    return h('div', { class: 'nl-page' }, h('h3', {}, this.o.scenario.labName),
+      h('table', { class: 'nl-tbl' }, h('thead', {}, h('tr', {}, ['Virtual Machine', 'Operating System', 'Internal Address', 'Public NAT', 'Zone'].map((t) => h('th', {}, t)))),
+        h('tbody', {}, this.vms.map((d) => h('tr', {}, h('td', {}, d.tab), h('td', {}, d.os), h('td', {}, d.ip), h('td', {}, d.nat || '-'), h('td', {}, d.zone || '-'))))));
   }
 
   refresh() {
-    if (this.view === 'vyos' && this.o.takenOver?.() && !this.takeover) this.render();
-    this.takeover?.tick?.();
-    for (const c of Object.values(this.consoles)) c.desk?.refresh?.();
+    for (const c of this.consoles.values()) c.refresh();
+    if (this.tab === 'status') this.fillStatus();
+    const lk = this.locked();
+    if (lk !== this.wasLocked) { this.wasLocked = lk; if (this.tab !== 'topology' && this.tab !== 'content' && this.tab !== 'status') this.drawView(); }
   }
 
-  destroy() {
-    document.removeEventListener('mousedown', this.onDoc);
-    this.takeover?.destroy?.();
-    for (const c of Object.values(this.consoles)) c.desk?.destroy?.();
-  }
+  focus() { this.consoles.get(this.tab)?.focus(); }
+  destroy() { for (const c of this.consoles.values()) c.desktop?.destroy?.(); }
 }

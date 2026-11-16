@@ -1,5 +1,5 @@
 // PAN-OS model for the Palo Alto in the Invitational replay. One config model drives both the typed CLI
-// (set/delete/move/commit, as on the PA-VM console) and the web UI (PanOsApp turns every click into the same
+// (set/delete/move/commit, as on the PA-VM console) and the web UI (PanWebApp turns every click into the same
 // command line, so grading never depends on which one the player used).
 //
 // The firewall keeps a CANDIDATE config (what you edit) and a RUNNING config (what the box enforces). Nothing

@@ -1,4 +1,5 @@
 import { test } from 'node:test';
+import { redCharged } from '../src/game/ccdcRed.js';
 import assert from 'node:assert/strict';
 import { CCDC_LAB } from '../src/data/ccdcLabScenario.js';
 import { CCDC_LAB_2 } from '../src/data/ccdcLabScenario2.js';
@@ -89,9 +90,9 @@ test('liveTeamScore matches the final scorecard at the end of the round', () => 
   }
 });
 
-test('before any wave a quiet player has earned exactly points x passed/total checks', () => {
+test('a quiet player has earned points x passed/total checks plus what is left of the Red Team pool', () => {
   const s = fresh(10);
   tickTo(s, 150); // 5 of 30 checks
   const max = s.serviceList.reduce((n, x) => n + x.points, 0);
-  assert.equal(liveTeamScore(s), Math.round((max * 5) / 30));
+  assert.equal(liveTeamScore(s), Math.round((max * 5) / 30) + 200 - Math.min(200, redCharged(s)));
 });

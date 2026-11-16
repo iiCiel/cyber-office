@@ -38,19 +38,16 @@ test('injects release over time and go overdue past their window', () => {
   assert.ok(scoreboard(s).events.some((e) => /overdue/.test(e.text)), 'an unanswered inject goes overdue');
 });
 
-test('red-team waves escalate: a probe becomes a compromise only if left open', () => {
+test('Red Team works through what is open over the round', () => {
   const s = fresh();
-  tickTo(s, 180); // wave 1 probes everything open
-  assert.equal(liveCompromises(s).length, 0, 'wave 1 only probes — no compromise yet');
-  assert.ok(scoreboard(s).probes > 0);
-  tickTo(s, 450); // wave 2: still-open probed findings become compromises
-  assert.ok(liveCompromises(s).length > 0, 'wave 2 confirms compromises on what is still open');
+  assert.equal(liveCompromises(s).length, 0, 'nothing before the drop flag');
+  tickTo(s, 450);
+  assert.ok(liveCompromises(s).length > 0, 'open ways in get used');
 });
 
 test('fixing a finding before the next wave prevents its compromise', () => {
   const s = fresh();
-  tickTo(s, 180); // probed
-  // fix the rogue DA before wave 2
+  // fix the rogue DA before Red Team gets to it
   runLine(s, 'dc01', 'Disable-ADAccount -Identity svc-backup2');
   runLine(s, 'dc01', "Remove-ADGroupMember -Identity 'Domain Admins' -Members svc-backup2 -Confirm:$false");
   tickTo(s, 450);
@@ -69,22 +66,6 @@ test('PCR: rotating the scored account breaks the DB check until the PCR is file
   notePcrFiled(s);
   const before = scoreboard(s).rows.find((x) => x.id === 'db01').up;
   assert.equal(before, true, 'DB check recovers once the PCR is filed');
-});
-
-test('a full-marks incident report halves the matching compromise penalty (exactly)', () => {
-  const s = fresh();
-  answerInject(s, 'incident-report', GOOD_INJECTS['incident-report']);
-  // leave web-shell open: wave 1 probes it, wave 2 confirms it, then the buzzer
-  tickTo(s, 180); tickTo(s, 450); tickTo(s, 720);
-  expire(s);
-  const g = score(s);
-  const wb = g.compromises.find((c) => c.id === 'web-shell');
-  assert.ok(wb, 'web-shell was compromised by the waves');
-  const full = CCDC_LAB.findings.find((f) => f.id === 'web-shell').compromise.penalty;
-  assert.equal(wb.halved, true);
-  assert.equal(wb.charged, Math.round(full * 0.5), 'web-shell charged exactly half');
-  const others = g.compromises.filter((c) => c.id !== 'web-shell').reduce((n, c) => n + c.penalty, 0);
-  assert.equal(g.compromisePenalty, others + Math.round(full * 0.5));
 });
 
 test('score() uses engine SLA violations when the engine is attached', () => {

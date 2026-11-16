@@ -29,12 +29,15 @@ test('incidents: full marks need evidence you actually collected on the box', ()
   assert.ok(coveredByIncident(s, 'ecom-goose'));
 });
 
-test('incidents: a vague or made-up report is not matched; points add to the score', () => {
+test('incidents: a vague or made-up report is not matched; points win back what Red Team took', () => {
   const s = fresh();
   assert.equal(submitIncident(s, { title: 'weird', description: 'Something seemed off on a server but we are not sure what it was.' }).matched, null);
   runLine(s, 'ecom', 'ps -ef');
+  s.compromises = [{ id: 'vyos-backdoor', title: 'router', penalty: 80 }];
   const before = score(s).raw;
   submitIncident(s, GOOD);
   assert.equal(score(s).raw - before, 15);
   assert.equal(score(s).incidentMax, 90);
+  s.compromises = [];
+  assert.equal(score(s).redKept, score(s).redPool, 'never more than the pool');
 });

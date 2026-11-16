@@ -7,9 +7,10 @@
 // Every click that changes config becomes a PAN-OS CLI line sent through run(line), exactly what the PA console
 // accepts, so grading stays in ccdcLab.runLine() (see game/panMap.js). Edits go to the candidate config; nothing
 // is live until Commit.
-//   const app = new PanOsApp({ dev, state, run: (line) => ({ lines, effects }) });  parent.append(app.el);
+//   const app = new PanWebApp({ dev, state, run: (line) => ({ lines, effects }) });  parent.append(app.el);
 import { h, clear } from '../dom.js';
 import { initialPan, PAN_PREDEFINED } from '../../game/panMap.js';
+import './panweb.css';
 
 const TABS = ['Dashboard', 'ACC', 'Monitor', 'Policies', 'Objects', 'Network', 'Device'];
 const TREES = {
@@ -34,7 +35,7 @@ const q = (name) => `"${name}"`;
 const listArg = (arr) => (arr.length > 1 ? `[ ${arr.join(' ')} ]` : arr[0] || 'any');
 const splitList = (v) => String(v || '').split(/[,\s]+/).map((x) => x.trim()).filter(Boolean);
 
-export class PanOsApp {
+export class PanWebApp {
   constructor(o = {}) {
     this.o = o;
     this.tab = 'Policies';

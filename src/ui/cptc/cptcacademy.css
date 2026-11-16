@@ -1,0 +1,31 @@
+/* Offensive coach: reuses the shared .ac-* panel, retinted to sit beside the dark Kali desktop. */
+.ac-kx { background: #17141c; color: #d7d2df; border-left: 1px solid #000; font-family: 'DejaVu Sans', 'Segoe UI', system-ui, sans-serif; }
+.kx.ac-on .kx-desk { right: 360px; }
+.kx.ac-on.ac-closed .kx-desk { right: 28px; }
+.ac-kx .ac-head { background: #0b0710; color: #f3f0f7; }
+.ac-kx .ac-intro, .ac-kx .ac-progtext, .ac-kx .ac-item small, .ac-kx .ac-crumb { color: #9c95ab; }
+.ac-kx .ac-tab { border-color: #4a4356; color: #c9c2d6 !important; }
+.ac-kx .ac-tab.on { background: #17141c; color: #fff !important; }
+.ac-kx .ac-item { color: #d7d2df !important; border-bottom-color: #322c3d; }
+.ac-kx .ac-item:hover { background: #221d2b; }
+.ac-kx .ac-item.done small { color: #7dd39b; }
+.ac-kx .ac-prog { background: #322c3d; }
+.ac-kx .ac-prog i { background: #7a5cff; }
+.ac-kx .ac-cmd { background: #000; color: #8cf2b0; }
+.ac-kx .ac-cmdlabel { color: #9c95ab; }
+.ac-kx .ac-parts td { border-bottom-color: #322c3d; }
+.ac-kx .ac-load, .ac-kx .ac-show { border-color: #4a4356; color: #d7d2df !important; }
+.ac-kx .ac-look { background: #221d2b; }
+.ac-kx .ac-input, .ac-kx .ac-ta { background: #0b0710; border-color: #4a4356; color: #eee; }
+.ac-kx .ac-check, .ac-kx .ac-next { background: #7a5cff; color: #fff !important; }
+.ac-kx .ac-after { color: #7dd39b; }
+.ac-kx .ac-bad { color: #ff8a7a; }
+.ac-kx .ac-sheet td, .ac-kx .ac-goals li { border-bottom-color: #322c3d; }
+.ac-kx .ac-goals li.ok { color: #7dd39b; }
+.ac-kx .ac-raterow { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+.ac-kx .ac-raterow > span { width: 78px; font-size: 13px; }
+.ac-rbtn { padding: 3px 10px; background: none; border: 1px solid #4a4356; color: #c9c2d6; font: 12px sans-serif; cursor: pointer; }
+.ac-kx .ac-rbtn.on { background: #7a5cff; border-color: #7a5cff; color: #fff; }
+.ac-kx .ac-sev b { color: #f3d27a; }
+.ac-kx .ac-tag { color: #9c95ab; }
+.ac-kx .ac-clock { color: #f3f0f7; }

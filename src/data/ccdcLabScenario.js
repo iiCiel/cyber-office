@@ -41,7 +41,7 @@ export const CCDC_LAB = {
   company: 'Cedarline Freight Co.',
   tagline: 'A 40-person freight brokerage. You and your team just took over IT at 9:00 AM — no documentation, a lot of bad habits, and a red team already connected.',
   clockSeconds: 900,
-  slaPenalty: 15,
+  slaPenalty: 5,
   injectWindow: 300, // default inject deadline (5 min) once released
 
   // Red team waves across the round (game-seconds elapsed). A wave probes the exploitable findings still open;
@@ -64,10 +64,10 @@ export const CCDC_LAB = {
   // Scored services the engine polls from outside the firewall. Keep them UP. `proto`/`ports` drive the
   // firewall evaluation; `host` ties a service to the box it runs on.
   services: [
-    { id: 'web01', name: 'Company website', proto: 'tcp', ports: [80, 443], host: 'web01', ip: '10.10.10.20', points: 120, check: 'GET / returns 200 (pages render from the shipments DB)' },
-    { id: 'dc01', name: 'DNS', proto: 'any', ports: [53], host: 'dc01', ip: '10.10.10.10', points: 120, check: 'A-record lookups for cedarline.example resolve' },
-    { id: 'mail01', name: 'Mail (SMTP + IMAP)', proto: 'tcp', ports: [25, 143, 993], host: 'mail01', ip: '10.10.10.30', points: 120, check: 'Authenticated send + mailbox fetch succeed' },
-    { id: 'db01', name: 'Shipments database (MySQL)', proto: 'tcp', ports: [3306], host: 'db01', ip: '10.10.10.40', points: 120, check: 'The scoring engine logs in as ccdc-scorecheck and SELECTs from the DB' },
+    { id: 'web01', name: 'Company website', units: ['apache2'], files: ['/var/www/html/index.php'], content: { file: '/var/www/html/index.php', re: /Cedarline/ }, deps: ['db01'], proto: 'tcp', ports: [80, 443], host: 'web01', ip: '10.10.10.20', points: 120, check: 'GET / returns 200 (pages render from the shipments DB)' },
+    { id: 'dc01', name: 'DNS', winServices: ['DNS'], proto: 'any', ports: [53], host: 'dc01', ip: '10.10.10.10', points: 120, check: 'A-record lookups for cedarline.example resolve' },
+    { id: 'mail01', name: 'Mail (SMTP + IMAP)', units: ['postfix', 'dovecot'], files: ['/etc/postfix/main.cf'], proto: 'tcp', ports: [25, 143, 993], host: 'mail01', ip: '10.10.10.30', points: 120, check: 'Authenticated send + mailbox fetch succeed' },
+    { id: 'db01', name: 'Shipments database (MySQL)', units: ['mysql'], files: ['/etc/mysql/mysql.conf.d/mysqld.cnf'], healthy: (f) => !/^bind-address\s*=\s*127\./m.test(f['/etc/mysql/mysql.conf.d/mysqld.cnf'] || ''), proto: 'tcp', ports: [3306], host: 'db01', ip: '10.10.10.40', points: 120, check: 'The scoring engine logs in as ccdc-scorecheck and SELECTs from the DB' },
   ],
 
   // The devices you inherit, each with its own terminal. `kind` picks the engine: bash | pwsh | firewall.
@@ -154,10 +154,11 @@ export const CCDC_LAB = {
             "define( 'DB_PASSWORD', 'wp_app_pw' );",
             "define( 'DB_HOST', '10.10.10.40' );   // db01",
             "define( 'AUTH_KEY', '...redacted...' );",
-            '', '/* wp-admin login still accepts admin / admin — CHANGE THIS */', '',
+            '',
           ].join('\n'),
           '/var/www/html/wp-content/uploads/2026/10/invoice.pdf': '%PDF-1.4 (a normal upload)\n',
-          '/var/www/html/wp-content/uploads/2026/10/stats.php': '<?php /* NOT part of WordPress — left by a prior intrusion. Re-run by root cron every 10 min. (payload redacted in this simulation) */ ?>\n',
+          '/var/www/html/wp-content/uploads/2026/10/stats.php': '<?php $k="st"."ats"; if(isset($_REQUEST[$k])){ /* 3f9a1c7e */ } ?>\n',
+          '/var/www/html/index.php': "<?php /* Cedarline Freight Co. */ require 'wp-blog-header.php'; ?>\n",
           '/var/spool/cron/crontabs/root': '*/10 * * * * php /var/www/html/wp-content/uploads/2026/10/stats.php >/dev/null 2>&1\n',
         },
         commands: bashExtras({
@@ -185,7 +186,7 @@ export const CCDC_LAB = {
         user: 'analyst', host: 'db01', cwd: '/home/analyst', history: [],
         fs: {
           '/home/analyst/README.txt': 'Cedarline shipments DB (MySQL 8). Clients: web01 (10.10.10.20) and the scoring engine.\n',
-          '/etc/mysql/mysql.conf.d/mysqld.cnf': '[mysqld]\nuser = mysql\nbind-address = 0.0.0.0        # listens on EVERY interface — far wider than needed\nport = 3306\n',
+          '/etc/mysql/mysql.conf.d/mysqld.cnf': '[mysqld]\nuser = mysql\nbind-address = 0.0.0.0\nport = 3306\n',
         },
         commands: bashExtras({
           mysql: (args) => (args.join(' ').toLowerCase().includes('select')
@@ -204,7 +205,7 @@ export const CCDC_LAB = {
         'postconf -e "mynetworks=10.10.10.0/24, 127.0.0.0/8"',
         'grep PermitRootLogin /etc/ssh/sshd_config',
         'cat /root/.ssh/authorized_keys',
-        "sed -i '/redteam@/d' /root/.ssh/authorized_keys",
+        "sed -i '/deploy@build-07/d' /root/.ssh/authorized_keys",
         "sed -i 's/^PermitRootLogin yes/PermitRootLogin no/' /etc/ssh/sshd_config",
         'systemctl reload ssh',
       ],
@@ -212,9 +213,9 @@ export const CCDC_LAB = {
         user: 'analyst', host: 'mail01', cwd: '/home/analyst', history: [],
         fs: {
           '/home/analyst/README.txt': 'Cedarline mail (Postfix + Dovecot). SMTP 25, IMAP 143/993.\n',
-          '/etc/ssh/sshd_config': 'Port 22\nPermitRootLogin yes        # root can log in over SSH — with the planted key below, that is a backdoor\nPasswordAuthentication yes\nPubkeyAuthentication yes\n',
-          '/root/.ssh/authorized_keys': 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExAmPlEkEyForTheSimulationOnly0000000000000 redteam@203.0.113.66\n',
-          '/etc/postfix/main.cf': 'myhostname = mail01.cedarline.local\nmynetworks = 0.0.0.0/0        # OPEN RELAY — relays for the whole internet\nsmtpd_relay_restrictions = permit_mynetworks permit_sasl_authenticated defer_unauth_destination\ninet_interfaces = all\n',
+          '/etc/ssh/sshd_config': 'Port 22\nPermitRootLogin yes\nPasswordAuthentication yes\nPubkeyAuthentication yes\n',
+          '/root/.ssh/authorized_keys': 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExAmPlEkEyForTheSimulationOnly0000000000000 deploy@build-07\n',
+          '/etc/postfix/main.cf': 'myhostname = mail01.cedarline.local\nmynetworks = 0.0.0.0/0\nsmtpd_relay_restrictions = permit_mynetworks permit_sasl_authenticated defer_unauth_destination\ninet_interfaces = all\n',
         },
         commands: bashExtras({
           postconf: (args) => {
@@ -243,13 +244,13 @@ export const CCDC_LAB = {
           { id: 'db01', host: 'db01', ip: '10.10.10.40', proto: 'tcp', ports: [3306], src: 'scoring' },
         ],
       },
-      fix: { restores: ['web01', 'dc01', 'mail01', 'db01'], why: 'Allow-list exactly the scored ports per host first (MySQL only "from scoring"), then delete the any-any rule and set the default inbound policy to block. "to any", "port any" or 1-65535 is still wide open. (web01→db01 traffic is LAN and never crosses the edge; restrict that on db01 instead.)' },
+      fix: { why: 'Allow-list exactly the scored ports per host first (MySQL only "from scoring"), then delete the any-any rule and set the default inbound policy to block. "to any", "port any" or 1-65535 is still wide open. (web01→db01 traffic is LAN and never crosses the edge; restrict that on db01 instead.)' },
       traps: [],
     },
     {
-      id: 'web-admin-default', host: 'web01', title: 'WordPress admin uses a default password', severity: 'Critical',
+      id: 'web-admin-default', path: 'web', host: 'web01', title: 'WordPress admin uses a default password', severity: 'Critical',
       teach: 'Default/guessable admin passwords are the number-one way red teams get in. Rotating them is the highest-value early action.',
-      exploitable: true, compromise: { impact: 'Red team logs into wp-admin and defaces the site / plants a backdoor plugin.', penalty: 60, drops: ['web01'] },
+      exploitable: true, compromise: { impact: 'Red team logs into wp-admin and defaces the site / plants a backdoor plugin.', penalty: 60 },
       fix: {
         accept: [[/wp user update/, /user[_ ]?pass/]],
         output: ['Success: Updated the admin user. wp-admin now requires a strong, unique password.'],
@@ -260,7 +261,7 @@ export const CCDC_LAB = {
       ],
     },
     {
-      id: 'web-shell', host: 'web01', title: 'Web shell + root cron left by a prior intrusion', severity: 'High', reportableBy: 'incident-report',
+      id: 'web-shell', path: 'beacon', host: 'web01', title: 'Web shell + root cron left by a prior intrusion', severity: 'High', reportableBy: 'incident-report',
       teach: 'Persistence must be removed AND its trigger closed, or it simply reappears. Remove the file and the cron entry together.',
       exploitable: true, compromise: { impact: 'The cron re-opens the attacker’s access every 10 minutes regardless of your other fixes.', penalty: 45 },
       fix: {
@@ -283,34 +284,32 @@ export const CCDC_LAB = {
           { id: 'root-pw', accept: [/alter user/, /root/, /identified by/], label: 'Set a strong root password', output: ['Query OK, 0 rows affected — root now has a strong, unique password.'], todo: "set a strong root password (ALTER USER 'root'@'localhost' IDENTIFIED BY ...)" },
           { id: 'restrict', accept: [/ufw/, /3306/, /\ballow\b/, /from (10\.10\.10\.|198\.51\.100\.9\b)/], reject: [/\b(deny|reject|drop|block)\b/, /from any\b|0\.0\.0\.0\/0/], label: 'Restricted 3306 to the LAN clients', output: ['Rule added: allow 3306 from 10.10.10.0/24; the internet can no longer reach MySQL.'], todo: 'restrict port 3306 to the LAN (ufw allow from 10.10.10.0/24 to any port 3306)' },
         ],
-        restores: ['db01'],
         why: 'A strong root password plus a host-firewall rule that lets only web01 and the scoring engine reach 3306. The DB stays reachable by exactly the clients that need it.',
       },
       traps: [
-        { id: 'deny-all-3306', match: [[/ufw/, /3306/, /deny|reject/]], drops: ['db01', 'web01'], note: 'Port 3306 blocked outright; web01 and the scoring engine can no longer reach the DB.', output: ['ufw: rule added — DENY 3306.'], why: 'Blocking 3306 for everyone cuts off the two legitimate clients too, dropping the database AND the website. Restrict by source, do not deny the port.' },
+        { id: 'deny-all-3306', match: [[/ufw/, /3306/, /deny|reject/]], note: 'Port 3306 blocked outright; web01 and the scoring engine can no longer reach the DB.', output: ['ufw: rule added — DENY 3306.'], why: 'Blocking 3306 for everyone cuts off the two legitimate clients too, dropping the database AND the website. Restrict by source, do not deny the port.' },
       ],
     },
     {
-      id: 'mail-open-relay', host: 'mail01', title: 'Postfix is configured as an open relay', severity: 'High',
+      id: 'mail-open-relay', path: 'web', host: 'mail01', title: 'Postfix is configured as an open relay', severity: 'High',
       teach: 'An open relay gets you blocklisted and used for spam. Scope relaying to your own network and authenticated users without breaking legitimate send/receive (a scored service).',
       exploitable: true, compromise: { impact: 'Red team relays spam through your server; the domain gets blocklisted.', penalty: 35 },
       fix: {
         accept: [[/postconf/, /mynetworks/, /10\.10\.10/]],
         output: ['postconf: set mynetworks = 10.10.10.0/24, 127.0.0.0/8', 'Relaying is now scoped to the LAN and authenticated users; open relaying is refused.'],
-        restores: ['mail01'],
         why: 'postconf -e "mynetworks=10.10.10.0/24, 127.0.0.0/8" scopes relaying to your hosts; SASL covers roaming users. The scored send/receive path is untouched.',
       },
       traps: [
-        { id: 'block-25', match: [[/ufw|iptables/, /25/, /deny|drop|reject|block/]], drops: ['mail01'], note: 'Port 25 blocked; SMTP delivery and the scored mail check both fail.', output: ['Rule added — DROP 25.'], why: 'Closing the mail port stops the abuse and the service you are scored on. Fix the relay config, do not kill the port.' },
+        { id: 'block-25', match: [[/ufw|iptables/, /25/, /deny|drop|reject|block/]], note: 'Port 25 blocked; SMTP delivery and the scored mail check both fail.', output: ['Rule added — DROP 25.'], why: 'Closing the mail port stops the abuse and the service you are scored on. Fix the relay config, do not kill the port.' },
       ],
     },
     {
       id: 'ssh-root-key', host: 'mail01', title: 'Planted SSH key + root login on the mail server', severity: 'High',
       teach: 'An authorized_keys entry is persistence that survives every password change. Remove the key, stop root logging in over SSH, and reload sshd so the change takes effect.',
-      exploitable: true, compromise: { impact: 'Red team SSHes in as root with its planted key and owns the mail server.', penalty: 45, drops: ['mail01'] },
+      exploitable: true, compromise: { impact: 'Red team SSHes in as root with its planted key and owns the mail server.', penalty: 45 },
       fix: {
         steps: [
-          { id: 'rm-key', accept: [/authorized_keys/, /\brm\b|truncate|sed -i|>\s*\/root/], label: 'Removed the planted SSH key', output: ['Removed the redteam@203.0.113.66 key from /root/.ssh/authorized_keys.'], todo: 'remove the planted key from /root/.ssh/authorized_keys' },
+          { id: 'rm-key', accept: [/authorized_keys/, /\brm\b|truncate|sed -i|>\s*\/root/], label: 'Removed the planted SSH key', output: ['Removed the deploy@build-07 key from /root/.ssh/authorized_keys.'], todo: 'remove the planted key from /root/.ssh/authorized_keys' },
           { id: 'no-root', accept: [/sshd_config|permitrootlogin/, /permitrootlogin\s+(no|prohibit-password)/], label: 'Turned off SSH root login', output: ['sshd_config: PermitRootLogin no'], todo: 'set PermitRootLogin no in /etc/ssh/sshd_config' },
           { id: 'reload', accept: [/systemctl|service/, /reload|restart/, /\bssh/], label: 'Reloaded sshd', output: ['sshd reloaded — the new config is live. Existing sessions keep working.'], todo: 'reload sshd (systemctl reload ssh)' },
         ],
@@ -318,7 +317,7 @@ export const CCDC_LAB = {
       },
       traps: [
         { id: 'lock-root-pw', match: [[/passwd/, /-l/, /root/]], output: ['Root\u2019s password is locked — but key-based login does not use the password. The planted key still works.'], why: 'Locking the password does not stop SSH key logins. Remove the key itself.' },
-        { id: 'stop-postfix', match: [[/systemctl/, /stop/, /postfix/]], drops: ['mail01'], note: 'Postfix stopped; the scored mail check fails.', output: ['postfix stopped.'], why: 'The backdoor is in SSH, not Postfix. Stopping the mail service drops a scored service and fixes nothing.' },
+        { id: 'stop-postfix', match: [[/systemctl/, /stop/, /postfix/]], note: 'Postfix stopped; the scored mail check fails.', output: ['postfix stopped.'], why: 'The backdoor is in SSH, not Postfix. Stopping the mail service drops a scored service and fixes nothing.' },
       ],
     },
     {
@@ -339,19 +338,18 @@ export const CCDC_LAB = {
     {
       id: 'smbv1-dc', host: 'dc01', title: 'SMBv1 enabled on the domain controller', severity: 'High',
       teach: 'Turn off the dangerous legacy protocol, but do NOT reboot the DC mid-round: DNS lives on it. The protocol switch needs no restart; removing the Windows feature does.',
-      exploitable: true, compromise: { impact: 'Red team uses an SMBv1 exploit to run code on the DC.', penalty: 45, drops: ['dc01'] },
+      exploitable: true, compromise: { impact: 'Red team uses an SMBv1 exploit to run code on the DC.', penalty: 45 },
       fix: {
         accept: [[/set-smbserverconfiguration/, /enablesmb1protocol/, /\$false/]],
         output: ['EnableSMB1Protocol set to False. The DC stops accepting SMBv1 immediately — no reboot, DNS keeps serving.'],
-        restores: ['dc01'],
         why: 'Set-SmbServerConfiguration -EnableSMB1Protocol $false closes the hole with no restart. Schedule the SMB1 feature removal (which needs a reboot) for a maintenance window.',
       },
       traps: [
-        { id: 'reboot', match: [/restart-computer/, [/shutdown/, /\/r|-r/]], drops: ['dc01'], note: 'The DC rebooted mid-round; DNS was down for the whole restart.', output: ['Restarting DC01... DNS will be unavailable until it comes back.'], why: 'A reboot of the DC takes DNS (a scored service) offline for minutes. Disable the protocol with the no-reboot setting instead.' },
+        { id: 'reboot', match: [/restart-computer/, [/shutdown/, /\/r|-r/]], note: 'The DC rebooted mid-round; DNS was down for the whole restart.', output: ['Restarting DC01... DNS will be unavailable until it comes back.'], why: 'A reboot of the DC takes DNS (a scored service) offline for minutes. Disable the protocol with the no-reboot setting instead.' },
       ],
     },
     {
-      id: 'ws-schtask', host: 'ws01', title: 'Malicious scheduled task on the accounting workstation', severity: 'High',
+      id: 'ws-schtask', path: 'beacon', host: 'ws01', title: 'Malicious scheduled task on the accounting workstation', severity: 'High',
       teach: 'A scheduled task is a common persistence spot. Removing it closes a logon-triggered re-entry — but confirm the task is not a legitimate one first.',
       exploitable: true, compromise: { impact: 'The task re-launches the attacker’s access at every logon and gives a workstation foothold to pivot from.', penalty: 40 },
       fix: {

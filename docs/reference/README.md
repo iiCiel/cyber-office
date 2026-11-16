@@ -11,6 +11,15 @@ All files come from Wikimedia Commons (free licences; see each file page for aut
 | windows-event-viewer.png | Windows Event Viewer | https://commons.wikimedia.org/wiki/File:Event_Viewer.png |
 | kali-2021.2.png | Kali Linux 2021.2 Xfce desktop | https://commons.wikimedia.org/wiki/File:Kali_Linux_2021.2.png |
 
+These three screens are from the public Midwest team packet (2026 Regional, github.com/mubix/howtowinccdc, documents/MidWest-MWCCDC), © MWCCDC Consortium, and one image from Palo Alto Networks' own developer docs. They are here for comparison only:
+
+| File | Real tool | Source |
+|---|---|---|
+| nise-injects-2026.png | NISE team portal, main Injects page | 2026 packet p.12 |
+| netlab-ve-menu-2026.png | NETLAB+ VE top menu with the VM buttons | 2026 packet p.10 |
+| netlab-ve-vm-menu-2026.png | NETLAB+ VE per-VM menu (Undock, Revert, Power) | 2026 packet p.10 |
+| panos-security-rules.png | PAN-OS Policies > Security rule table | github.com/PaloAltoNetworks/pan.dev, products/ansible/docs/panos/tutorials/security-policy-rules.png |
+
 ## Side-by-side notes (Nov 6, 2026)
 
 - **pfSense dashboard** (ours: docs/proof/pfsense/dashboard-1366.png). Same top navbar and menus, same
@@ -62,3 +71,16 @@ All files come from Wikimedia Commons (free licences; see each file page for aut
   serviceSource, mitreTechniques, evidence[] of device/process/file evidence), sourcetype `ms365:defender:incident:alerts`.
 - Sysmon Event ID 1: XmlWinEventLog with the real Data names (Image, CommandLine, Hashes, ParentImage, ParentCommandLine).
 - Proof: `docs/proof/logs/day5-{soc,mde,filterlog,sysmon}.png` from `scripts/shot-daylogs.mjs` (0 console errors).
+
+## Midwest invitational round
+
+| File | Shows | Used for |
+|---|---|---|
+| panos-policy-list.png | PAN-OS Policies > Security | PanosApp rule table |
+| panos-commit.png | PAN-OS Commit dialog | PanosApp commit |
+| panos-rule-general.png | Security Policy Rule, General tab | PanosApp rule dialog |
+| panos-login.png | PAN-OS login | PanosApp login |
+| support-services-2026.png | Support Services "My applications", 2026 Midwest regional packet | SupportApp launcher |
+
+The PAN-OS images are from Palo Alto's public pan.dev documentation repository. No reference exists yet for the NETLAB+ topology page, the ticket form or a Windows login inside NETLAB+.
+

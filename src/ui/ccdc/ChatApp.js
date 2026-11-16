@@ -4,6 +4,7 @@
 //
 //   const chat = new ChatApp({ state, clock }); host.append(chat.el); chat.refresh() each second; chat.unreadCount()
 import { h, clear } from '../dom.js';
+import { clockAt } from '../../game/ccdcRound.js';
 import './chat.css';
 
 export const CHANNELS = ['general', 'linux', 'windows', 'network', 'injects'];
@@ -40,10 +41,6 @@ const BANTER = [
   { at: 780, who: 'captain', ch: 'general', text: 'Last stretch. Do not make big changes now. Verify, do not break.' },
 ];
 
-const fmtTs = (sec) => {
-  const t = 9 * 3600 + Math.floor(sec);
-  return `${String(Math.floor(t / 3600)).padStart(2, '0')}:${String(Math.floor((t % 3600) / 60)).padStart(2, '0')}`;
-};
 
 export class ChatApp {
   constructor({ state, clock }) {
@@ -119,7 +116,7 @@ export class ChatApp {
     const c = this.chat;
     const now = this.clock();
     for (const b of BANTER) {
-      if (now >= b.at && !c.fired[b.at + b.who]) { c.fired[b.at + b.who] = 1; this._post(b.ch, b.who, b.text, b.at); }
+      if (now >= b.at * (this.state.scenario.teamFeedStretch || 1) && !c.fired[b.at + b.who]) { c.fired[b.at + b.who] = 1; this._post(b.ch, b.who, b.text, b.at); }
     }
     for (let k = 0; k < c.pending.length; k++) {
       const p = c.pending[k];
@@ -160,20 +157,12 @@ export class ChatApp {
       const m = t.match(/from (.+?): "(.+?)"/);
       this._post('injects', 'ir', m ? `New inject from ${m[1]}: "${m[2]}". I am reading it now, who can help with the technical details?` : t, at);
       this._post('general', 'captain', m ? `Inject from ${m[1]} is in the portal. Jess has it, answer her questions in #injects.` : 'New inject is in the portal.', at);
-    } else if (e.cls === 'red') {
-      this._post('general', 'captain', 'Red team just started a wave. Check your boxes for new accounts, cron jobs and listeners.', at);
-      this._post('network', 'network', 'Seeing a spike in connections at the edge. Logging it.', at);
-    } else if (e.cls === 'warn' && /Foothold/.test(t)) {
-      const s = seat || 'linux';
-      this._post(TEAMMATES[s].area, s, 'Something got a foothold on one of my boxes. Hunting it down before the next wave.', at);
     } else if (e.cls === 'warn' && /rotated/.test(t)) {
       this._post('injects', 'ir', 'Heads up: the scored account password was changed. The PCR has to be filed or that check will fail.', at);
     } else if (e.cls === 'ok' && /PCR/.test(t)) {
       this._post('injects', 'white', 'PCR accepted. Scoring credential updated.', at);
     } else if (e.cls === 'bad' && /SLA violation/.test(t)) {
       this._post('general', 'captain', `${t.replace('SLA violation: ', '')} That is an SLA hit, -points each time. Fix it now, explain later.`, at);
-    } else if (e.cls === 'bad' && /Compromise confirmed/.test(t)) {
-      this._post('general', 'captain', 'Red team confirmed a compromise. Someone write the incident report in #injects, it can recover part of the loss.', at);
     } else if (e.cls === 'bad' && /overdue/.test(t)) {
       this._post('injects', 'ir', 'We missed an inject deadline. Late submissions score zero, but submit anyway so the judges see it.', at);
     } else if (e.cls === 'team') {
@@ -208,10 +197,10 @@ export class ChatApp {
         const u = m.who === 'me' ? ME : TEAMMATES[m.who];
         const cont = prev && prev.who === m.who && m.at - prev.at < 120;
         this.msgs.append(cont
-          ? h('div', { class: 'ch-msg ch-cont' }, h('span', { class: 'ch-ts' }, fmtTs(m.at)), h('div', { class: 'ch-text' }, m.text))
+          ? h('div', { class: 'ch-msg ch-cont' }, h('span', { class: 'ch-ts' }, clockAt(this.state.scenario, m.at * this.state.timeScale)), h('div', { class: 'ch-text' }, m.text))
           : h('div', { class: 'ch-msg' },
             h('span', { class: 'ch-avatar', style: { background: u.color === '#dbdee1' ? '#4e5058' : u.color } }, u.label[0]),
-            h('div', { class: 'ch-body' }, h('div', { class: 'ch-line' }, h('span', { class: 'ch-user', style: { color: u.color } }, u.name), u.role ? h('span', { class: 'ch-role' }, u.role) : null, h('span', { class: 'ch-time' }, `Today at ${fmtTs(m.at)}`)), h('div', { class: 'ch-text' }, m.text))));
+            h('div', { class: 'ch-body' }, h('div', { class: 'ch-line' }, h('span', { class: 'ch-user', style: { color: u.color } }, u.name), u.role ? h('span', { class: 'ch-role' }, u.role) : null, h('span', { class: 'ch-time' }, `Today at ${clockAt(this.state.scenario, m.at * this.state.timeScale)}`)), h('div', { class: 'ch-text' }, m.text))));
         prev = m;
       }
       if (!all.length) this.msgs.append(h('div', { class: 'ch-empty' }, `This is the start of #${this.current}.`));

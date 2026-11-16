@@ -98,8 +98,8 @@ test('scenario 3: a full clean round with injects scores an A', () => {
 
 test('scenario 3: live engine — leaving Redis open lets the red team compromise db01', () => {
   const s = attachEngine(fresh({ mode: MODES.COMPETITION }));
-  tickTo(s, 180); tickTo(s, 450);
-  assert.ok(liveCompromises(s).some((c) => c.id === 'redis-open'), 'unfixed Redis is compromised by wave 2');
+  tickTo(s, s.timeLimitSec);
+  assert.ok(liveCompromises(s).some((c) => c.id === 'redis-open'), 'unfixed Redis gets used during the round');
 });
 
 test('scenario 3: SIEM wave lines exist for every finding and match the weakness hit', () => {

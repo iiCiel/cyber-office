@@ -52,3 +52,35 @@
   .ij { padding: 8px; }
   .ij-c2 { display: none; }
 }
+
+/* NISE team portal. Colours sampled from docs/reference/nise-injects-2026.png. */
+.ij.nise { padding: 0; background: #fff; font-family: 'Open Sans', 'Segoe UI', Arial, sans-serif; display: flex; flex-direction: column; overflow: hidden; }
+.ni-nav { flex: none; display: flex; align-items: center; gap: 42px; background: #346699; height: 49px; padding: 0 66px 0 72px; }
+.ij.nise .ni-nav a { color: #fff; font-weight: 700; font-size: 15px; }
+.ni-user { margin-left: auto; color: #fff; font-weight: 700; font-size: 15px; white-space: nowrap; }
+.ni-page { flex: 1; overflow: auto; padding: 20px 36px 24px 40px; }
+.ni-panel { border: 1px solid #346699; border-radius: 4px; background: #f9f9f9; margin-bottom: 8px; overflow: hidden; }
+.ni-panel h2 { margin: 0; background: #346699; color: #fff; font-size: 18px; font-weight: 600; line-height: 50px; padding: 0 20px; }
+.ni-body { padding: 20px; }
+.ni-scroll { overflow-x: auto; }
+.ij.nise .ni-table { width: 100%; border-collapse: collapse; border: 1px solid #000; font: 14px Arial, Helvetica, sans-serif; color: #1f2d3d; }
+.ij.nise .ni-table thead th { background: linear-gradient(#174c80, #102f50); color: #fff; font-weight: 700; font-size: 16px; text-align: left; padding: 4px 5px; border: 0; border-left: 1px solid #000; border-bottom: 0; white-space: nowrap; line-height: 21px; }
+.ij.nise .ni-table thead th:first-child { border-left: 0; }
+.ij.nise .ni-table td { padding: 5px; border: 0; border-left: 1px solid #c9d6e2; font-size: 14px; background: #fff; white-space: nowrap; }
+.ij.nise .ni-table td:first-child { border-left: 0; white-space: normal; }
+.ij.nise .ni-table a { color: #1f3a5f; text-decoration: underline; }
+.ij.nise .ni-table tbody tr:nth-child(even) td { background: #eaf3fb; }
+.ij.nise .ni-table tbody tr:first-child td { background: #70b8ff; }
+.ij.nise .ij-table tbody tr:first-child td { background: #fff; }
+.ij.nise .ij-row:hover td, .ij.nise .ij-row.ij-sel td { background: #70b8ff; }
+.ni-pub { width: 30%; }
+.ni-c0 { width: 32%; }
+.ni-detail { margin-top: 12px; }
+@media (max-width: 700px) {
+  .ni-nav { gap: 12px; padding: 0 10px; overflow-x: auto; }
+  .ij.nise .ni-nav a, .ni-user { font-size: 12px; }
+  .ni-page { padding: 8px; }
+  .ni-body { padding: 8px; }
+  .ni-c1, .ni-c3 { display: none; }
+}
+.ij.nise .ij-row.ij-unread td { font-weight: 400; }

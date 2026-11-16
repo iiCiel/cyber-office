@@ -10,7 +10,7 @@
 // On top of the inspection engine, each box recognises the specific HARDENING commands that fix its findings —
 // and the plausible-but-wrong commands that are traps (a trap can knock a scored service DOWN, exactly like a
 // real self-inflicted CCDC outage). Scored services (web/DNS/mail/DB) go UP or DOWN from what the player types.
-// A live red team probes at the end: any exploitable finding still unfixed becomes a compromise.
+// Red Team works these same boxes for the whole round (ccdcRed.js).
 //
 // Everything is fiction: RFC 5737 / RFC 1918 addresses, invented hosts, canned output, nothing executed.
 
@@ -19,11 +19,15 @@ import { runPwsh } from './pwsh.js';
 import { evalFirewall, applyFirewallCommand, firewallHelp } from './ccdcFirewall.js';
 import { applyEdit, isEdit } from './ccdcEdit.js';
 import { rng, freshSeed } from './shuffle.js';
-import { finalSweep, tickTo } from './ccdcEngine.js';
+import { liveCompromises, tickTo } from './ccdcEngine.js';
 import { initHostState, applyHostChange, applyAdChange } from './hostState.js';
-import { makeDirectory } from './directory.js';
+import { makePanos } from './panos.js';
+import { immutableRefusal, REVERT_PENALTY, REVERT_SECS, missingCommand, runPanos, applyBoxCommand, applyUfwExtras, boxCommands, continuePending, dirOf, initBox, passwordInLine, passwordStrong, syncServices } from './ccdcBox.js';
+import { RED_POOL, redCharged, redForgetBox } from './ccdcRed.js';
+import { prepareScenario } from './ccdcRound.js';
 import { initialPan, applyPan } from './panMap.js';
 import { incidentResults, coveredByIncident } from './incidents.js';
+import { scriptedFinal } from './scriptedRed.js';
 
 export const SERVICE_STATE = { UP: 'up', DOWN: 'down' };
 export const MODES = { GUIDED: 'guided', COMPETITION: 'competition' };
@@ -67,33 +71,42 @@ export function injectsForRole(scenario, role) {
 
 // --- new game --------------------------------------------------------------
 
-export function newGame(scenario, opts = {}) {
+function makeDevState(d) {
+  const ds = {
+    cwd: d.cwd || (d.kind === 'pwsh' ? 'C:\\Users\\Administrator' : `/home/${d.user || 'analyst'}`),
+    history: [],
+    firewall: d.panos ? makePanos(d.panos) : d.kind === 'firewall' ? { rules: (d.firewall?.rules || []).map((r) => ({ ...r })), default: d.firewall?.default || 'pass' } : null,
+    // A per-game, mutable copy of the box's filesystem so edits (sed -i, echo >>, rm, …) actually change it and
+    // `cat` reflects the change. Starts as a deep copy of the scenario's read-only fs.
+    fs: (d.kind === 'bash' || d.kind === 'pwsh') && d.ctx?.fs ? JSON.parse(JSON.stringify(d.ctx.fs)) : null,
+    // Live host state (running services, local users, scheduled tasks, units, host-firewall rules) that status
+    // commands read, so verifying a change shows the CURRENT state, not the starting one.
+    live: d.kind === 'firewall' ? null : initHostState(d),
+    // A Palo Alto driven through the web UI model keeps a candidate and a running config (panMap.js).
+    pan: d.webui === 'panos' ? initialPan() : null,
+  };
+  initBox(d, ds);
+  return ds;
+}
+
+export function newGame(baseScenario, opts = {}) {
   const seed = opts.seed ?? freshSeed();
+  const scenario = prepareScenario(baseScenario, opts.length, seed);
   const mode = opts.mode === MODES.COMPETITION ? MODES.COMPETITION : MODES.GUIDED;
   const role = opts.role && opts.role !== ROLES.ALL ? opts.role : ROLES.ALL;
   rng(seed); // reserved for future per-game variation; keeps the signature stable
 
   const devices = devicesForRole(scenario, role);
   const deviceIds = new Set(devices.map((d) => d.id));
-  const injects = injectsForRole(scenario, role);
+  // The captain's seat owns no boxes, so rubric lines that check a box would be points it can never earn.
+  const injects = injectsForRole(scenario, role).map((i) => (role === ROLES.IR ? { ...i, rubric: (i.rubric || []).filter((r) => !r.verify) } : i));
 
   // Findings in play: those whose host is an owned device.
   const findingList = scenario.findings.filter((f) => deviceIds.has(f.host));
 
-  // Scored services this seat is graded on: any service a finding on an owned device can drop/restore, or that
-  // lives on an owned device. Whole team = all services.
-  let serviceList;
-  if (role === ROLES.ALL) serviceList = scenario.services;
-  else {
-    const refs = new Set();
-    for (const s of scenario.services) if (deviceIds.has(s.host)) refs.add(s.id);
-    for (const f of findingList) {
-      for (const t of f.traps) for (const s of asList(t.drops)) refs.add(s);
-      for (const s of asList(f.fix.restores)) refs.add(s);
-      for (const s of asList(f.compromise?.drops)) refs.add(s);
-    }
-    serviceList = scenario.services.filter((s) => refs.has(s.id));
-  }
+  // Scored services this seat is graded on: those hosted on its boxes. The firewall seat carries every service.
+  const ownsEdge = devices.some((d) => d.kind === 'firewall');
+  const serviceList = role === ROLES.ALL || ownsEdge ? scenario.services : scenario.services.filter((s) => deviceIds.has(s.host));
 
   const services = {};
   for (const s of serviceList) services[s.id] = { ...s, state: SERVICE_STATE.UP, downBy: {}, drops: 0 };
@@ -111,52 +124,70 @@ export function newGame(scenario, opts = {}) {
   for (const f of findingList) findings[f.id] = { status: 'open', triggeredTraps: {}, steps: {} };
 
   const devState = {};
-  for (const d of devices) {
-    devState[d.id] = {
-      cwd: d.cwd || (d.kind === 'pwsh' ? 'C:\\Users\\Administrator' : `/home/${d.user || 'analyst'}`),
-      history: [],
-      firewall: d.kind === 'firewall' ? { rules: (d.firewall?.rules || []).map((r) => ({ ...r })), default: d.firewall?.default || 'pass' } : null,
-      // A per-game, mutable copy of the box's filesystem so edits (sed -i, echo >>, rm, …) actually change it and
-      // `cat` reflects the change. Starts as a deep copy of the scenario's read-only fs.
-      fs: (d.kind === 'bash' || d.kind === 'pwsh') && d.ctx?.fs ? JSON.parse(JSON.stringify(d.ctx.fs)) : null,
-      // Live host state (running services, local users, scheduled tasks, units, host-firewall rules) that status
-      // commands read, so verifying a change shows the CURRENT state, not the starting one.
-      live: d.kind === 'firewall' ? null : initHostState(d),
-      // A Palo Alto keeps a candidate and a running config (see panMap.js); nothing is live until commit.
-      pan: d.webui === 'panos' ? initialPan() : null,
-    };
-  }
+  for (const d of devices) devState[d.id] = makeDevState(d);
 
   const injectState = {};
   for (const i of injects) injectState[i.id] = { answer: null, done: false, grade: null };
 
   return {
-    scenario, seed, mode, role,
+    scenario, seed, mode, role, timeScale: scenario.timeScale,
     deviceList: devices, findingList, serviceList, injectList: injects,
     timeLimitSec: mode === MODES.COMPETITION ? scenario.clockSeconds || 0 : 0,
     services, findings, devState, injects: injectState,
-    redTeamRun: false, compromises: [], expired: false,
+    redTeamRun: false, compromises: [], expired: false, reverts: [], incidents: [],
   };
 }
 
-// --- service bookkeeping ----------------------------------------------------
-
-function dropService(state, svcId, findingId, note) {
-  const svc = state.services[svcId];
-  if (!svc) return false;
-  const wasUp = svc.state === SERVICE_STATE.UP && !svc.downBy[findingId];
-  if (!svc.downBy[findingId]) { svc.downBy[findingId] = note || true; svc.drops += 1; }
-  if (Object.keys(svc.downBy).length) svc.state = SERVICE_STATE.DOWN;
-  return wasUp;
+/** Learn mode: put boxes back the way they started, with no penalty and no record of it. */
+export function resetBoxes(state, ids) {
+  for (const id of ids) {
+    const dev = state.deviceList.find((d) => d.id === id);
+    if (!dev) continue;
+    const ds = state.devState[id];
+    for (const k of Object.keys(ds)) delete ds[k];
+    Object.assign(ds, makeDevState(dev));
+    for (const f of state.findingList) if (f.host === id) state.findings[f.id] = { status: 'open', triggeredTraps: {}, steps: {} };
+    redForgetBox(state, id);
+    const pcr = state.engine?.pcr;
+    if (pcr && pcr.host === id) { pcr.rotated = false; pcr.breaking = false; pcr.filed = false; }
+  }
+  syncServices(state);
 }
 
-function restoreService(state, svcId, findingId) {
+/** Tech Support restores a box to how it started: backdoors gone, but so are your fixes, and it costs points. */
+export function requestRevert(state, deviceId) {
+  const dev = state.deviceList.find((d) => d.id === deviceId);
+  if (!dev) return { ok: false };
+  const fresh = makeDevState(dev);
+  if (fresh.live) fresh.live.offlineUntil = (state.engine?.clock || 0) + REVERT_SECS;
+  // Keep the same object: open windows (an RDP desktop, a console) hold a reference to it.
+  const ds = state.devState[deviceId];
+  for (const k of Object.keys(ds)) delete ds[k];
+  Object.assign(ds, fresh);
+  for (const f of state.findingList) if (f.host === deviceId) state.findings[f.id] = { status: 'open', triggeredTraps: {}, steps: {} };
+  redForgetBox(state, deviceId);
+  const pcr = state.engine?.pcr;
+  if (pcr && pcr.host === deviceId) { pcr.rotated = false; pcr.breaking = false; }
+  state.reverts.push({ dev: deviceId, at: state.engine?.clock || 0 });
+  state.engine?.events.push({ at: state.engine.clock, cls: 'revert', text: `Tech Support reverted ${dev.host} to its original state (-${REVERT_PENALTY}).` });
+  syncServices(state);
+  return { ok: true };
+}
+
+/** Mark a service down for a reason (svc.downBy); syncServices turns it into the scored state. */
+function dropService(state, svcId, why, note) {
   const svc = state.services[svcId];
   if (!svc) return false;
-  const had = !!svc.downBy[findingId];
-  delete svc.downBy[findingId];
-  if (!Object.keys(svc.downBy).length) svc.state = SERVICE_STATE.UP;
-  return had;
+  const had = !!svc.downBy[why];
+  svc.downBy[why] = note || true;
+  return !had;
+}
+
+function restoreService(state, svcId, why) {
+  const svc = state.services[svcId];
+  if (!svc || !svc.downBy[why]) return false;
+  delete svc.downBy[why];
+  return true;
 }
 
 // --- running a typed line ---------------------------------------------------
@@ -168,19 +199,38 @@ const rejected = (step, line) => asList(step.reject).some((p) => (p instanceof R
 
 /**
  * Run one line on a device. Returns { lines:[{cls,text}], effects:{ fixed?, trapId?, dropped:[], restored:[],
- * note? } }. Mutates state for accepted fixes and triggered traps. Everything else is passed to the real bash /
- * PowerShell engine so inspection commands (ls, cat, grep, Get-ADUser, …) produce realistic output.
+ * note? } }. Every admin command changes the box; then the graded findings are checked; then status tools read the
+ * box as it now is. In competition the terminal only ever prints what the real command prints. Whether a fix
+ * worked is for the player to verify, and a service they broke shows up at the next scored check.
  */
 export function runLine(state, deviceId, rawLine) {
+  const res = executeLine(state, deviceId, rawLine);
+  const { dropped, restored } = syncServices(state);
+  const e = res.effects || (res.effects = {});
+  if (dropped.length) e.dropped = [...new Set([...(e.dropped || []), ...dropped])];
+  if (restored.length) e.restored = [...new Set([...(e.restored || []), ...restored])];
+  if (dropped.length && state.mode !== MODES.COMPETITION) res.lines = [...res.lines, { cls: 'bad', text: `!! Scored service DOWN: ${dropped.join(', ')} — ${state.services[dropped[0]].problem}.` }];
+  return res;
+}
+
+function executeLine(state, deviceId, rawLine) {
   const dev = state.deviceList.find((d) => d.id === deviceId);
   if (!dev) return { lines: [{ cls: 'err', text: 'No such device on this seat.' }], effects: {} };
   const ds = state.devState[deviceId];
-  // Boxes marked `sudo: true` (the Invitational replay) accept the habit of typing sudo: it is stripped and the
-  // command runs as the admin it would run as.
-  const line = dev.sudo ? norm(rawLine).replace(/^sudo\s+/i, '') : norm(rawLine);
+  const quiet = state.mode === MODES.COMPETITION;
+  if (dev.panos) return runPanosChecked(state, dev, ds, String(rawLine));
+  if (ds.pending) return { lines: continuePending(ds, String(rawLine)).lines, effects: {} };
+  const line = norm(rawLine).replace(/^sudo\s+/i, '');
   if (!line) return { lines: [], effects: {} };
   if (/^(clear|cls)$/i.test(line)) return { lines: [], effects: { clear: true } };
+  if (ds.live?.bricked || (ds.live && ds.live.offlineUntil > (state.engine?.clock || 0))) {
+    return { lines: [{ cls: 'err', text: `ssh: connect to host ${dev.ip} port 22: Connection timed out` }], effects: {} };
+  }
   ds.history.push(line);
+  const missing = missingCommand(dev, line);
+  if (missing) return { lines: [{ cls: 'err', text: missing }], effects: {} };
+  const refused = dev.kind === 'bash' && isEdit(line) ? immutableRefusal(ds, line) : null;
+  if (refused) return { lines: [{ cls: 'err', text: refused }], effects: {} };
 
   // Firewall is a rule editor, not a shell.
   if (dev.kind === 'firewall') return runFirewallLine(state, dev, ds, line);
@@ -188,8 +238,8 @@ export function runLine(state, deviceId, rawLine) {
   const lower = line.toLowerCase();
   const findings = state.findingList.filter((f) => f.host === deviceId);
 
-  // Palo Alto: PAN-OS config lines (typed, or sent by the web UI) change the candidate config; findings on the
-  // box are judged against the RUNNING config after every change, like the pfSense rule editor.
+  // Palo Alto web model: PAN-OS config lines (typed, or sent by the web UI) change the candidate config; findings
+  // on the box are judged against the RUNNING config after every change.
   if (ds.pan) {
     const r = applyPan(ds.pan, line);
     if (r.handled) return runPanFindings(state, findings, ds, r);
@@ -205,16 +255,15 @@ export function runLine(state, deviceId, rawLine) {
     // A malformed edit (bad quoting, missing file, bare tee) changed nothing: report the shell error and stop —
     // it must never count as a fix.
     if (er.handled && er.error) return { lines: editLines, effects: {} };
+    if (er.handled && quiet) editLines = /^(tee|echo .*\|\s*tee)/.test(line) ? editLines : [];
   }
   // State-changing admin commands (Stop-Service, Remove-LocalUser, systemctl stop, ufw allow, …) update the box's
   // live state whether or not they are the graded fix, so status commands afterwards reflect reality.
-  if (ds.live) applyHostChange(ds.live, line, dev.kind);
-  // Domain controller: AD changes land in this game's own copy of the directory (built on first use), so
-  // Get-ADUser / Get-ADGroupMember afterwards show the current truth and replays start clean.
-  if (dev.kind === 'pwsh' && dev.ctx?.dir?.spec) {
-    if (!ds.dir) ds.dir = makeDirectory(JSON.parse(JSON.stringify(dev.ctx.dir.spec)));
-    applyAdChange(ds.dir, line);
-  }
+  if (ds.live) { applyHostChange(ds.live, line, dev.kind); applyUfwExtras(ds.live, line); }
+  // Domain controller: AD changes land in this game's own copy of the directory.
+  if (dev.kind === 'pwsh' && dev.ctx?.dir?.spec) applyAdChange(dirOf(dev, ds), line);
+  const box = applyBoxCommand(state, dev, ds, line);
+  const realLines = () => [...(editLines || []), ...(box?.lines || [])];
   // Scenario hook for state that is not a finding (e.g. SNMP set up for an inject): side effects now, and its lines
   // replace the generic shell output at step 3 for commands the shell does not know.
   const hook = state.scenario.onLine ? state.scenario.onLine(state, deviceId, line, ds, rawLine) : null;
@@ -222,18 +271,20 @@ export function runLine(state, deviceId, rawLine) {
 
   // 0) Rotating the scored account's password? The command is legitimate, but until a PCR is filed the scoring
   //    engine can no longer authenticate — flag it so the live engine fails that service until the PCR lands.
-  const pcrList = Array.isArray(state.scenario.pcr) ? state.scenario.pcr : state.scenario.pcr ? [state.scenario.pcr] : [];
-  const rotatedPcrs = pcrList.filter((p) => p.host === deviceId && matchesAll(p.rotateMatch, lower) && !asList(p.rotateUnless).some((u) => u.test(lower)));
+  //    A scenario may give one pcr or a list (one per Quotient credential list).
+  const pcrList = asList(state.scenario.pcr);
+  const rotatedPcrs = pcrList.filter((p) => p.host === deviceId && (p.rotates ? p.rotates(lower) : matchesAll(p.rotateMatch, lower)) && !asList(p.rotateUnless).some((u) => u.test(lower)));
   const pcrRotated = rotatedPcrs.length > 0;
+  const pcr = rotatedPcrs[0] || null;
   const pcrFx = (res) => {
     if (!pcrRotated) return res;
-    for (const p of rotatedPcrs) res.lines.push({ cls: 'warn', text: `Scored credentials in the ${p.account} list rotated. If you did not submit the PCR in Quotient first, ${[].concat(p.service).join(', ')} will start failing.` });
+    if (!quiet && pcrList.length > 1) for (const p of rotatedPcrs) res.lines.push({ cls: 'warn', text: `Scored credentials in the ${p.account} list rotated. If you did not submit the PCR in Quotient first, ${asList(p.service).join(', ')} will start failing.` });
     res.effects = { ...(res.effects || {}), pcrRotated: true, pcrAccounts: rotatedPcrs.map((p) => p.account) };
     return res;
   };
 
-  // 1) A plausible-but-wrong trap command? (Can drop a scored service.) Traps are checked BEFORE fixes so a
-  //    harmful command (e.g. denying 3306 for everyone) can never be mistaken for the scoped fix.
+  // 1) A plausible-but-wrong trap command? Traps are checked BEFORE fixes so a harmful command (e.g. denying 3306
+  //    for everyone) can never be mistaken for the scoped fix. The damage itself is whatever it did to the box.
   for (const f of findings) {
     const rec = state.findings[f.id];
     for (const t of f.traps) {
@@ -241,23 +292,25 @@ export function runLine(state, deviceId, rawLine) {
       if (matchesAny(t.match, lower) && !asList(t.unless).some((u) => u.test(lower))) {
         rec.triggeredTraps[t.id] = true;
         if (typeof t.capture === 'function') t.capture(state, rawLine);
-        const dropped = [];
-        for (const s of asList(t.drops)) if (dropService(state, s, f.id, t.note)) dropped.push(s);
-        const lines = (t.output || []).map((text) => ({ cls: 'warn', text }));
-        if (dropped.length) lines.push({ cls: 'bad', text: `!! Scored service DOWN: ${dropped.join(', ')} — ${t.note || 'your change broke it.'}` });
-        return pcrFx({ lines, effects: { trapId: t.id, dropped, note: t.note, why: t.why } });
+        for (const s of asList(t.drops)) dropService(state, s, f.id, t.note);
+        const lines = quiet ? realLines() : (t.output || []).map((text) => ({ cls: 'warn', text }));
+        return pcrFx({ lines, effects: { trapId: t.id, dropped: [], note: t.note, why: t.why } });
       }
     }
   }
 
+  // A password that would not survive a spray is accepted by the box and hardens nothing.
+  const inline = passwordInLine(line);
+  const weakPassword = inline !== null && !passwordStrong(inline);
+
   // 2) A correct hardening command for an open finding on this box? A fix is either a single `accept` command
   //    or a set of `steps` (real hardening is often multi-command; the finding only clears once all are done).
-  for (const f of findings) {
+  for (const f of weakPassword ? [] : findings) {
     const rec = state.findings[f.id];
     if (rec.status === 'fixed') {
       // Re-running a fix on a hardened box: acknowledge it instead of sending it to the inspection engine.
       const again = f.fix.steps ? f.fix.steps.some((st) => matchesAll(st.accept, lower) && !rejected(st, lower)) : matchesAny(f.fix.accept, lower);
-      if (again) return { lines: [{ cls: 'note', text: `(already hardened: ${f.title})` }], effects: {} };
+      if (again) return { lines: quiet ? realLines() : [{ cls: 'note', text: `(already hardened: ${f.title})` }], effects: {} };
       continue;
     }
     if (f.fix.steps) {
@@ -265,30 +318,23 @@ export function runLine(state, deviceId, rawLine) {
       if (step) {
         // A step may also require the box's EDITED file to really be in the right state (not just a matching
         // command line): e.g. pg_hba.conf has no trust line left and still admits the scoring engine.
-        const check = step.verify ? step.verify(ds.fs || {}) : { ok: true };
+        const check = step.verify ? step.verify(ds.fs || {}, state) : { ok: true };
         if (!check.ok) {
-          const lines = [...(editLines || []), { cls: 'warn', text: check.why || 'That command ran, but the file is not in a hardened state yet.' }];
-          if (check.trap) {
-            const dropped = [];
-            for (const s of asList(check.trap.drops)) if (dropService(state, s, f.id, check.trap.note)) dropped.push(s);
-            if (dropped.length) lines.push({ cls: 'bad', text: `!! Scored service DOWN: ${dropped.join(', ')} — ${check.trap.note}` });
-            return { lines, effects: { trapId: check.trap.id, dropped, note: check.trap.note, why: check.trap.why } };
-          }
-          return { lines, effects: {} };
+          for (const s of asList(check.trap?.drops)) dropService(state, s, f.id, check.trap.note);
+          const lines = quiet ? realLines() : [...(editLines || []), { cls: 'warn', text: check.why || 'That command ran, but the file is not in a hardened state yet.' }];
+          return { lines, effects: check.trap ? { trapId: check.trap.id, note: check.trap.note, why: check.trap.why } : {} };
         }
         rec.steps[step.id] = true;
         // A verified step can bring back a service an earlier bad edit of the same file took down.
-        const restoredNow = [];
-        for (const s of asList(step.restores)) if (restoreService(state, s, f.id)) restoredNow.push(s);
-        const lines = (step.output || [`✓ ${step.label}`]).map((text) => ({ cls: 'ok', text }));
-        if (restoredNow.length) lines.push({ cls: 'ok', text: `Scored service back UP: ${restoredNow.join(', ')}.` });
+        for (const s of asList(step.restores)) restoreService(state, s, f.id);
         const remaining = f.fix.steps.filter((s) => !rec.steps[s.id]);
-        if (!remaining.length) return pcrFx(finishFix(state, f, lines));
-        lines.push({ cls: 'note', text: `Step done (${f.fix.steps.length - remaining.length}/${f.fix.steps.length}). Still to do: ${remaining.map((s) => s.todo || s.label).join('; ')}` });
+        const lines = quiet ? realLines() : (step.output || [`✓ ${step.label}`]).map((text) => ({ cls: 'ok', text }));
+        if (!remaining.length) return pcrFx(finishFix(state, f, lines, quiet));
+        if (!quiet) lines.push({ cls: 'note', text: `Step done (${f.fix.steps.length - remaining.length}/${f.fix.steps.length}). Still to do: ${remaining.map((s) => s.todo || s.label).join('; ')}` });
         return pcrFx({ lines, effects: { stepId: step.id } });
       }
     } else if (matchesAny(f.fix.accept, lower)) {
-      return pcrFx(finishFix(state, f, (f.fix.output || ['Done.']).map((text) => ({ cls: 'ok', text }))));
+      return pcrFx(finishFix(state, f, quiet ? realLines() : (f.fix.output || ['Done.']).map((text) => ({ cls: 'ok', text })), quiet));
     }
   }
 
@@ -306,46 +352,47 @@ export function runLine(state, deviceId, rawLine) {
     rs.steps[step.id] = true;
     const lines = [...(editLines || []), ...(step.output || []).map((text) => ({ cls: 'ok', text }))];
     if (r.steps.every((st) => rs.steps[st.id])) {
-      const restored = [];
-      for (const { svc, from } of r.restores) if (restoreService(state, svc, from)) restored.push(svc);
-      if (restored.length) lines.push({ cls: 'ok', text: `Scored service back UP: ${restored.join(', ')}.` });
+      for (const { svc, from } of r.restores) restoreService(state, svc, from);
       r.reset?.(state);
       state.recoveries[r.id] = { steps: {} };
-      return { lines, effects: { restored, recovered: r.id } };
+      return { lines, effects: { recovered: r.id } };
     }
     const left = r.steps.filter((st) => !rs.steps[st.id]);
     lines.push({ cls: 'note', text: `Still to do: ${left.map((st) => st.todo).join('; ')}` });
     return { lines, effects: {} };
   }
 
-  // 2.5) A file edit that wasn't itself a trap or a fix (e.g. editing a config by hand): report what it did.
-  if (editLines) return { lines: editLines, effects: {} };
+  // 2.5) An admin command or file edit that wasn't itself a trap or a fix: show what the real command prints.
+  if (box || editLines) return pcrFx({ lines: realLines(), effects: {} });
 
   // 3) Everything else: the real inspection engine for this box (reading the box's current, possibly edited, fs).
   if (hook?.lines) return pcrFx({ lines: hook.lines.map((t) => (typeof t === 'string' ? { cls: '', text: t } : t)), effects: {} });
-  const ctx = { ...dev.ctx, cwd: ds.cwd, fs: ds.fs || dev.ctx?.fs, live: ds.live, dir: ds.dir || dev.ctx?.dir, pan: ds.pan, game: state };
+  const ctx = { ...dev.ctx, cwd: ds.cwd, fs: ds.fs || dev.ctx?.fs, live: ds.live, dir: ds.dir || dev.ctx?.dir, commands: boxCommands(state, dev, ds), pan: ds.pan, game: state };
   const res = dev.kind === 'pwsh' ? runPwsh(line, ctx) : runBash(line, ctx);
   if (res.cwd) ds.cwd = res.cwd;
   const text = res.out == null ? '' : String(res.out).replace(/\n$/, '');
   const lines = text === '' ? [] : text.split('\n').map((t) => ({ cls: res.error ? 'err' : '', text: t }));
-  if (pcrRotated && pcrList.length === 1 && !Array.isArray(state.scenario.pcr)) {
-    const p = pcrList[0];
-    lines.push({ cls: 'warn', text: `Scored account ${p.account} rotated. File the Password Change Request inject, or ${p.service} will start failing its scored check.` });
-    return { lines, effects: { pcrRotated: true, pcrAccounts: [p.account] } };
-  }
+  if (pcrRotated && !quiet && pcrList.length === 1) lines.push({ cls: 'warn', text: `Scored account ${pcr.account} rotated. File the Password Change Request inject, or ${pcr.service} will start failing its scored check.` });
   return pcrFx({ lines, effects: {} });
 }
 
-function finishFix(state, f, lines) {
+function runPanosChecked(state, dev, ds, line) {
+  if (ds.poweredOff) return { lines: [{ cls: 'err', text: 'The firewall is restarting.' }], effects: {} };
+  if (!ds.pending) ds.history.push(line.replace(/^@config\s+/, ''));
+  if (/^(clear|cls)$/i.test(line.trim())) return { lines: [], effects: { clear: true } };
+  return runPanos(state, dev, ds, line);
+}
+
+function finishFix(state, f, lines, quiet) {
   state.findings[f.id].status = 'fixed';
   state.findings[f.id].fixedAt = state.engine?.clock ?? null;
-  const restored = [];
-  for (const s of asList(f.fix.restores)) if (restoreService(state, s, f.id)) restored.push(s);
-  lines.unshift({ cls: 'fix', text: `✓ Hardened: ${f.title}` });
-  return { lines, effects: { fixed: f.id, restored, why: f.fix.why } };
+  for (const s of asList(f.fix.restores)) restoreService(state, s, f.id);
+  if (!quiet) lines.unshift({ cls: 'fix', text: `✓ Hardened: ${f.title}` });
+  return { lines, effects: { fixed: f.id, restored: [], why: f.fix.why } };
 }
 
 function runPanFindings(state, findings, ds, applied) {
+  const quiet = state.mode === MODES.COMPETITION;
   const lines = applied.lines.filter((t) => t !== '').map((text) => ({ cls: applied.error ? 'err' : 'note', text }));
   const effects = { dropped: [], restored: [], commit: !!applied.commit };
   if (applied.error) return { lines, effects };
@@ -354,40 +401,37 @@ function runPanFindings(state, findings, ds, applied) {
     const rec = state.findings[f.id];
     const v = f.pan(ds.pan, state);
     for (const s of Object.keys(state.services)) {
-      if ((v.down || []).includes(s)) { if (dropService(state, s, f.id, v.note || 'blocked at the Palo Alto')) effects.dropped.push(s); } else if (restoreService(state, s, f.id)) effects.restored.push(s);
+      if ((v.down || []).includes(s)) dropService(state, s, f.id, v.note || 'blocked at the Palo Alto'); else restoreService(state, s, f.id);
     }
-    if (v.fixed && rec.status !== 'fixed') { rec.status = 'fixed'; rec.fixedAt = state.engine?.clock ?? null; effects.fixed = f.id; effects.why = f.fix.why; lines.push({ cls: 'fix', text: `✓ Hardened: ${f.title}` }); }
+    if (v.fixed && rec.status !== 'fixed') { rec.status = 'fixed'; rec.fixedAt = state.engine?.clock ?? null; effects.fixed = f.id; effects.why = f.fix.why; if (!quiet) lines.push({ cls: 'fix', text: `✓ Hardened: ${f.title}` }); }
     else if (!v.fixed && rec.status === 'fixed') rec.status = 'open';
-    if (applied.commit && !v.fixed && v.todo?.length && f.reportTodo) lines.push({ cls: 'warn', text: `Not hardened yet: ${v.todo.join('; ')}.` });
+    if (!quiet && applied.commit && !v.fixed && v.todo?.length && f.reportTodo) lines.push({ cls: 'warn', text: `Not hardened yet: ${v.todo.join('; ')}.` });
   }
-  if (effects.dropped.length) lines.push({ cls: 'bad', text: `!! Scored service DOWN: ${effects.dropped.join(', ')} — the committed policy no longer lets the scorer in.` });
-  if (effects.restored.length) lines.push({ cls: 'ok', text: `Scored service back UP: ${effects.restored.join(', ')}.` });
   if (ds.pan.dirty && !applied.commit) lines.push({ cls: 'note', text: '(candidate config changed — not live until you commit)' });
   return { lines, effects };
 }
 
 function runFirewallLine(state, dev, ds, line) {
-  if (/^(help|\?|moves)$/i.test(line)) return { lines: firewallHelp().map((text) => ({ cls: 'note', text })), effects: {} };
+  const quiet = state.mode === MODES.COMPETITION;
+  if (/^(help|\?|moves)$/i.test(line)) return { lines: firewallHelp(quiet).map((text) => ({ cls: 'note', text })), effects: {} };
+  const pw = line.match(/^passwd\s+(\S+)/i);
+  if (pw) { ds.creds.admin = { pw: pw[1], strong: passwordStrong(pw[1], 'admin'), def: false }; return { lines: [{ cls: '', text: 'Password changed for user admin.' }], effects: {} }; }
   const applied = applyFirewallCommand(ds.firewall, line);
   const lines = applied.lines.map((text) => ({ cls: applied.error ? 'err' : 'note', text }));
   if (applied.error) return { lines, effects: {} };
 
   // Re-evaluate the firewall finding(s) on this device after every rule change.
-  const effects = { dropped: [], restored: [] };
+  const effects = {};
   for (const f of state.findingList.filter((ff) => ff.host === dev.id)) {
     const rec = state.findings[f.id];
     const verdict = evalFirewall(ds.firewall, f.fw);
     if (verdict.fixed) {
-      for (const s of f.fw.scored) if (restoreService(state, s, f.id)) effects.restored.push(s);
-      if (rec.status !== 'fixed') { rec.status = 'fixed'; effects.fixed = f.id; effects.why = f.fix.why; lines.push({ cls: 'fix', text: `✓ Hardened: ${f.title}` }); }
+      if (rec.status !== 'fixed') { rec.status = 'fixed'; effects.fixed = f.id; effects.why = f.fix.why; if (!quiet) lines.push({ cls: 'fix', text: `✓ Hardened: ${f.title}` }); }
     } else {
       if (rec.status === 'fixed') rec.status = 'open';
-      if (ds.firewall.default === 'block' && verdict.open && !verdict.down.length) lines.push({ cls: 'warn', text: `Not hardened yet: ${verdict.open}.` });
-      for (const s of verdict.down) if (dropService(state, s, f.id, verdict.note)) effects.dropped.push(s);
-      for (const s of f.fw.scored) if (!verdict.down.includes(s)) if (restoreService(state, s, f.id)) effects.restored.push(s);
+      if (!quiet && ds.firewall.default === 'block' && verdict.open && !verdict.down.length) lines.push({ cls: 'warn', text: `Not hardened yet: ${verdict.open}.` });
     }
   }
-  if (effects.dropped.length) lines.push({ cls: 'bad', text: `!! Scored service DOWN: ${effects.dropped.join(', ')} — no allow rule for it with the default policy set to block.` });
   return { lines, effects };
 }
 
@@ -396,25 +440,45 @@ function runFirewallLine(state, dev, ds, line) {
 // partial credit, so a blank box or filler earns nothing and the debrief names what was missing.
 
 export const INJECT_MIN_CHARS = 40;
+export const SLA_CAP = 50;
+export const RULE_VIOLATION = 10;
 
 function countMatches(re, text) {
   const g = new RegExp(re.source, re.flags.includes('g') ? re.flags : `${re.flags}g`);
   return new Set((text.match(g) || []).map((m) => m.toLowerCase())).size;
 }
 
+const STOPWORDS = /\b(the|a|an|to|of|and|for|is|are|we|will|with|on|in|that|this|our|your|be|has|have|by|from|as|it|not|at|or|was|were)\b/gi;
+const MEMO_HEAD = /^\s*(to|from|subject|re|date)\s*:/im;
+export const MEMO_LABEL = 'written as a memo (To / From / Subject)';
+export const MIN_INJECT_WORDS = 25;
+
+/** Is this a business deliverable at all, or a bag of keywords? Tables get a pass on prose, not on facts. */
+export function looksLikeWriting(inject, text) {
+  const words = String(text || '').trim().split(/\s+/).filter(Boolean);
+  if (words.length < MIN_INJECT_WORDS) return false;
+  if (inject.format === 'table') return true;
+  return (String(text).match(STOPWORDS) || []).length / words.length >= 0.18;
+}
+
 /** Grade one written deliverable against an inject rubric. Returns { pts, max, hits:[label], missing:[label] }. */
-export function gradeInject(inject, text) {
+export function gradeInject(inject, text, state = null) {
   const t = String(text || '');
-  const rubric = inject.rubric || [];
+  const rubric = [...(inject.rubric || []), { label: MEMO_LABEL, check: (x) => MEMO_HEAD.test(x) }];
+  const max = inject.points || 0;
+  const prose = looksLikeWriting(inject, t);
   const hits = [];
   const missing = [];
   for (const item of rubric) {
-    const ok = item.min ? countMatches(item.re, t) >= item.min : item.re.test(t);
+    let ok;
+    if (item.verify) ok = !!state && !!item.verify(state);
+    else if (!prose) ok = false;
+    else if (item.check) ok = !!item.check(t, state);
+    else ok = item.min ? countMatches(item.re, t) >= item.min : item.re.test(t);
     (ok ? hits : missing).push(item.label);
   }
-  const max = inject.points || 0;
   const pts = rubric.length ? Math.round((hits.length / rubric.length) * max) : 0;
-  return { pts, max, hits, missing };
+  return { pts, max, hits, missing, rejected: !prose };
 }
 
 export function answerInject(state, injectId, text) {
@@ -432,9 +496,9 @@ export function answerInject(state, injectId, text) {
   // (the rubric is still shown so the player can learn from it).
   const t = state.engine?.injectTimers?.[injectId];
   rec.late = !!(t && (t.overdue || state.engine.clock > t.dueAt));
-  const g = gradeInject(i, body);
+  const g = gradeInject(i, body, state);
   rec.grade = rec.late ? { ...g, pts: 0, earned: g.pts, late: true } : g;
-  const isPcr = (Array.isArray(state.scenario.pcr) ? state.scenario.pcr : [state.scenario.pcr]).some((p) => p && p.injectId === injectId);
+  const isPcr = asList(state.scenario.pcr).some((p) => p && p.injectId === injectId);
   return { ok: true, grade: rec.grade, isPcr, late: rec.late };
 }
 
@@ -443,26 +507,28 @@ export function answerInject(state, injectId, text) {
 export function runRedTeam(state) {
   if (state.redTeamRun) return state.compromises;
   state.compromises = [];
-  // Live engine attached: the red team already worked through the round in waves. The buzzer fires one final
-  // wave, and the compromises are exactly what the waves confirmed — not a blanket penalty on every open finding.
   if (state.engine) {
     // Ending early fast-forwards to the buzzer with the boxes as they are now: the remaining scored checks and
-    // red-team waves still happen (otherwise quitting at 0:01 would bank a perfect round).
+    // Red Team operations still happen (otherwise quitting at 0:01 would bank a perfect round).
     if (state.timeLimitSec && state.engine.clock < state.timeLimitSec) tickTo(state, state.timeLimitSec);
-    state.compromises = finalSweep(state);
-    for (const c of state.compromises) {
-      const f = state.findingList.find((x) => x.id === c.id);
-      for (const s of asList(f?.compromise?.drops)) dropService(state, s, `redteam:${c.id}`, 'Compromised by the red team.');
+    if (state.scenario.scriptedRed) {
+      state.compromises = scriptedFinal(state);
+      for (const c of state.compromises) {
+        const f = state.findingList.find((x) => x.id === c.id);
+        for (const s of asList(f?.compromise?.drops)) dropService(state, s, `redteam:${c.id}`, 'Compromised by the red team.');
+      }
+      syncServices(state);
+      state.redTeamRun = true;
+      return state.compromises;
     }
+    state.compromises = liveCompromises(state);
     state.redTeamRun = true;
     return state.compromises;
   }
   for (const f of state.findingList) {
-    if (!f.exploitable) continue;
-    if (state.findings[f.id].status === 'fixed') continue;
+    if (!f.exploitable || state.findings[f.id].status === 'fixed') continue;
     const c = f.compromise || {};
     state.compromises.push({ id: f.id, title: f.title, impact: c.impact || 'Compromised.', penalty: c.penalty || 40 });
-    for (const s of asList(c.drops)) dropService(state, s, `redteam:${f.id}`, 'Compromised by the red team.');
   }
   state.redTeamRun = true;
   return state.compromises;
@@ -497,48 +563,46 @@ export function score(state) {
   // (consecutive missed checks). Without it (pure unit tests, checklist drills), fall back to the drop counter.
   const slaEach = sc.slaPenalty || 0;
   const slaCount = state.engine ? state.engine.slaViolations : services.reduce((n, s) => n + (s.drops || 0), 0);
-  const slaPenalty = slaCount * slaEach;
+  const slaPenalty = Math.min(SLA_CAP, slaCount * slaEach);
 
   const injectResults = state.injectList.map((i) => {
     const rec = state.injects[i.id];
-    const g = rec.done ? rec.grade || gradeInject(i, rec.answer) : { pts: 0, hits: [], missing: (i.rubric || []).map((r) => r.label) };
+    const g = rec.done ? rec.grade || gradeInject(i, rec.answer, state) : { pts: 0, hits: [], missing: (i.rubric || []).map((r) => r.label) };
     const late = !!rec.late;
     return { id: i.id, title: i.title, answered: rec.done, late, points: late ? 0 : g.pts, max: i.points, hits: g.hits, missing: g.missing };
   });
   const injectPts = injectResults.reduce((n, r) => n + r.points, 0);
   const injectMax = state.injectList.reduce((n, i) => n + (i.points || 0), 0);
 
-  // Incident-report mitigation (real CCDC: an accurate, timely report reclaims part of the red team's points).
-  // A compromise whose finding is covered by a submitted, full-marks incident-report inject costs half.
-  const reportedFull = (findingId) => {
-    const f = state.findingList.find((x) => x.id === findingId);
-    const injId = f?.reportableBy;
-    if (!injId) return false;
-    const rec = state.injects[injId];
-    if (!rec?.done || rec.late) return false;
-    const inj = state.injectList.find((x) => x.id === injId);
-    const g = rec.grade || gradeInject(inj, rec.answer);
-    return g.pts >= g.max;
-  };
+  // Red Team: a pool you keep unless they take it. Incident reports win points back event by event.
+  const redPool = Math.round(RED_POOL * (state.findingList.length / Math.max(1, sc.findings.length)));
+  // A replay's scripted compromises cost half when an incident report covers them.
+  const scripted = !!sc.scriptedRed;
   const charged = state.compromises.map((c) => {
-    const halved = reportedFull(c.id) || coveredByIncident(state, c.id);
+    const halved = scripted && coveredByIncident(state, c.id);
     return { ...c, halved, charged: Math.round(c.penalty * (halved ? 0.5 : 1)) };
   });
-  const compromisePenalty = charged.reduce((n, c) => n + c.charged, 0);
-
+  const taken = eng?.red && !scripted ? redCharged(state) : charged.reduce((n, c) => n + c.charged, 0);
   // Incident reports (scenarios that define real incidents): best report per incident.
-  const incBest = incidentResults(state);
+  const incBest = sc.incidents ? incidentResults(state) : {};
   const incidentResultsList = (sc.incidents || []).map((inc) => ({ id: inc.id, title: inc.title, points: incBest[inc.id]?.pts || 0, max: inc.points }));
   const incidentPts = incidentResultsList.reduce((n, r) => n + r.points, 0);
   const incidentMax = incidentResultsList.reduce((n, r) => n + r.max, 0);
+  const compromisePenalty = Math.min(redPool, taken);
+  // Incident reports win Red Team points back, up to the pool (a replay's NISE reports).
+  const redKept = Math.min(redPool, redPool - compromisePenalty + incidentPts);
+  const revertPenalty = (state.reverts?.length || 0) * REVERT_PENALTY;
+  const ruleViolations = state.ruleViolations || [];
+  const violationPenalty = ruleViolations.length * RULE_VIOLATION;
+  const recovered = eng?.red ? eng.red.events.reduce((n, e) => n + e.recovered, 0) : 0;
 
   const fixed = state.findingList.filter((f) => state.findings[f.id].status === 'fixed').length;
-  const raw = servicePts + injectPts + incidentPts - slaPenalty - compromisePenalty;
-  const max = serviceMax + injectMax + incidentMax;
+  const raw = servicePts + injectPts + redKept - slaPenalty - revertPenalty - violationPenalty;
+  const max = serviceMax + injectMax + redPool;
   const pct = max ? Math.max(0, Math.round((raw / max) * 100)) : 0;
 
   return {
-    servicePts, serviceMax, injectPts, injectMax, incidentPts, incidentMax, incidentResults: incidentResultsList, slaPenalty, slaCount, compromisePenalty,
+    ruleViolations, violationPenalty, servicePts, serviceMax, injectPts, injectMax, incidentPts, incidentMax, incidentResults: incidentResultsList, slaPenalty, slaCount, compromisePenalty, redPool, redKept, revertPenalty, recovered,
     compromises: charged, injectResults, serviceBreakdown, uptimeScored: !!eng, fixed, findingsTotal: state.findingList.length,
     raw, max, pct, letter: letterFor(pct),
   };

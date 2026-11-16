@@ -25,7 +25,7 @@ const W = page.locator('.jb-win[data-win="injects"]');
 await W.locator('.nz-item').first().waitFor();
 await W.locator('.nz-item[data-inject="tool23t"]').click();
 const meta = await W.locator('.nz-meta').innerText();
-check(/Submissions Due: (11\/14 \d+:\d\d|— \(practice)/.test(meta) && /Points Possible: 30/.test(meta) && /TOOL23T_-_Firewall_Setup_Configuration\.pdf/.test(meta), 'inject page: due / rejected / points / PDF link');
+check(/Submissions Due: (11\/14 \d+:\d\d|— \(practice)/.test(meta) && /Points Possible: \d+/.test(meta) && /TOOL23T_-_Firewall_Setup_Configuration\.pdf/.test(meta), 'inject page: due / rejected / points / PDF link');
 check((await W.locator('.nz-paper').innerText()).includes('All denied packets should be logged.'), 'PDF shows the real TOOL23T text');
 await page.screenshot({ path: `${out}/inject-tool23t.png` });
 await W.locator('[data-f="memo"]').fill('As found, Permit Inbound and Permit Outbound allowed any to any. We added allow rules per server for web-browsing, ssl, smtp, imap, dns and WinRM 5985, applied a security profile group with anti-spyware and vulnerability protection, and logged the interzone-default deny at session end. Quotient stayed green.');

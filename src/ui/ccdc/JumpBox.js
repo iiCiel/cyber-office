@@ -189,7 +189,7 @@ export class JumpBox {
   refreshTray() {
     const t = this.o.tray ? this.o.tray() : {};
     clear(this.trayEl).append(
-      t.rank ? h('span', { class: 'jb-tray-score', title: 'Scoring engine standing' }, h('b', {}, `#${t.rank}`), ` ${t.score} pts`) : null,
+      ...(t.rank ? [h('span', { class: 'jb-tray-score', title: 'Scoring engine standing' }, h('b', {}, `#${t.rank}`), ` ${t.score} pts`)] : []),
       h('span', { class: 'jb-tray-ic', 'aria-hidden': 'true' }, '⌃'),
       h('span', { class: 'jb-tray-net', 'aria-hidden': 'true' }),
       h('span', { class: 'jb-tray-vol', 'aria-hidden': 'true' }),
