@@ -232,7 +232,7 @@ export class CcdcLabScene extends Phaser.Scene {
     this.startedAt = Date.now();
     this.deadline = this.guided ? 0 : Date.now() + this.state.timeLimitSec * 1000;
     this.lastSec = -1;
-    this.jb?.toast({ app: 'White Team', title: 'DROP FLAG', text: 'Your NETLAB+ consoles are open. Scoring has started.', open: 'netlab' });
+    this.jb?.toast({ app: 'White Team', title: 'DROP FLAG', text: 'Your consoles are open. Scoring has started.', open: this.portalWin() });
     this.jb?.refresh();
   }
 
@@ -391,11 +391,16 @@ export class CcdcLabScene extends Phaser.Scene {
 
   unreleasedUnread() { return 0; }
 
+  // Which pod-portal window this scenario uses as its main surface: MyNETLAB (Under Pressure) or NETLAB+ (Driftless).
+  portalWin() { return this.scenario.mynetlab ? 'mynetlab' : this.scenario.netlab ? 'netlab' : null; }
+  portalMode() { return !!(this.scenario.netlab || this.scenario.mynetlab); }
+
   // Playbook click: open the device's own window and put the command on its command line.
   loadCommand(dev, line) {
-    if (this.scenario.netlab) {
-      this.jb.open('netlab');
-      const c = this.jb.app('netlab').openVm(dev.id);
+    if (this.portalMode()) {
+      const pw = this.portalWin();
+      this.jb.open(pw);
+      const c = this.jb.app(pw).openVm(dev.id);
       if (dev.kind === 'pwsh') { const w = c?.openPs?.(); setTimeout(() => w?.app?.tv?.setInput(line), 0); } else c?.setInput?.(line);
       return;
     }
@@ -414,7 +419,7 @@ export class CcdcLabScene extends Phaser.Scene {
 
   renderPlay() {
     this.jb = new JumpBox({
-      hostname: this.scenario.netlab ? 'Competitor laptop' : `TEAM${this.tn()}-WS01 (Administrator)`,
+      hostname: this.portalMode() ? 'Competitor laptop' : `TEAM${this.tn()}-WS01 (Administrator)`,
       windows: this.windows(),
       tray: () => this.trayInfo(),
       onEnd: () => this.endRound(),
@@ -423,16 +428,26 @@ export class CcdcLabScene extends Phaser.Scene {
     this.root.append(this.jb.el);
     this.coach = null;
     if (this.learnOn()) {
-      this.jb.open('netlab');
+      this.jb.open(this.portalWin());
       this.coach = new AcademyPanel({ state: this.state, host: this.coachHost() });
       this.jb.el.classList.add('ac-on');
       this.jb.el.append(this.coach.el);
       return;
     }
-    if (this.scenario.netlab) {
-      this.jb.open('netlab');
-      this.jb.open('injects');
-      this.jb.toast({ app: 'White Team', title: 'Welcome Inject', text: 'Submit the Welcome Inject in NISE. Consoles open at the drop flag.', open: 'injects' });
+    if (this.portalMode()) {
+      const pw = this.portalWin();
+      const welcome = this.state.injectList.some((i) => i.welcome);
+      if (welcome) {
+        // Driftless: NISE welcome inject is the gate; open it on top, consoles follow at the drop flag.
+        this.jb.open(pw);
+        this.jb.open('injects');
+        this.jb.toast({ app: 'White Team', title: 'Welcome Inject', text: 'Submit the Welcome Inject in NISE. Consoles open at the drop flag.', open: 'injects' });
+      } else {
+        // Under Pressure: land on the MyNETLAB pod portal — topology up, launch each VM from the buttons at the top.
+        if (this.state.injectList.length) this.jb.open('injects');
+        this.jb.open(pw);
+        this.jb.toast({ app: 'MyNETLAB', title: 'Pod is live', text: 'Your reservation is open. Pick a VM from the buttons along the top, or read the topology.', open: pw });
+      }
       if (this.guided) this.jb.open('playbook');
       return;
     }
@@ -448,7 +463,7 @@ export class CcdcLabScene extends Phaser.Scene {
     const norm = (s) => String(s).trim().replace(/\s+/g, ' ');
     return {
       logSize: () => this.lineLog.length,
-      showVm: (id) => { this.jb.open('netlab'); this.jb.app('netlab').openVm(id); },
+      showVm: (id) => { const pw = this.portalWin(); this.jb.open(pw); this.jb.app(pw).openVm(id); },
       showWin: (id) => { this.jb.open(id); },
       load: (id, line) => this.loadCommand(this.state.deviceList.find((d) => d.id === id), line),
       startLesson: (lesson) => { resetBoxes(this.state, lesson.vms); this.jb.refresh(); },
