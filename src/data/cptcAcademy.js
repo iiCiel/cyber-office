@@ -242,7 +242,7 @@ export function examGoals(exam, sc) {
 }
 
 // After a graded engagement, what to study, most useful first.
-const STUDY = { 'ext-rdp': 'external', 'sql-injection': 'web-sqli', 'smb-share': 'smb-snmp', 'default-snmp': 'smb-snmp', 'weak-tls': 'tls-discipline', 'open-bucket': 'cloud', 'exposed-env': 'cloud', 'dir-listing': 'cloud', 'api-idor': 'webauthz', 'tracking-idor': 'webauthz', 'vpn-cve': 'cve', 'default-creds': 'cve', 'jenkins-script-console': 'rce', 'tomcat-default-creds': 'rce', 'snmp-public': 'smb-snmp', 'asrep-roast': 'ad', 'password-reuse-lateral': 'ad' };
+const STUDY = { 'ext-rdp': 'external', 'sql-injection': 'web-sqli', 'smb-share': 'smb-snmp', 'default-snmp': 'smb-snmp', 'weak-tls': 'tls-discipline', 'open-bucket': 'cloud', 'exposed-env': 'cloud', 'dir-listing': 'cloud', 'api-idor': 'webauthz', 'tracking-idor': 'webauthz', 'vpn-cve': 'cve', 'default-creds': 'cve', 'jenkins-script-console': 'rce', 'tomcat-default-creds': 'rce', 'snmp-public': 'smb-snmp', 'asrep-roast': 'ad', 'password-reuse-lateral': 'ad', 'vyos-backdoor': 'cve', 'pa-default-admin': 'cve', 'pa-permit-any': 'external', 'dc-svc-da': 'ad', 'splunk-backdoor-user': 'cve', 'splunk-ssh-keys': 'cve', 'linux-persistence': 'external', 'mssql-exposed': 'external', 'wkst-default': 'cve' };
 
 export function studyNext(state, grade) {
   const out = new Map();

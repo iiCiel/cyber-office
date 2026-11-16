@@ -2,6 +2,7 @@
 import { CPTC_LAB } from './cptcLabScenario.js';
 import { CPTC_LAB_2 } from './cptcLabScenario2.js';
 import { CPTC_LAB_3 } from './cptcLabScenario3.js';
+import { CPTC_LAB_4 } from './cptcLabScenario4.js';
 
-export const CPTC_SCENARIOS = [CPTC_LAB, CPTC_LAB_2, CPTC_LAB_3];
+export const CPTC_SCENARIOS = [CPTC_LAB, CPTC_LAB_2, CPTC_LAB_3, CPTC_LAB_4];
 export default CPTC_SCENARIOS;
