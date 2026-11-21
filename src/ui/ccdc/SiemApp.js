@@ -146,7 +146,7 @@ export class SiemApp {
     // work area
     this.fieldsEl = h('div', { class: 'sx-fields' });
     this.fcard = h('div', { class: 'sx-fcard', hidden: true });
-    this.fieldsBtn = h('button', { class: 'sx-link sx-fieldsbtn', type: 'button', onclick: () => { this.fieldsOpen = !this.fieldsOpen; this.el.classList.toggle('sx-fopen', this.fieldsOpen); } }, 'Fields ▾');
+    this.fieldsBtn = h('button', { class: 'sx-link sx-fieldsbtn', type: 'button', onclick: () => { this.fieldsOpen = !this.fieldsOpen; this.el.classList.toggle('sx-fopen', this.fieldsOpen); this.hs.clear(); this._scheduleLayout(); } }, 'Fields ▾');
     this.pagerEl = h('div', { class: 'sx-pager' });
     this.colHead = h('div', { class: 'sx-colhead' }, h('span', { class: 'sx-ci' }, 'i'), h('span', { class: 'sx-ct' }, 'Time'), h('span', { class: 'sx-ce' }, 'Event'));
     this.listEl = h('div', { class: 'sx-list' });
@@ -356,7 +356,7 @@ export class SiemApp {
     };
     // Splunk's sidebar header: "‹ Hide Fields" on the left, "☰ All Fields" on the right. Hidden = a thin strip.
     this.fieldsEl.classList.toggle('sx-fhid', !!this.fieldsHidden);
-    const flip = () => { this.fieldsHidden = !this.fieldsHidden; this._paintFields(); };
+    const flip = () => { this.fieldsHidden = !this.fieldsHidden; this._paintFields(); this.hs.clear(); this._scheduleLayout(); };
     if (this.fieldsHidden) { this.fieldsEl.append(h('button', { class: 'sx-link sx-fhide', type: 'button', onclick: flip }, '› Show Fields')); return; }
     this.fieldsEl.append(h('div', { class: 'sx-ftop' },
       h('button', { class: 'sx-link sx-fhide', type: 'button', onclick: flip }, '‹ Hide Fields'),
