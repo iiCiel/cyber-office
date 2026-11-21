@@ -84,3 +84,21 @@ These three screens are from the public Midwest team packet (2026 Regional, gith
 
 The PAN-OS images are from Palo Alto's public pan.dev documentation repository. No reference exists yet for the NETLAB+ topology page, the ticket form or a Windows login inside NETLAB+.
 
+Splunk Search & Reporting, from Splunk's own Search Tutorial (help.splunk.com, Splunk Enterprise 9.4 docs,
+"Basic searches and search results"), © Splunk Inc. Here for comparison only:
+
+| File | Real tool | Source |
+|---|---|---|
+| splunk-search-timeline.png | Splunk search results: Events tab, green timeline, fields sidebar, event list | https://help.splunk.com/en/splunk-enterprise/get-started/search-tutorial/9.4/part-4-searching-the-tutorial-data/basic-searches-and-search-results |
+| splunk-search-events.png | Splunk search with 2 of 427 events | same page |
+| splunk-search-bar.png | Splunk New Search bar | same page |
+
+## Side-by-side: Splunk Events view (Nov 21, 2026)
+
+Proof: docs/proof/siem/side-by-side-splunk-events.png (real | ours). Already matching: header, search bar with time
+picker and green search button, "✓ N events (before ...)" line, Events/Patterns/Statistics/Visualization tabs,
+Format Timeline / Zoom Out / Zoom to Selection / Deselect row, "N per column", List / Format / 20 Per Page, Prev 1 2 3
+Next, i | Time | Event columns, host / source / sourcetype under each event, yellow search-term highlight.
+Fixed this pass: timeline bars were blue, now Splunk green (#5cc05c, sampled from the reference); the fields
+sidebar now has the "‹ Hide Fields   ☰ All Fields" header (Hide collapses it to "› Show Fields"), "N more fields"
+and "+ Extract New Fields"; the Job bar has the share / print / export icons.

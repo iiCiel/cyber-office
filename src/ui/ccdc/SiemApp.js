@@ -12,6 +12,21 @@ import './siem.css';
 //   parent.append(app.el);  app.refresh() once a second;  app.focus();  app.destroy();
 
 const fmt = (n) => Number(n).toLocaleString('en-US');
+// Small line icons for the Job toolbar (share, print, export), drawn like Splunk's: 12px, 1.5px stroke.
+const ICONS = {
+  share: 'M2 10v2h10v-2M7 2v7M4 5l3-3 3 3',
+  print: 'M3.5 5V1.5h7V5M2 5h10v5H2zM3.5 8.5h7v4h-7z',
+  export: 'M7 1.5v7M4 6l3 3 3-3M2 10v2h10v-2',
+};
+function icon(name) {
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 14 14'); svg.setAttribute('width', '12'); svg.setAttribute('height', '12'); svg.setAttribute('aria-hidden', 'true');
+  const p = document.createElementNS(NS, 'path');
+  p.setAttribute('d', ICONS[name]); p.setAttribute('fill', 'none'); p.setAttribute('stroke', 'currentColor'); p.setAttribute('stroke-width', '1.5'); p.setAttribute('stroke-linejoin', 'round');
+  svg.append(p);
+  return svg;
+}
 const PRESETS = [
   ['Last 15 minutes', 900], ['Last 60 minutes', 3600], ['Last 4 hours', 14400], ['Last 24 hours', 86400],
   ['Last 7 days', 604800], ['All time', null], ['During the round', 'round'],
@@ -107,7 +122,9 @@ export class SiemApp {
 
     this.statusEl = h('span', { class: 'sx-status' }, 'Enter a search above and press Enter.');
     this.stopBtn = h('button', { class: 'sx-ib', type: 'button', title: 'Stop the search', disabled: true, onclick: () => { if (this.job) { this.job.cancel(); this._paint(true); } } }, '■');
-    this.jobEl = h('span', { class: 'sx-job' }, h('span', { class: 'sx-link' }, 'Job ▾'), h('button', { class: 'sx-ib', type: 'button', disabled: true, title: 'Pause' }, '❚❚'), this.stopBtn, h('span', { class: 'sx-link sx-smart' }, 'Smart Mode ▾'));
+    this.jobEl = h('span', { class: 'sx-job' }, h('span', { class: 'sx-link' }, 'Job ▾'), h('button', { class: 'sx-ib', type: 'button', disabled: true, title: 'Pause' }, '❚❚'), this.stopBtn,
+      h('span', { class: 'sx-jobicons' }, ...['share', 'print', 'export'].map((n) => h('button', { class: 'sx-ib sx-ib0', type: 'button', disabled: true, title: n[0].toUpperCase() + n.slice(1), 'aria-label': n }, icon(n)))),
+      h('span', { class: 'sx-link sx-smart' }, 'Smart Mode ▾'));
     this.progEl = h('i', { class: 'sx-progfill' });
     const statusRow = h('div', { class: 'sx-statusrow' }, this.statusEl, h('span', { class: 'sx-spacer' }), this.jobEl);
     this.head = h('div', { class: 'sx-head' }, title, bar, statusRow, h('div', { class: 'sx-prog' }, this.progEl));
@@ -129,7 +146,7 @@ export class SiemApp {
     // work area
     this.fieldsEl = h('div', { class: 'sx-fields' });
     this.fcard = h('div', { class: 'sx-fcard', hidden: true });
-    this.fieldsBtn = h('button', { class: 'sx-link sx-fieldsbtn', type: 'button', onclick: () => { this.fieldsOpen = !this.fieldsOpen; this.el.classList.toggle('sx-fopen', this.fieldsOpen); } }, 'Fields ▾');
+    this.fieldsBtn = h('button', { class: 'sx-link sx-fieldsbtn', type: 'button', onclick: () => { this.fieldsOpen = !this.fieldsOpen; this.el.classList.toggle('sx-fopen', this.fieldsOpen); this.hs.clear(); this._scheduleLayout(); } }, 'Fields ▾');
     this.pagerEl = h('div', { class: 'sx-pager' });
     this.colHead = h('div', { class: 'sx-colhead' }, h('span', { class: 'sx-ci' }, 'i'), h('span', { class: 'sx-ct' }, 'Time'), h('span', { class: 'sx-ce' }, 'Event'));
     this.listEl = h('div', { class: 'sx-list' });
@@ -337,14 +354,22 @@ export class SiemApp {
       const numeric = f.top.length && f.top.every((x) => /^-?\d+(\.\d+)?$/.test(x.v));
       return h('button', { type: 'button', class: 'sx-fld', onclick: (e) => this._fieldCard(f, e.currentTarget) }, h('span', { class: 'sx-ft' }, numeric ? '#' : 'a'), h('span', { class: 'sx-fn' }, f.name), h('span', { class: 'sx-fc' }, f.capped || f.distinct >= 100 ? '100+' : String(f.distinct)));
     };
+    // Splunk's sidebar header: "‹ Hide Fields" on the left, "☰ All Fields" on the right. Hidden = a thin strip.
+    this.fieldsEl.classList.toggle('sx-fhid', !!this.fieldsHidden);
+    const flip = () => { this.fieldsHidden = !this.fieldsHidden; this._paintFields(); this.hs.clear(); this._scheduleLayout(); };
+    if (this.fieldsHidden) { this.fieldsEl.append(h('button', { class: 'sx-link sx-fhide', type: 'button', onclick: flip }, '› Show Fields')); return; }
+    this.fieldsEl.append(h('div', { class: 'sx-ftop' },
+      h('button', { class: 'sx-link sx-fhide', type: 'button', onclick: flip }, '‹ Hide Fields'),
+      h('button', { class: 'sx-link sx-fallt', type: 'button', disabled: !others.length, onclick: () => { this.allFields = !this.allFields; this._paintFields(); } }, '☰ All Fields')));
     this.fieldsEl.append(h('div', { class: 'sx-fh' }, 'SELECTED FIELDS'));
     if (!list.length) this.fieldsEl.append(h('div', { class: 'sx-dim sx-fpad' }, j.state === 'running' ? 'Searching…' : 'No fields'));
     sel.forEach((f) => this.fieldsEl.append(row(f)));
     if (interesting.length) this.fieldsEl.append(h('div', { class: 'sx-fh' }, 'INTERESTING FIELDS'), ...interesting.map(row));
     if (others.length) {
-      this.fieldsEl.append(h('button', { class: 'sx-link sx-fall', type: 'button', onclick: () => { this.allFields = !this.allFields; this._paintFields(); } }, this.allFields ? '− Fewer Fields' : `+ All Fields (${others.length})`));
+      this.fieldsEl.append(h('button', { class: 'sx-link sx-fall', type: 'button', onclick: () => { this.allFields = !this.allFields; this._paintFields(); } }, this.allFields ? '− Fewer fields' : `${others.length} more field${others.length === 1 ? '' : 's'}`));
       if (this.allFields) this.fieldsEl.append(h('div', { class: 'sx-fh' }, 'OTHER FIELDS'), ...others.map(row));
     }
+    if (list.length) this.fieldsEl.append(h('span', { class: 'sx-link off sx-fall sx-fext' }, '+ Extract New Fields'));
   }
 
   _fieldCard(f, anchor) {

@@ -1,6 +1,6 @@
 # Project: Cyber Office
 
-> Project file from the Command Center, Nov 11, 2026, 4:48 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
+> Project file from the Command Center, Nov 21, 2026, 2:31 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
 
 ## Goal
 A pixel-art browser game where you live a real day as a junior security analyst: walk the office, read real-looking email, dig through logs, deal with coworkers, and watch your choices play out. Not a quiz and not a wall of text. Built in public as a portfolio piece for internship applications.
@@ -14,35 +14,25 @@ A pixel-art browser game where you live a real day as a junior security analyst:
 D:\Projects\cyber-office
 
 ## Notes (what is done, in progress, next, issues)
-Art decision 2026-11-11: original pixel art stays; Codex HD art is retired. Scope: only the office (floors, walls, props) and the people in it. PC, terminals, tickets, mail and SIEM keep their new look. HD files are kept unused in art-src/codex-hd/; do not wire them back in.
-STATUS (Nov 11): main has everything: PRs #9-#11, restore/old-pixel-art (d835b3f) and feat/coworker-dialogue (PR #13 + Carla external-banner fix) merged into main. MUSIC REMOVED, do not re-add.
-
-DONE in PR #13 (coworker dialogue rewrite):
-- Rewrote src/days/day1-4/talk.js (PHONE_CALL, USB_DROP, MIKE_CONFESSES, THEO_WAF, CARLA_CALL). Only the text changed: choice ids and set.outcome values are the same.
-- Rewrote npcLines in src/days/day1-5/index.js. Priya mentions:
-  - Day 2: INC0004512-4519
-  - Day 3: RITM0004471 and NGM-48288
-  - Day 4: NGM-48336/48341 and INC0004580
-  - Day 5: NGM-48402
-- Priya now mentions the handoff on Days 2-5, so the old NEXT item (3) is done.
-- New tests/dialogue.test.js checks: the trees are wired, the outcomes are unchanged, lines are 180 characters or less, the briefings mention the tickets, and no line repeats within a day.
-- New scripts/shot-dialogue.mjs [url] [outDir] writes 11 shots to docs/proof/dialogue/. It needs the dev server, because it imports src/ modules.
-
+STATUS (Nov 21): main = everything through Nov 16 (PRs #9-#16 merged, feat/ccdc-invitational-replay merged: CCDC invitational replay, CPTC Lab #4 Under Pressure, MyNETLAB, NISE, PAN-OS). Art: original pixel art stays; Codex HD art retired (art-src/codex-hd/, don't wire back). MUSIC REMOVED, do not re-add.
+OPEN: PR #17 https://github.com/iiCiel/cyber-office/pull/17 (branch fix/splunk-reference-match, head ba809f2): real Splunk references in docs/reference/splunk-search-{timeline,events,bar}.png (from help.splunk.com search tutorial; docs.splunk.com returns 403 to curl, so use the browser tool and fetch the heretto image URLs in-page). SIEM changes: green timeline #5cc05c (CCDC SiemApp + SOC screen.css), Hide/Show Fields + All Fields header, "N more fields", "+ Extract New Fields", Job share/print/export icons. Proof: docs/proof/siem/side-by-side-splunk-events.png.
+ALREADY DONE (old NEXT list was stale): playthroughs exist for scoreboard/red-team waves/2.3M-log Splunk (scripts/verify-ccdcsim.mjs, verify-midwest, verify-ridgeview); Quotient scoring engine refs exist (docs/reference/quotient-*.png).
 NEXT:
-(1) Check the live site after the main push redeploys.
-(2) pfSense dark theme.
-(3) Server room / CCDC art in the ORIGINAL 16px pixel-art style (not Codex HD).
-(4) Reference images still missing: Server Manager, ADUC, Splunk, CCDC scoreboard.
-(5) Playthroughs of the CCDC scoreboard, red-team waves and big-log search.
-
+(1) Soliman merges PR #17.
+(2) Reference images still missing: Server Manager, ADUC main window (Microsoft Learn LAPS page has only an ADUC property sheet). Then side-by-side vs our RDP dc01 (docs/proof/ccdc-sim/rdp-dc01-1366.png).
+(3) pfSense dark theme (ref docs/reference/pfsense-dashboard-2.7.png).
+(4) Server room / CCDC art in the ORIGINAL 16px pixel style.
 GOTCHAS:
 - Use Edit/Write, not bash heredocs, for JS strings that contain quotes.
-- shot-handoff, shot-daylogs and shot-dialogue import /src/ modules, so they fail against the live site with "Failed to fetch dynamically imported module". For the live site, only do a load-and-count-errors check.
-- SocScreen.js isn't imported by tests, so check it with `npx vite build`.
-- Dev server: npx vite --port 5194. Kill it via Get-NetTCPConnection PID.
-- Stage named files only.
+- shot-siem needs dev server on port 5201 (preview/siem.html); most other scripts use 5194. Start with Start-Process cmd /c npx vite --port N, poll until 200; kill via Get-NetTCPConnection PID.
+- Scripts that import /src/ fail against the live site; there only do load-and-count-errors.
+- SocScreen.js isn't imported by tests: check with npx vite build.
+- Stage named files only. The Command Center sometimes writes a stale PROJECT.md into the working tree; check git diff PROJECT.md before committing.
 
 ## Recent runs (newest first)
+### Nov 21, 2026: done
+- Did: The Splunk screen now matches real Splunk side by side. It's in PR #17 and needs your merge. 1. Done: got real Splunk screenshots from Splunk's own docs. This was one of the missing reference images. 2. Done: fixed the 3 differences I found. The timeline bars are now Splunk green, the fields sidebar has "Hide Fields / All Fields", and the Job bar has the share/print/export icons. 3. Done: the side-by-side proof (real | ours) is in the PR. 4. Still missing: reference images for Server Manager and ADUC. Microsoft's docs only had partial shots. 5. Note: the old "NEXT" list was out of date. The CCDC scoreboard, red-team and 2.3M-log playthroughs already exist and pass. Next: open https://github.com/iiCiel/cyber-office/pull/17, look at the side-by-side picture, and press Merge. Details: commit ba809f2 on fix/splunk-reference-match (ls-remote matches). npm test 717/717, vite build OK, shot-siem ALL PASS (2 new checks). 3 jobs went to workers: 1 partial result, 2 found nothing. I fetched the images myself in the browser.
+- Where it stood: main has all the work up to Nov 16 (CCDC invitational replay, CPTC Lab #4). PR #17 (Splunk matches the real look) is waiting on your merge.
 ### Nov 6, 2026: stopped, supervisor grade D
 - He asked: Fix-up run started by the supervisor. It checked the last run's work itself and found 2 problems: 1. Carla says the fake Northwind email had no external-sender warning, but the game shows a CAUTION external banner on that email. The dialogue contradicts what the player sees and plays down a real war
 - Did: Simplify that import, then write the new screenshot script.
@@ -66,16 +56,3 @@ GOTCHAS:
 - Where it stood: PR #9 (CCDC/CPTC work) and PR #10 (HD art, ServiceNow tickets, real email headers, built on top of #9) both wait on your merge.
 - Problems: Skipped half the brief: no new log formats (Event IDs, Sysmon, EDR), no SIEM/Splunk screen changes, no rewritten coworker dialogue, no handoff/escalation workflow.; Inspected the phish headers and judged them 'already realistic', so little real improvement there; only a few lines added.; Tile seams needed a crop workaround and the first office render had heavy seams; only one fix pass was viewed.; Only 23 minutes used, yet items 2 and the rest of the realism list were dropped instead of attempted.; Did not look at real CCDC/SIEM reference screenshots this run; the ServiceNow reference was an older saved image from a prior session.; Did not clearly state to Soliman that Codex image generation worked, beyond the art list.
 - Advice for the next run: Start from PR #10. Do the SIEM and log formats first; that is what Soliman asked for and it was skipped. View a real Splunk or Wazuh screenshot before building the screen. Tile-test new art 3x3 before wiring it in.
-### Nov 6, 2026: done, supervisor grade B
-- He asked: Weekly usage resets at 18:00 UTC, use what's left. Stack on PR #9's branch (fix/pr6-review, not merged). Add a full browser playthrough (verify script) for CCDC company 3, Ridgeview Regional Medical Clinic, and fix whatever it finds. Don't redo finished work.
-- Did: Ridgeview playthrough works and found 1 real bug, now fixed. PR #9 still needs your merge. 1. Done: new script scripts/verify-ridgeview.mjs plays the whole Ridgeview clinic round in a browser. 13/13 checks pass. 2. Done: it fixes 7 findings by typing real commands: SUID find, TLS, Redis, SMB signing, password policy and Defender (both steps). It also opens pfSense and Splunk, ends the round and checks the report. No console or 404 errors. 3. Done: bug found and fixed. On the nurse-station Windows 11 PC the taskbar had no PowerShell or Explorer buttons until another window opened, so you couldn't type any commands there. 4. Needs you: merge PR #9. Next: open https://github.com/iiCiel/cyber-office/pull/9 and press Merge. Details: commit 6609eae on fix/pr6-review. npm test 534/534. Screenshots in docs/proof/ridgeview/.
-- Where it stood: PR #9 holds everything, including the Ridgeview playthrough. It waits on your merge. Server Manager, ADUC, Splunk and scoreboard reference images are still missing.
-- Problems: The run claims it was "pushed to PR #9", yet no push call exists. Soliman may merge without the commit being on the remote.; Report says 7 findings, the final message says 6, and the script has fewer than that fixes. The counts are inconsistent.; The first script versions failed on shell escaping and a strict-mode selector error; this cost a few extra rounds.; The playthrough only drives the fix path for one company. It doesn't cover the live scoreboard, red-team waves, injects or the huge-log search that the hard rules call core. Those weren't asked for this run.; It used `git add -A`, which swept in untracked files without checking what they were.
-- Advice for the next run: Run `git push` and show the remote result before saying pushed. Print exact PASS/FAIL totals and console-error counts in the script's last line. Next, extend playthroughs to the scoreboard, red-team waves and big-log search. Stage only named files, not `git add -A`.
-
-## Waiting on Soliman
-- The supervisor opened the last Cyber Office run's work and found 4 problems even after the fix-up run.
-- The supervisor opened the last Cyber Office run's work and found 2 problems; a fix-up run is fixing them now.
-- Merge PR #13 (coworker dialogue rewrite)
-- Drop real screenshots of Server Manager, AD Users and Computers, Splunk Search and a CCDC scoreboard into docs/reference/
-- Play the new office and the 5 red-team engagements once; say if they're good enough to show University of Akron

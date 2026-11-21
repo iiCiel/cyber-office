@@ -20,6 +20,32 @@ for (const [tag, vp] of [['1366', { width: 1366, height: 768 }], ['390', { width
   const rendered = await page.evaluate(() => ({ rows: document.querySelectorAll('.sx-row').length, perPage: window.__siem.app.perPage }));
   check(`[${tag}] list is virtualized (rows rendered <= page size)`, rendered.rows > 0 && rendered.rows <= rendered.perPage, JSON.stringify(rendered));
   await page.screenshot({ path: `${out}/events-${tag}.png` });
+  if (tag === '1366') {
+    const hid = await page.evaluate(() => {
+      const q = (s) => document.querySelector(s);
+      q('.sx-ftop .sx-fhide').click();
+      const a = { strip: q('.sx-fields').classList.contains('sx-fhid'), show: q('.sx-fhide')?.textContent, rows: document.querySelectorAll('.sx-fields .sx-fld').length };
+      q('.sx-fhide').click();
+      return { ...a, back: document.querySelectorAll('.sx-fields .sx-fld').length };
+    });
+    check(`[${tag}] Hide Fields collapses the sidebar and Show Fields brings it back`, hid.strip && /Show Fields/.test(hid.show) && hid.rows === 0 && hid.back > 0, JSON.stringify(hid));
+    // Codex P2: toggling the sidebar changes the results width; rows must re-measure (no overlap, no gap > 2px)
+    const geom = () => page.evaluate(() => new Promise((res) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(() => {
+      const r = [...document.querySelectorAll('.sx-row')].map((e) => e.getBoundingClientRect()).sort((a, b) => a.top - b.top);
+      let worst = 0, bad = 0;
+      for (let i = 1; i < r.length; i++) { const d = r[i].top - r[i - 1].bottom; worst = Math.max(worst, Math.abs(d)); if (d < -1 || d > 2) bad++; }
+      res({ n: r.length, bad, worst: Math.round(worst * 10) / 10, w: Math.round(document.querySelector('.sx-results')?.getBoundingClientRect().width || 0) });
+    }, 400)))));
+    const g0 = await geom();
+    await page.click('.sx-ftop .sx-fhide');
+    const g1 = await geom();
+    await page.screenshot({ path: `${out}/fields-hidden-${tag}.png` });
+    await page.click('.sx-fhide');
+    const g2 = await geom();
+    await page.screenshot({ path: `${out}/fields-shown-${tag}.png` });
+    check(`[${tag}] rows stay flush after Hide Fields / Show Fields`, g0.n > 3 && g1.bad === 0 && g2.bad === 0 && g1.w !== g2.w, JSON.stringify({ g0, g1, g2 }));
+    check(`[${tag}] Job toolbar has share / print / export icons`, await page.locator('.sx-jobicons svg').count() === 3);
+  }
   await search('sourcetype=access_combined POST uri=/wp-login.php status=200 | stats count by src_ip | sort - count | head 10');
   const first = await page.textContent('.sx-srow');
   check(`[${tag}] stats shows attacker on top`, /203\.0\.113\.66/.test(first), first);
