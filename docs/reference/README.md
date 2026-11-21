@@ -10,6 +10,17 @@ All files come from Wikimedia Commons (free licences; see each file page for aut
 | putty-ubuntu.png | PuTTY session into Ubuntu | https://commons.wikimedia.org/wiki/File:PuTTY_Ubuntu.png |
 | windows-event-viewer.png | Windows Event Viewer | https://commons.wikimedia.org/wiki/File:Event_Viewer.png |
 | kali-2021.2.png | Kali Linux 2021.2 Xfce desktop | https://commons.wikimedia.org/wiki/File:Kali_Linux_2021.2.png |
+| pfsense-dashboard-2.6.jpg | pfSense 2.6 Status / Dashboard (pfSense-dark theme) | https://commons.wikimedia.org/wiki/File:Dashboard_der_pfSense_2.6.0.jpg |
+
+These pfSense screens come from Netgate's own documentation (https://docs.netgate.com/pfsense/en/latest/_images/<name>.png). They show the default theme:
+
+| File | Real tool | Source image name |
+|---|---|---|
+| pfsense-firewall-wan-rules.png | Firewall > Rules > WAN table and its notice | firewall-wan-rules.png |
+| pfsense-firewall-lan-rules.png | Firewall > Rules > LAN (Anti-Lockout + default allow) | firewall-lan-rules.png |
+| pfsense-firewall-rule-separators.png | Rules table with separators and the button bar | firewall-rule-separators.png |
+| pfsense-firewall-log_gui.png | Status > System Logs > Firewall, Normal View | firewall-log_gui.png |
+| pfsense-monitoring-systemlogexample.png | Status > System Logs > System | monitoring-systemlogexample.png |
 
 These three screens are from the public Midwest team packet (2026 Regional, github.com/mubix/howtowinccdc, documents/MidWest-MWCCDC), © MWCCDC Consortium, and one image from Palo Alto Networks' own developer docs. They are here for comparison only:
 
@@ -20,12 +31,32 @@ These three screens are from the public Midwest team packet (2026 Regional, gith
 | netlab-ve-vm-menu-2026.png | NETLAB+ VE per-VM menu (Undock, Revert, Power) | 2026 packet p.10 |
 | panos-security-rules.png | PAN-OS Policies > Security rule table | github.com/PaloAltoNetworks/pan.dev, products/ansible/docs/panos/tutorials/security-policy-rules.png |
 
+## Side-by-side notes (Nov 21, 2026): pfSense default theme
+
+Proof: docs/proof/pfsense/side-by-side-{rules,logs,dashboard}.png (real | ours). Colours and sizes were taken
+from the real pfSense.css, and the font is now Roboto (bundled in src/ui/ccdc/fonts, Apache 2.0) like the real GUI.
+
+- **All pages:** navbar #212121 with grey #BDBDBD links; page header bar #E0E0E0 with a shadow and red "/"
+  separators; panel headings dark grey #424242 with white text (they were blue); dark footer; links #337ab7.
+- **Firewall > Rules:** tabs are red text with a red underline under the active one (not boxed tabs). The rules
+  table has no zebra striping. Action and status icons are the real ones: green check / red x, blue states link
+  ("100 / 125.00 KiB"), and anchor / pencil / copy / ban / trash in blue. The button bar under the table is the
+  real one: Add (top), Add (bottom), Delete, Toggle, Copy, Save, Separator, in green / red / blue / orange. LAN
+  tab shows the Anti-Lockout rule with its gear icon and ports 443 / 80.
+- **Status > System Logs > Firewall:** rows show the date and time ("Oct 31 09:04:55"), the header says "Protocol" with upper-case values (TCP),
+  and every address has the (i) lookup icon plus the block (minus box) / pass (plus box) easy-rule icon.
+- **Dashboard:** same three columns and widgets as before, now with the real grey widget headings and Roboto.
+- **Kept on purpose:** "Set default to pass" on the default deny row (a lab feature, not in real pfSense);
+  Toggle / Copy / Save / Separator and Add-to-top are shown but disabled in this lab.
+- **Still open:** pfSense-dark theme (references pfsense-dashboard-2.6.jpg / 2.7.png).
+
 ## Side-by-side notes (Nov 6, 2026)
 
 - **pfSense dashboard** (ours: docs/proof/pfsense/dashboard-1366.png). Same top navbar and menus, same
   "Status / Dashboard" breadcrumb, same System Information rows in the same order (Name, User, System, BIOS,
   Version, CPU Type, Hardware crypto, Kernel PTI, Uptime, ...), same bar widgets for State table / MBUF.
-  Ours uses the default light theme (blue panel headers); the reference uses pfSense-dark. Both are real themes.
+  Ours uses the default theme; the reference uses pfSense-dark. Both are real themes.
+  (Correction Nov 21: the default theme has dark grey #424242 panel headers, not blue. See the Nov 21 notes.)
   Gap: the real dashboard has a 3rd column (Services Status with green ticks, Traffic Graphs). Not built yet.
 - **pfSense dashboard, second pass (Nov 6, 2026)** (ours: docs/proof/pfsense-3col/dashboard-1366.png vs
   pfsense-dashboard-2.7.png). Differences found and fixed:
@@ -38,7 +69,7 @@ These three screens are from the public Midwest team packet (2026 Regional, gith
   6. System Information adds MDS Mitigation, QAT Crypto, bold BIOS / version values and a bulleted DNS list.
   7. Traffic Graphs: one graph per interface (WAN, LAN) with title, dot legend, filled in (blue, above 0) /
      out (orange, below 0) areas, y labels on the right and time labels along the bottom.
-  Remaining by choice: light theme (the 2.7 default) instead of pfSense-dark; no Disks / NTP / Installed
+  Remaining by choice: the default theme instead of pfSense-dark; no Disks / NTP / Installed
   Packages / Netgate Support widgets (those widgets are optional in the real product).
 - **Still missing a reference (not on Commons, Microsoft/Splunk images are non-free):** Server Manager, AD Users
   and Computers, Splunk Search, a CCDC scoreboard. Soliman: drop a screenshot of each into this folder if you
