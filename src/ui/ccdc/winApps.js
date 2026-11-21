@@ -38,7 +38,7 @@ export function createAduc(ctx) {
   const el = h('div', { class: 'wd-app wd-mmc' });
   const tree = h('div', { class: 'wd-tree', role: 'tree' });
   const pane = h('div', { class: 'wd-listpane' });
-  const actions = h('div', { class: 'wd-actionspane' });
+  const actions = h('div', { class: 'wd-actionspane', hidden: true }); // real ADUC opens without the Action pane (View > Customize)
   const status = h('div', { class: 'wd-status' });
   let redrawProps = null;
 
@@ -215,7 +215,7 @@ export function createAduc(ctx) {
     const walk = (dn, name, depth, kind) => {
       const kids = adTree(m, dn);
       const expanded = st.open.has(dn);
-      node(name, depth, { dn, icon: dn === m.dn ? 'i-domain' : kind === 'ou' ? 'i-ou' : 'i-folder', kids: kids.length > 0, expanded, on: st.cont === dn });
+      node(name, depth, { dn, icon: dn === m.dn ? 'i-domain' : kind === 'ou' ? 'i-ou' : 'i-folder', kids: true, expanded, on: st.cont === dn });
       if (expanded) for (const k of kids) walk(k.dn, k.name, depth + 1, k.kind);
     };
     walk(m.dn, m.domain, 1, 'domain');
@@ -225,13 +225,13 @@ export function createAduc(ctx) {
     const rows = adRows(m, st.cont);
     const rowIcon = (r) => (r.kind === 'user' ? (r.disabled ? 'i-userdis' : (r.obj?.sam && /^svc|\$$/.test(r.obj.sam) ? 'i-user' : 'i-user')) : r.kind === 'group' ? 'i-group' : r.kind === 'computer' ? 'i-comp' : r.kind === 'ou' ? 'i-ou' : 'i-folder');
     const crumb = st.cont === m.dn ? m.domain : (m.ous.find((o) => o.dn === st.cont)?.name || '');
-    clear(pane).append(h('div', { class: 'wd-pane-h' }, `${crumb}   ${rows.length} objects`), listView([{ k: 'name', label: 'Name', w: 190 }, { k: 'type', label: 'Type', w: 170 }, { k: 'desc', label: 'Description' }], rows, {
+    status.textContent = ""; void crumb;
+    clear(pane).append(listView([{ k: 'name', label: 'Name', w: 190 }, { k: 'type', label: 'Type', w: 170 }, { k: 'desc', label: 'Description' }], rows, {
       sel: st.key, icon: rowIcon, cls: (r) => (r.disabled ? 'dim' : ''),
       onSel: (k) => { st.key = k; renderActions(rows); },
       onOpen: (r) => { if (r.obj) openProps(r.obj); else { st.cont = r.key; st.key = null; st.open.add(r.key); render(); } },
       onCtx: (e, r) => menuAt(e, itemsFor(r)),
     }));
-    status.textContent = '';
     renderActions(rows);
   }
   function renderActions(rows) {
@@ -253,7 +253,18 @@ export function createAduc(ctx) {
 
   el.append(
     menuBar(mmcMenus(ctx, () => itemsFor(m0() && st.key ? adRows(m0(), st.cont).find((r) => r.key === st.key) : null))),
-    toolbar([{ title: 'Back', icon: 'i-back', disabled: true }, { title: 'Forward', icon: 'i-fwd', disabled: true }, { title: 'Up one level', icon: 'i-up', onClick: () => { const o = m0().ous.find((x) => x.dn === st.cont); if (o) { st.cont = o.parent; render(); } } }, null, { title: 'Show/Hide Console Tree', icon: 'i-tree' }, null, { title: 'Refresh', icon: 'i-refresh', onClick: () => render() }, { title: 'Properties', icon: 'i-props', disabled: true }, { title: 'Help', icon: 'i-help', disabled: true }]),
+    toolbar([{ title: 'Back', icon: 'i-back', disabled: true }, { title: 'Forward', icon: 'i-fwd', disabled: true }, null,
+      { title: 'Up one level', icon: 'i-up', onClick: () => { const o = m0().ous.find((x) => x.dn === st.cont); if (o) { st.cont = o.parent; render(); } } },
+      { title: 'Show/Hide Console Tree', icon: 'i-tree', onClick: () => { tree.hidden = !tree.hidden; } }, null,
+      { title: 'Copy', icon: 'i-copy', disabled: true }, null,
+      { title: 'Delete', icon: 'i-del', onClick: () => { const o = (() => (st.key ? adRows(m0(), st.cont).find((r) => r.key === st.key)?.obj : null))(); if (o && o.type === 'user') del(o); } },
+      { title: 'Properties', icon: 'i-props', onClick: () => { const o = (() => (st.key ? adRows(m0(), st.cont).find((r) => r.key === st.key)?.obj : null))(); if (o) openProps(o); } },
+      { title: 'Refresh', icon: 'i-refresh', onClick: () => render() }, { title: 'Export List...', icon: 'i-export', disabled: true }, null,
+      { title: 'Help', icon: 'i-help', disabled: true }, { title: 'Show/Hide Action Pane', icon: 'i-mmc', onClick: () => { actions.hidden = !actions.hidden; } }, null,
+      { title: 'Create a new user in the current container.', icon: 'i-newuser', disabled: true }, { title: 'Create a new group in the current container.', icon: 'i-newgroup', disabled: true },
+      { title: 'Create a new organizational unit in the current container.', icon: 'i-newou', disabled: true }, { title: 'Filter', icon: 'i-filter', disabled: true },
+      { title: 'Find objects in Active Directory Domain Services.', icon: 'i-find', disabled: true },
+      { title: 'Add the selected object to a group you specify.', icon: 'i-addgrp', onClick: () => { const o = (() => (st.key ? adRows(m0(), st.cont).find((r) => r.key === st.key)?.obj : null))(); if (o && o.type !== 'computer') addToGroup(o); } }]),
     h('div', { class: 'wd-mmc-body' }, tree, pane, actions), status);
   render();
 

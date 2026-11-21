@@ -6,7 +6,7 @@
 // addresses, invented hosts, canned output, nothing executed.
 
 import { makeDirectory } from '../game/directory.js';
-import { withRecon } from '../game/labCommands.js';
+import { withRecon, formatSs, formatNetstat } from '../game/labCommands.js';
 
 // --- the Active Directory model on dc01 --------------------------------------------------------------------
 const DC_DIR = makeDirectory({
@@ -78,9 +78,10 @@ const bashExtras = (overrides = {}) => ({
   ss: (args) => {
     const a = args.join(' ');
     const rows = overrides._listen || 'State   Recv-Q  Send-Q  Local Address:Port   Process\nLISTEN  0       128     0.0.0.0:22           users:(("sshd"))\n';
-    return /(-l|-t|-u|-n|-p|-a)/.test(a) || !a ? rows : rows;
+    void a;
+    return formatSs(rows);
   },
-  netstat: (args) => (overrides._listen || 'Active Internet connections\nProto Local Address      State\ntcp   0.0.0.0:22          LISTEN\n'),
+  netstat: () => formatNetstat(overrides._listen || 'LISTEN 0 128 0.0.0.0:22 users:(("sshd"))'),
   ps: () => 'USER   PID  COMMAND\nroot     1  /sbin/init\nroot   540  /usr/sbin/sshd -D\n',
   // systemctl / ufw come from labCommands.js and read the box's live state (so a stop or a new rule shows up).
   find: undefined, // keep the real find from shellplus

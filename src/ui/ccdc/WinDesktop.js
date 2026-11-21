@@ -175,7 +175,7 @@ export class WinDesktop {
   }
   makePs() {
     if (!this.buffer.length) {
-      this.buffer.push(...['Windows PowerShell', 'Copyright (C) Microsoft Corporation. All rights reserved.', ''].map((text) => ({ text })));
+      this.buffer.push(...['Windows PowerShell', 'Copyright (C) Microsoft Corporation. All rights reserved.', '', 'Try the new cross-platform PowerShell https://aka.ms/pscore6', ''].map((text) => ({ text })));
     }
     const tv = new TermView({
       theme: 'pwsh', label: 'Windows PowerShell',
