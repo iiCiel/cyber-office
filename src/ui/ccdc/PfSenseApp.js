@@ -20,8 +20,23 @@ const el = (tag, cls, ...kids) => {
 // Small inline SVG icons in the look of the Font Awesome glyphs the real webConfigurator uses.
 const PF_ICONS = {
   wrench: '<path d="M14.5 4.2a3.6 3.6 0 01-4.8 3.4L4 13.3a1.4 1.4 0 01-2-2l5.7-5.7a3.6 3.6 0 014.6-4.6L10.2 3.1l.5 2.2 2.2.5z" fill="currentColor"/>',
-  minus: '<circle cx="8" cy="8" r="7" fill="currentColor"/><rect x="4" y="7" width="8" height="2" fill="#1e3f75"/>',
-  close: '<circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M5.2 5.2l5.6 5.6M10.8 5.2l-5.6 5.6" stroke="#1e3f75" stroke-width="1.8"/>',
+  minus: '<circle cx="8" cy="8" r="7" fill="currentColor"/><rect x="4" y="7" width="8" height="2" fill="#424242"/>',
+  close: '<circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M5.2 5.2l5.6 5.6M10.8 5.2l-5.6 5.6" stroke="#424242" stroke-width="1.8"/>',
+  // rule-table action icons (fa-anchor, fa-pencil, fa-clone, fa-ban, fa-trash, fa-times, fa-cog) and log icons
+  anchor: '<circle cx="8" cy="3" r="1.8" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M8 4.8V15M5 7.5h6M2.5 9.5c0 3 2.5 5 5.5 5s5.5-2 5.5-5" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M1 10l1.5-2 1.5 2zM12 10l1.5-2 1.5 2z" fill="currentColor"/>',
+  pencil: '<path d="M11.3 1.6l3.1 3.1-8.7 8.7-3.6.6.6-3.6z" fill="currentColor"/><path d="M9.8 3.1l3.1 3.1" stroke="#fff" stroke-width="1"/>',
+  clone: '<rect x="1.5" y="5" width="9.5" height="9.5" rx="1" stroke="currentColor" stroke-width="1.6" fill="none"/><path d="M5 5V2.5a1 1 0 011-1h7.5a1 1 0 011 1V10a1 1 0 01-1 1H11" stroke="currentColor" stroke-width="1.6" fill="none"/>',
+  ban: '<circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="2" fill="none"/><path d="M3.6 3.6l8.8 8.8" stroke="currentColor" stroke-width="2"/>',
+  trash: '<path d="M2 3.5h12M6 3.5V2h4v1.5" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M3.3 4.5h9.4l-.8 10.5H4.1z" fill="currentColor"/><path d="M6.3 6.5v6.5M9.7 6.5v6.5" stroke="#fff" stroke-width="1"/>',
+  times: '<path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" stroke-width="2.6"/>',
+  gear: '<path d="M8 1l1.3 1.8 2.2-.6.4 2.2 2.1 1-1 2 1 2-2.1 1-.4 2.2-2.2-.6L8 15l-1.3-1.8-2.2.6-.4-2.2-2.1-1 1-2-1-2 2.1-1 .4-2.2 2.2.6z" fill="currentColor"/><circle cx="8" cy="8" r="2.4" fill="#fff"/>',
+  check: '<path d="M2 8.5l4 4 8-9" stroke="currentColor" stroke-width="2.6" fill="none"/>',
+  info: '<circle cx="8" cy="3" r="1.6" fill="currentColor"/><path d="M5.5 6.5h3.5v7h1.5v1.5h-5v-1.5H7V8H5.5z" fill="currentColor"/>',
+  minusbox: '<rect x="1.5" y="1.5" width="13" height="13" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M4.5 8h7" stroke="currentColor" stroke-width="2"/>',
+  plusbox: '<rect x="1.5" y="1.5" width="13" height="13" stroke="currentColor" stroke-width="1.5" fill="none"/><path d="M4.5 8h7M8 4.5v7" stroke="currentColor" stroke-width="2"/>',
+  save: '<path d="M1.5 1.5h10.5l2.5 2.5v10.5h-13z" fill="currentColor"/><rect x="4" y="1.5" width="6.5" height="4" fill="#fff"/><circle cx="8" cy="10.3" r="2" fill="#fff"/>',
+  levelup: '<path d="M8 1.5l5 5H9.6V14H6.4V6.5H3z" fill="currentColor"/>',
+  leveldown: '<path d="M8 14.5l5-5H9.6V2H6.4v7.5H3z" fill="currentColor"/>',
   plus: '<path d="M8 2v12M2 8h12" stroke="currentColor" stroke-width="3"/>',
   help: '<circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M5.9 6.1a2.1 2.1 0 114.1.8c-.4.9-1.9 1.1-1.9 2.4" stroke="#fff" stroke-width="1.6" fill="none"/><circle cx="8.1" cy="11.9" r=".95" fill="#fff"/>',
   net: '<rect x="6" y="1" width="4" height="3.5" fill="currentColor"/><rect x="1" y="11" width="4" height="3.5" fill="currentColor"/><rect x="6" y="11" width="4" height="3.5" fill="currentColor"/><rect x="11" y="11" width="4" height="3.5" fill="currentColor"/><path d="M8 4.5v4M3 11V8.5h10V11M8 8.5V11" stroke="currentColor" stroke-width="1.3" fill="none"/>',
@@ -302,15 +317,15 @@ export class PfSenseApp {
     c.append(tabs);
     if (this.pending) {
       c.append(this.alertBox('warning',
-        h('button', { class: 'pf-btn pf-btn-success pf-apply', type: 'button', onclick: () => { this.pending = false; this.render(); } }, el('i', 'pf-ico', '✓'), ' Apply Changes'),
+        h('button', { class: 'pf-btn pf-btn-success pf-apply', type: 'button', onclick: () => { this.pending = false; this.render(); } }, pfIcon('check'), ' Apply Changes'),
         el('div', '', 'The firewall rule configuration has been changed.', el('br'), 'The changes must be applied for them to take effect.')));
     }
     if (this.tab === 'wan') this.renderWanTable(c);
     else if (this.tab === 'lan') this.renderLanTable(c);
     else this.renderFloating(c);
     c.append(el('div', 'pf-legend',
-      el('span', '', el('i', 'pf-ok', '✓'), ' pass'), el('span', '', el('i', 'pf-bad', '✕'), ' block'),
-      el('span', '', el('i', 'pf-muted', '✕'), ' reject'), el('span', '', el('i', 'pf-muted', 'ⓘ'), ' log'),
+      el('span', '', el('i', 'pf-ok', pfIcon('check')), ' pass'), el('span', '', el('i', 'pf-bad', pfIcon('times')), ' block'),
+      el('span', '', el('i', 'pf-muted', pfIcon('ban')), ' reject'), el('span', '', el('i', 'pf-muted', pfIcon('info')), ' log'),
       el('span', '', el('i', 'pf-muted', '⇄'), ' in'), el('span', '', el('i', 'pf-muted', '→'), ' out')));
   }
 
@@ -323,15 +338,18 @@ export class PfSenseApp {
   }
 
   renderLanTable(c) {
-    const rule = (icon, proto, src, dst, descr) => el('tr', '',
-      el('td', '', h('input', { type: 'checkbox', disabled: true })), el('td', 'pf-ok', '✓'), el('td', '', '0 / 0 B'), el('td', '', proto), el('td', '', src), el('td', '', '*'),
-      el('td', '', dst), el('td', '', '*'), el('td', '', '*'), el('td', '', 'none'), el('td', '', ''), el('td', '', descr), el('td', 'pf-actions', el('span', 'pf-muted', 'read-only')));
+    const ro = 'LAN rules are read-only in this lab';
+    const rule = (sys, proto, src, port, dst, dport, descr) => el('tr', '',
+      el('td', '', sys ? '' : h('input', { type: 'checkbox', disabled: true })), el('td', 'pf-ok pf-ico-cell', pfIcon('check')),
+      el('td', 'pf-states', h('a', { href: '#', onclick: (e) => e.preventDefault() }, '0 /0 B')), el('td', '', proto), el('td', '', src), el('td', '', port),
+      el('td', '', dst), el('td', '', ...dport.split('|').flatMap((x, i) => (i ? [el('br'), x] : [x]))), el('td', '', '*'), el('td', '', '*'), el('td', '', ''), el('td', '', descr),
+      el('td', 'pf-actions', ...(sys ? [this.iconBtn('gear', ro, null, true)] : ['anchor', 'pencil', 'clone', 'ban', 'trash'].map((n) => this.iconBtn(n, ro, null, true)))));
     c.append(this.panel('Rules (Drag to Change Order)', el('div', 'pf-scroll', el('table', 'pf-table pf-rules',
       this.thead(['', '', 'States', 'Protocol', 'Source', 'Port', 'Destination', 'Port', 'Gateway', 'Queue', 'Schedule', 'Description', 'Actions']),
       el('tbody', '',
-        rule('', '*', '*', 'LAN Address', 'Anti-Lockout Rule'),
-        rule('', 'IPv4 *', 'LAN subnets', '*', 'Default allow LAN to any rule'),
-        rule('', 'IPv6 *', 'LAN subnets', '*', 'Default allow LAN IPv6 to any rule')))), 'pf-nopad'));
+        rule(true, '*', '*', '*', 'LAN Address', '443|80', 'Anti-Lockout Rule'),
+        rule(false, 'IPv4 *', 'LAN net', '*', '*', '*', 'Default allow LAN to any rule'),
+        rule(false, 'IPv6 *', 'LAN net', '*', '*', '*', 'Default allow LAN IPv6 to any rule')))), 'pf-nopad'));
   }
 
   renderWanTable(c) {
@@ -343,16 +361,17 @@ export class PfSenseApp {
       const chk = h('input', { type: 'checkbox', 'aria-label': `Select rule ${cl.n}`, checked: this.selected.has(cl.n) || undefined,
         onchange: (e) => { if (e.target.checked) this.selected.add(cl.n); else this.selected.delete(cl.n); this.updateDeleteBtn(); } });
       if (this.selected.has(cl.n)) chk.checked = true;
-      const states = el('td', 'pf-states', cl.states);
+      const states = el('td', 'pf-states', h('a', { href: '#', title: 'States details', onclick: (e) => e.preventDefault() }, cl.states));
       states.dataset.i = String(i);
       const act = el('td', 'pf-actions',
-        this.iconBtn('✎', 'Edit this rule', () => this.openForm(r, true)),
-        this.iconBtn('❐', 'Add a new rule based on this one', () => this.openForm(r, false)),
-        this.iconBtn('⊘', 'Disable this rule (not available in this lab)', null, true),
-        this.iconBtn('✖', 'Delete this rule', () => this.confirmDelete([cl.n]), false, 'pf-act-del'));
+        this.iconBtn('anchor', 'Move checked rules above this one (not available in this lab)', null, true),
+        this.iconBtn('pencil', 'Edit this rule', () => this.openForm(r, true)),
+        this.iconBtn('clone', 'Copy this rule', () => this.openForm(r, false)),
+        this.iconBtn('ban', 'Disable this rule (not available in this lab)', null, true),
+        this.iconBtn('trash', 'Delete this rule', () => this.confirmDelete([cl.n]), false, 'pf-act-del'));
       tbody.append(el('tr', cl.pass ? 'pf-row-pass' : 'pf-row-block',
         el('td', '', chk),
-        el('td', cl.pass ? 'pf-ok pf-ico-cell' : 'pf-bad pf-ico-cell', cl.pass ? '✓' : '✕'),
+        el('td', cl.pass ? 'pf-ok pf-ico-cell' : 'pf-bad pf-ico-cell', { title: cl.pass ? 'Pass' : 'Block' }, pfIcon(cl.pass ? 'check' : 'times')),
         states,
         el('td', '', cl.proto), el('td', '', cl.sourceTitle ? h('a', { href: '#', title: cl.sourceTitle, onclick: (e) => { e.preventDefault(); this.go('aliases'); } }, cl.source) : cl.source), el('td', '', cl.srcPort),
         el('td', '', cl.dest === '*' ? '*' : h('a', { href: '#', onclick: (e) => { e.preventDefault(); this.go('aliases'); } }, cl.dest)), el('td', '', cl.destPort),
@@ -361,25 +380,33 @@ export class PfSenseApp {
     const pr = policyRow(fw);
     tbody.append(el('tr', 'pf-row-default',
       el('td', '', h('input', { type: 'checkbox', disabled: true })),
-      el('td', pr.pass ? 'pf-ok pf-ico-cell' : 'pf-bad pf-ico-cell', pr.pass ? '✓' : '✕'),
-      el('td', '', '—'), el('td', '', 'IPv4 *'), el('td', '', '*'), el('td', '', '*'), el('td', '', '*'), el('td', '', '*'), el('td', '', '*'), el('td', '', 'none'), el('td', '', ''),
+      el('td', pr.pass ? 'pf-ok pf-ico-cell' : 'pf-bad pf-ico-cell', pfIcon(pr.pass ? 'check' : 'times')),
+      el('td', 'pf-states', '0 /0 B'), el('td', '', 'IPv4 *'), el('td', '', '*'), el('td', '', '*'), el('td', '', '*'), el('td', '', '*'), el('td', '', '*'), el('td', '', 'none'), el('td', '', ''),
       el('td', 'pf-default-desc', el('b', '', pr.label), el('div', 'pf-small', pr.note)),
       el('td', 'pf-actions', h('button', { type: 'button', class: `pf-btn pf-btn-xs ${pr.toggleTo === 'block' ? 'pf-btn-primary' : 'pf-btn-default'}`, 'data-act': 'default',
         onclick: () => this.setDefault(pr.toggleTo) }, pr.toggleLabel))));
-    const delBtn = h('button', { type: 'button', class: 'pf-btn pf-btn-danger', disabled: true, onclick: () => this.confirmDelete([...this.selected]) }, el('i', 'pf-ico', '✖'), ' Delete');
+    // Real button bar under the table: Add (top), Add (bottom), Delete, Toggle, Copy, Save, Separator.
+    const bbtn = (cls, icon, label, title, onclick, extra = {}) => h('button', { type: 'button', class: `pf-btn pf-btn-sm ${cls}`, title, disabled: onclick ? undefined : true, onclick, ...extra }, pfIcon(icon), label);
+    const na = '(not available in this lab)';
+    const delBtn = bbtn('pf-btn-danger', 'trash', 'Delete', 'Delete selected rules', () => this.confirmDelete([...this.selected]));
     this.refs.delBtn = delBtn;
-    const addBtn = h('button', { type: 'button', class: 'pf-btn pf-btn-success', 'data-act': 'add', onclick: () => this.openForm(null) }, el('i', 'pf-ico', '↓'), ' Add');
+    const addTop = bbtn('pf-btn-success', 'levelup', 'Add', `Add rule to the top of the list ${na}`, null);
+    const addBtn = bbtn('pf-btn-success', 'leveldown', 'Add', 'Add rule to the end of the list', () => this.openForm(null), { 'data-act': 'add' });
     const body = el('div', '', el('div', 'pf-scroll', el('table', 'pf-table pf-rules',
       this.thead(['', '', 'States', 'Protocol', 'Source', 'Port', 'Destination', 'Port', 'Gateway', 'Queue', 'Schedule', 'Description', 'Actions']), tbody)));
     c.append(this.panel('Rules (Drag to Change Order)', body, 'pf-nopad'));
-    c.append(el('div', 'pf-btnbar', addBtn, delBtn));
+    c.append(el('div', 'pf-btnbar', addTop, addBtn, delBtn,
+      bbtn('pf-btn-primary', 'ban', 'Toggle', `Toggle selected rules ${na}`, null),
+      bbtn('pf-btn-primary', 'clone', 'Copy', `Copy selected rules ${na}`, null),
+      bbtn('pf-btn-primary', 'save', 'Save', `Save rule order ${na}`, null),
+      bbtn('pf-btn-warning', 'plus', 'Separator', `Add separator ${na}`, null)));
     this.updateDeleteBtn();
   }
 
   updateDeleteBtn() { if (this.refs.delBtn) this.refs.delBtn.disabled = this.selected.size === 0; }
 
-  iconBtn(glyph, title, onclick, disabled = false, extra = '') {
-    return h('button', { type: 'button', class: `pf-act ${extra}`, title, 'aria-label': title, disabled: disabled || undefined, onclick: disabled ? undefined : onclick }, glyph);
+  iconBtn(icon, title, onclick, disabled = false, extra = '') {
+    return h('button', { type: 'button', class: `pf-act ${extra}`, title, 'aria-label': title, disabled: disabled || undefined, onclick: disabled ? undefined : onclick }, pfIcon(icon));
   }
 
   setDefault(policy) {
@@ -482,7 +509,7 @@ export class PfSenseApp {
         group('Log', el('label', 'pf-check', h('input', { type: 'checkbox', disabled: true, checked: true }), ' Log packets that are handled by this rule')),
         group('Description', descr, 'A description may be entered here for administrative reference.'))),
       el('div', 'pf-btnbar pf-left',
-        ro ? null : h('button', { type: 'submit', class: 'pf-btn pf-btn-primary', 'data-act': 'save' }, el('i', 'pf-ico', '✔'), ' Save'),
+        ro ? null : h('button', { type: 'submit', class: 'pf-btn pf-btn-primary', 'data-act': 'save' }, pfIcon('save'), ' Save'),
         h('button', { type: 'button', class: 'pf-btn pf-btn-default', 'data-act': 'cancel', onclick: () => this.go('rules') }, ro ? 'Back' : 'Cancel'),
         preview));
     this.formEl = form;
@@ -528,8 +555,12 @@ export class PfSenseApp {
   fillLogBody(tbody) {
     clear(tbody);
     for (const e of this.logRows()) {
-      tbody.append(el('tr', '', el('td', e.pass ? 'pf-ok pf-ico-cell' : 'pf-bad pf-ico-cell', e.pass ? '✓' : '✕'), el('td', '', e.time), el('td', '', e.iface),
-        el('td', '', e.rule), el('td', '', e.src), el('td', '', e.dst), el('td', '', e.proto)));
+      // Real Normal View: action icon, "Oct 31 08:41:07", rule text with its tracker id, then each address with the
+      // (i) reverse-lookup icon and the block (minus box) / pass (plus box) easy-rule icon in front of it.
+      const addr = (a, box) => el('span', 'pf-logaddr', el('span', 'pf-i-info', pfIcon('info')), pfIcon(box), a);
+      tbody.append(el('tr', '', el('td', e.pass ? 'pf-ok pf-ico-cell' : 'pf-bad pf-ico-cell', { title: e.pass ? 'Pass' : 'Block' }, pfIcon(e.pass ? 'check' : 'times')),
+        el('td', '', `Oct 31 ${e.time}`), el('td', '', e.iface),
+        el('td', '', e.rule), el('td', '', addr(e.src, 'minusbox')), el('td', '', addr(e.dst, 'plusbox')), el('td', '', String(e.proto).toUpperCase())));
     }
   }
 
@@ -543,7 +574,7 @@ export class PfSenseApp {
     this.refs.logBody = tbody;
     this.fillLogBody(tbody);
     c.append(tabs, tabs2, this.panel('Last 50 Firewall Log Entries. (Maximum 50)', el('div', 'pf-scroll', el('table', 'pf-table pf-logs',
-      this.thead(['Action', 'Time', 'Interface', 'Rule', 'Source', 'Destination', 'Proto']), tbody)), 'pf-nopad'));
+      this.thead(['Action', 'Time', 'Interface', 'Rule', 'Source', 'Destination', 'Protocol']), tbody)), 'pf-nopad'));
   }
 
   // ---- Status > Interfaces -----------------------------------------------------------------------------
@@ -598,7 +629,7 @@ export class PfSenseApp {
       this.main.querySelectorAll('td.pf-states').forEach((td) => {
         const i = +td.dataset.i;
         const r = this.fw.rules[i];
-        if (r) td.textContent = ruleCells(r, i, clk, this.scoringIp).states;
+        if (r) (td.querySelector('a') || td).textContent = ruleCells(r, i, clk, this.scoringIp).states;
       });
     }
   }
