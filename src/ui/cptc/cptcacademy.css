@@ -2,6 +2,7 @@
 .ac-kx { background: #17141c; color: #d7d2df; border-left: 1px solid #000; font-family: 'DejaVu Sans', 'Segoe UI', system-ui, sans-serif; }
 .kx.ac-on .kx-desk { right: 360px; }
 .kx.ac-on.ac-closed .kx-desk { right: 28px; }
+@media (max-width: 900px) { .kx.ac-on .kx-desk { right: 280px; } .kx.ac-on.ac-closed .kx-desk { right: 28px; } }
 .ac-kx .ac-head { background: #0b0710; color: #f3f0f7; }
 .ac-kx .ac-intro, .ac-kx .ac-progtext, .ac-kx .ac-item small, .ac-kx .ac-crumb { color: #9c95ab; }
 .ac-kx .ac-tab { border-color: #4a4356; color: #c9c2d6 !important; }
