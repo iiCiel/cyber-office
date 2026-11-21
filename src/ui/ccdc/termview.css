@@ -47,3 +47,5 @@
 .tv-kali .tv-line.sys { color: #9aa0a6; }
 .tv-kali .tv-out::-webkit-scrollbar-track { background: #1c1f26; }
 .tv-kali .tv-out::-webkit-scrollbar-thumb { background: #3a3f4b; }
+/* Real conhost and PuTTY always show the vertical scrollbar (big scrollback buffer), even on a fresh window. */
+.tv-pwsh .tv-out, .tv-putty .tv-out { overflow-y: scroll; }

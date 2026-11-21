@@ -180,8 +180,8 @@
 .wd-tn { display: flex; align-items: center; gap: 2px; height: 20px; padding-right: 6px; white-space: nowrap; outline: none; } .wd-tn:hover { background: #e5f3fb; } .wd-tn.on { background: #cce8ff; }
 .wd-tn .wd-ic { margin-right: 3px; }
 .wd-twisty { display: inline-block; width: 12px; height: 12px; position: relative; flex: none; }
-.wd-twisty::before { content: ''; position: absolute; left: 3px; top: 2px; border: 4px solid transparent; border-left: 5px solid #8e8e8e; border-right: 0; }
-.wd-twisty.open::before { left: 1px; top: 4px; border: 4px solid transparent; border-top: 5px solid #444; border-bottom: 0; } .wd-twisty.none::before { display: none; }
+.wd-twisty::before { content: ''; position: absolute; left: 2px; top: 3px; width: 5px; height: 5px; border: solid #808080; border-width: 0 1.5px 1.5px 0; transform: rotate(-45deg); }
+.wd-twisty.open::before { left: 3px; top: 1px; border-color: #404040; transform: rotate(45deg); } .wd-twisty.none::before { display: none; }
 .wd-listpane, .wd-tasks-center, .wd-evt-center { flex: 1; min-width: 0; overflow: auto; background: #fff; position: relative; }
 .wd-listpane:has(.wd-svc-wrap) { display: flex; flex-direction: column; overflow: hidden; }
 .wd-tasks-center, .wd-evt-center { display: flex; flex-direction: column; overflow: hidden; }

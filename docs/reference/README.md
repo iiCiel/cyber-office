@@ -84,3 +84,16 @@ These three screens are from the public Midwest team packet (2026 Regional, gith
 
 The PAN-OS images are from Palo Alto's public pan.dev documentation repository. No reference exists yet for the NETLAB+ topology page, the ticket form or a Windows login inside NETLAB+.
 
+
+## Windows server and Linux terminals (CCDC boxes)
+
+| File | Shows | Source | Used for |
+|---|---|---|---|
+| aduc-domain-root.png | Active Directory Users and Computers, domain root | Microsoft Learn docs | ADUC window in `winApps.js` |
+| aduc-properties-spn.png | ADUC user Properties dialog | Microsoft Learn docs | ADUC properties dialog |
+| server-manager-dashboard.png | Server Manager Dashboard (2012-era, same layout as 2019) | Microsoft Learn docs | Server Manager in `winApps.js` |
+| windows-powershell-console.png | Windows PowerShell 5.1 console | https://upload.wikimedia.org/wikipedia/commons/f/fb/Microsoft_Win10_PowerShell.png | PowerShell window, banner and colours |
+| linux-ss-tecmint.png | Real `ss -lt` output, right-aligned address columns | https://www.tecmint.com/wp-content/uploads/2019/09/Linux-ss-Command-Examples-and-Usage.png | `formatSs()` in `src/game/labCommands.js` |
+
+No image reference was found for `journalctl`; its output follows the systemd 249 text format (header line, `Mon DD HH:MM:SS host prog[pid]: msg`).
+Side-by-sides: `docs/proof/windows-linux/side-by-side-*.png`.

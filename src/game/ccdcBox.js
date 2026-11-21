@@ -8,6 +8,7 @@
 // Everything is simulated: nothing is executed.
 
 import { evalFirewall } from './ccdcFirewall.js';
+import { formatConns, listenOnly } from './labCommands.js';
 import { makeDirectory } from './directory.js';
 import { systemctlStatus } from './hostState.js';
 import { finishCommit, matchFlow, panosEval, panosLine, startCommit } from './panos.js';
@@ -757,8 +758,9 @@ export function boxCommands(state, dev, ds) {
     const deadPorts = state.serviceList.filter((s) => s.host === dev.id && (s.units || []).some((u) => L.units[u] !== 'active')).flatMap((s) => s.ports);
     const live = (t) => text(t).split('\n').filter((l) => !deadPorts.some((p) => l.includes(`:${p} `))).join('\n');
     after('ps', (r) => `${text(r).replace(/\n$/, '')}${L.procs.length ? `\n${ROW(L).join('\n')}` : ''}\n`);
-    after('ss', (r) => `${live(r).replace(/\n$/, '')}${L.conns.length ? `\n${L.conns.join('\n')}` : ''}\n`);
-    after('netstat', (r) => `${live(r).replace(/\n$/, '')}${L.conns.length ? `\n${L.conns.join('\n')}` : ''}\n`);
+    // `ss -tulpn` lists listeners only; live ESTAB rows show with `ss -antp` / `ss -tnp` (taught in the academy).
+    after('ss', (r, args) => `${live(r).replace(/\n$/, '')}${L.conns.length && !listenOnly(args) ? `\n${formatConns(L.conns).join('\n')}` : ''}\n`);
+    after('netstat', (r, args) => `${live(r).replace(/\n$/, '')}${L.conns.length && !listenOnly(args) ? `\n${formatConns(L.conns, 'netstat').join('\n')}` : ''}\n`);
     after('who', (r) => `${text(r).replace(/\n$/, '')}${L.sessions.length ? `\n${L.sessions.join('\n')}` : ''}\n`);
     wrapped.w = wrapped.who;
     wrapped.lsattr = (args) => `${(args || []).filter((a) => !a.startsWith('-')).map((a) => `${L.immutable.includes(pathOn(ds, a)) ? '----i' : '-----'}--------e-- ${a}`).join('\n')}\n`;
@@ -821,7 +823,7 @@ export function boxCommands(state, dev, ds) {
       return [...L.runKeys.map((k) => `${k.name} : ${k.cmd}`), 'SecurityHealth : %windir%\\system32\\SecurityHealthSystray.exe'].join('\n');
     };
     wrapped.tasklist = (args, stdin, ctx) => `${text(base.tasklist?.(args, stdin, ctx)).replace(/\n$/, '')}${L.procs.length ? `\n${L.procs.map((p) => `${p.cmd.padEnd(25)} ${String(p.pid).padStart(8)} Services`).join('\n')}` : ''}\n`;
-    wrapped.netstat = (args, stdin, ctx) => `${text(base.netstat?.(args, stdin, ctx)).replace(/\n$/, '')}${L.conns.length ? `\n${L.conns.join('\n')}` : ''}\n`;
+    wrapped.netstat = (args, stdin, ctx) => `${text(base.netstat?.(args, stdin, ctx)).replace(/\n$/, '')}${L.conns.length && !listenOnly(args) ? `\n${formatConns(L.conns, 'netstat').join('\n')}` : ''}\n`;
     wrapped.query = () => ` USERNAME   SESSIONNAME   ID  STATE\n ${dev.user}   console   1  Active\n${L.sessions.join('\n')}\n`;
   }
   return wrapped;
