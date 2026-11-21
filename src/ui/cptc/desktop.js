@@ -13,15 +13,18 @@ export class Desktop {
     this.z = 10;
     this.focusId = null;
     this.menuBtn = h('button', { type: 'button', class: 'kx-menubtn', 'aria-haspopup': 'true', 'aria-expanded': 'false', onclick: (e) => { e.stopPropagation(); this.toggleMenu(); } },
-      h('span', { class: 'kx-dragon', 'aria-hidden': 'true' }, 'K'), h('span', { class: 'kx-menutext' }, 'Applications'));
+      h('span', { class: 'kx-appicon', 'aria-hidden': 'true' }), h('span', { class: 'kx-menutext' }, 'Applications'));
     this.menu = h('div', { class: 'kx-menu', role: 'menu', hidden: '' });
     this.tasks = h('div', { class: 'kx-tasks', role: 'toolbar', 'aria-label': 'Open windows' });
     this.status = h('div', { class: 'kx-status' });
     this.clock = h('span', { class: 'kx-pclock' }, panelClock());
-    this.panel = h('div', { class: 'kx-panel', role: 'toolbar' }, this.menuBtn, h('span', { class: 'kx-psep' }), this.tasks, this.status,
-      h('span', { class: 'kx-tray', 'aria-hidden': 'true' }, h('i', {}, '⇅'), h('i', {}, '♪'), h('i', {}, '⚡')), this.clock);
+    // Xfce panel as Kali ships it: menu, quick launchers, workspace switcher, window buttons, then clock + tray.
+    this.launch = h('div', { class: 'kx-launch', role: 'group', 'aria-label': 'Launchers' });
+    const ws = h('span', { class: 'kx-ws', 'aria-hidden': 'true' }, h('i', { class: 'on' }), h('i'), h('i'), h('i'));
+    this.panel = h('div', { class: 'kx-panel', role: 'toolbar' }, this.menuBtn, this.launch, h('span', { class: 'kx-psep' }), ws, h('span', { class: 'kx-psep' }), this.tasks, this.status,
+      this.clock, h('span', { class: 'kx-tray', 'aria-hidden': 'true' }, h('i', { class: 'kx-ti-disp' }), h('i', { class: 'kx-ti-vol' }), h('i', { class: 'kx-ti-bell' }), h('i', { class: 'kx-ti-bat' }), h('i', { class: 'kx-ti-lock' })));
     this.icons = h('div', { class: 'kx-icons', 'aria-hidden': 'true' },
-      ['File System', 'Home', 'Trash'].map((n, i) => h('div', { class: 'kx-icon' }, h('span', { class: `kx-icon-img k${i}` }), h('span', {}, n))));
+      [['Trash', 'trash'], ['File System', 'disk'], ['Home', 'home']].map(([n, k]) => h('div', { class: 'kx-icon' }, h('span', { class: `kx-icon-img kx-ic-${k}` }), h('span', {}, n))));
     this.area = h('div', { class: 'kx-area', onpointerdown: (e) => { if (e.target === this.area || this.icons.contains(e.target)) { this.focusId = null; this.syncFocus(); this.closeMenu(); } } }, this.icons);
     this.el = h('div', { class: 'kx-desk' }, this.panel, this.menu, this.area);
     this.docDown = (e) => { if (!this.menu.hidden && !this.menu.contains(e.target) && !this.menuBtn.contains(e.target)) this.closeMenu(); };
@@ -57,6 +60,7 @@ export class Desktop {
     win.el = h('section', { class: 'kx-win', 'data-win': id, role: 'dialog', 'aria-label': title, onpointerdown: () => this.focus(id) }, win.bar, h('div', { class: 'kx-wbody' }, body));
     win.task = h('button', { type: 'button', class: 'kx-task', 'data-task': id, onclick: () => this.taskClick(id) }, h('span', { class: 'kx-wglyph' }, glyph || ''), h('span', { class: 'kx-tasktext' }, title));
     this.tasks.append(win.task);
+    this.launch.append(h('button', { type: 'button', class: 'kx-ql', 'data-quick': id, title: win.menuLabel, 'aria-label': win.menuLabel, onclick: () => this.open(id) }, h('span', { class: 'kx-wglyph' }, glyph || '')));
     this.area.append(win.el);
     this.wins.set(id, win);
     this.bindDrag(win);
@@ -165,6 +169,14 @@ export class Desktop {
 
   toggleMenu() { if (this.menu.hidden) { this.menu.hidden = false; this.menuBtn.setAttribute('aria-expanded', 'true'); } else this.closeMenu(); }
   closeMenu() { this.menu.hidden = true; this.menuBtn.setAttribute('aria-expanded', 'false'); }
+
+  /** xfce4-notifyd style popup, top right, fades after a few seconds. */
+  notify(title, body) {
+    const n = h('div', { class: 'kx-notify', role: 'status' }, h('span', { class: 'kx-nicon', 'aria-hidden': 'true' }), h('div', {}, h('b', {}, title), h('div', {}, body)));
+    this.area.append(n);
+    setTimeout(() => n.remove(), 6000);
+    return n;
+  }
 
   setStatus(...nodes) { clear(this.status).append(...nodes.filter(Boolean)); }
 }

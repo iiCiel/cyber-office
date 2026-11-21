@@ -84,3 +84,17 @@ These three screens are from the public Midwest team packet (2026 Regional, gith
 
 The PAN-OS images are from Palo Alto's public pan.dev documentation repository. No reference exists yet for the NETLAB+ topology page, the ticket form or a Windows login inside NETLAB+.
 
+
+## CPTC: Kali and Burp Suite
+
+| File | Shows | Used for |
+|---|---|---|
+| kali-2021.2.png | Kali Xfce desktop: panel, QTerminal, Thunar | Kali desktop chrome, terminal menu, desktop icons |
+| burp-proxy-history.png | Burp Suite Proxy > HTTP history with request/response panes | Burp window, Proxy tab |
+| burp-repeater.png | Burp Suite Repeater tab with Send, Cancel and history arrows | Burp window, Repeater tab |
+| burp-intercept.png | Burp Suite Proxy > Intercept with Forward / Drop | Reference only (Intercept not built) |
+
+The Burp images are from PortSwigger's public Burp Suite documentation
+(portswigger.net/burp/documentation/desktop/getting-started/intercepting-http-traffic and .../tools/repeater/using).
+No image of nmap output in a Kali terminal was found; nmap output follows the text format on nmap.org.
+The Kali dragon logo and the Burp logo are not copied; the wallpaper is a plain blue gradient.

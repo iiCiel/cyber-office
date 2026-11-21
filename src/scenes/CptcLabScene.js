@@ -8,6 +8,7 @@ import { studyNext, LESSONS as CPTC_LESSONS } from '../data/cptcAcademy.js';
 const LESSON_TITLES = Object.fromEntries(CPTC_LESSONS.map((l) => [l.id, l.title]));
 import { TermView } from '../ui/ccdc/TermView.js';
 import { Desktop } from '../ui/cptc/desktop.js';
+import { BurpWindow } from '../ui/cptc/burp.js';
 import { ReportDoc } from '../ui/cptc/report.js';
 import { renderBrief, renderDebrief } from '../ui/cptc/documents.js';
 import { fmtClock, findingNo, splitScope } from '../ui/cptc/helpers.js';
@@ -112,7 +113,7 @@ export class CptcLabScene extends Phaser.Scene {
       theme: 'kali', prompt: () => 'kali㉿kali ~', label: 'Kali terminal', buffer: this.termBuf, history: this.cmdHist, complete: [...new Set([...COMPLETE, ...(this.scenario.complete || [])])],
       run: (line) => this.runLine(line),
     });
-    const termBody = h('div', { class: 'kx-termwrap' }, h('div', { class: 'kx-termmenu', 'aria-hidden': 'true' }, ['File', 'Edit', 'View', 'Terminal', 'Help'].map((m) => h('span', {}, m))), this.term.el);
+    const termBody = h('div', { class: 'kx-termwrap' }, h('div', { class: 'kx-termmenu', 'aria-hidden': 'true' }, ['File', 'Actions', 'Edit', 'View', 'Help'].map((m) => h('span', {}, m))), this.term.el);
     this.notesBody = h('div', { class: 'kx-notes' });
     this.report = new ReportDoc({ getState: () => this.state, scenario: this.scenario, guided: this.guided, sound: this.sound2, onSubmit: () => this.finish() });
 
@@ -124,6 +125,12 @@ export class CptcLabScene extends Phaser.Scene {
     const rw = desk.addWindow({ id: 'report', title: 'Penetration Test Report - draft', glyph: 'R', body: this.report.el, state: 'min', menuLabel: 'Report (document viewer)',
       geom: (a) => { const w = Math.min(a.w - 40, 940); return { x: Math.round((a.w - w) / 2), y: 10, w, h: a.h - 20 }; } });
     rw.onOpen = () => { toReport(this.state); this.report.refresh(); };
+    if (this.scenario.burp) {
+      // Burp Suite: the browser traffic is already in Proxy > HTTP history; Repeater sends are engagement actions.
+      this.burp = new BurpWindow({ data: this.scenario.burp, onSend: (line) => this.burpSend(line) });
+      desk.addWindow({ id: 'burp', title: 'Burp Suite Community Edition v2024.9.5 - Temporary Project', glyph: 'B', body: this.burp.el, state: 'min', menuLabel: 'Burp Suite Community Edition',
+        geom: (a) => { const w = Math.min(a.w - 60, 1180); return { x: Math.max(0, Math.round((a.w - w) / 2)), y: 8, w, h: a.h - 16 }; } });
+    }
 
     this.refreshNotes();
     this.updateStatus();
@@ -133,6 +140,8 @@ export class CptcLabScene extends Phaser.Scene {
       this.coach = new CptcAcademyPanel({ host: this.coachHost() });
       this.root.classList.add('ac-on');
       this.root.append(this.coach.el);
+      // Phones: the 280px coach would cover the whole desktop, so it starts collapsed (tap < to open it).
+      if (window.innerWidth < 600) this.coach.toggle();
     }
     setTimeout(() => this.term?.focus(), 0);
   }
@@ -146,6 +155,21 @@ export class CptcLabScene extends Phaser.Scene {
     this.sound2?.play(r.discovered ? 'select' : 'click');
     if (r.discovered) { this.refreshNotes(); this.report?.refresh(); this.updateStatus(); }
     return { lines: r.lines };
+  }
+
+  /** A Repeater Send counts as an engagement action, same as typing it in the terminal. */
+  burpSend(line) {
+    const r = runEnum(this.state, line);
+    this.lineLog?.push(String(line).trim().replace(/\s+/g, ' '));
+    if (this.coach) setTimeout(() => this.coach?.onLine(), 0);
+    this.sound2?.play(r.discovered ? 'select' : 'click');
+    const first = r.discovered && (r.lines || []).some((l) => l.cls === 'flag');
+    if (r.discovered) { this.refreshNotes(); this.report?.refresh(); this.updateStatus(); }
+    if (first) {
+      const f = this.scenario.findings.find((x) => x.id === r.discovered);
+      this.desk.notify('Finding confirmed', `${f?.title || r.discovered}. Added to your report.`);
+    }
+    return { discovered: r.discovered };
   }
 
   coachHost() {

@@ -8,9 +8,11 @@
 // remediation; `refLikelihood`/`refImpact` are the reference rating the grader compares against.
 
 import { RAW_1 } from './cptcRaw1.js';
+import { MERIDIAN_BURP } from './cptcBurp1.js';
 
 export const CPTC_LAB = {
   raw: RAW_1,
+  burp: MERIDIAN_BURP,
   id: 'meridian-lab-2026',
   client: 'Meridian Health Partners',
   engagement: 'External + internal network penetration test, two weeks, remote.',
@@ -25,7 +27,7 @@ export const CPTC_LAB = {
 
   // Recon commands that help but do not, by themselves, confirm a finding.
   recon: [
-    { match: [[/nmap/, /198\.51\.100/]], output: [
+    { match: [[/nmap/, /198\.51\.100/], [/nmap/, /\b(www|portal|edge)\.meridian\.example\b/]], output: [
       'Starting Nmap 7.94 ( https://nmap.org )',
       'Nmap scan report for edge.meridian.example (198.51.100.20)',
       '  PORT     STATE SERVICE',

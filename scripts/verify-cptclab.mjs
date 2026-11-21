@@ -86,7 +86,7 @@ async function fillReport(page, text) {
   for (const c of CMDS) await typeCmd(page, c);
   check('typed exploit commands confirm all five findings', await foundCount(page) === 5, `${await foundCount(page)} found`);
   check('notes window lists the confirmed findings', await page.locator('.kx-nfinding').count() === 5);
-  check('panel shows the 3 windows and a clock', await page.locator('.kx-task').count() === 3 && /\d\d:\d\d/.test(await page.locator('.kx-pclock').innerText()));
+  check('panel shows the 4 windows (incl. Burp) and a clock', await page.locator('.kx-task').count() === 4 && /\d\d:\d\d/.test(await page.locator('.kx-pclock').innerText()));
   await page.locator('[data-win="term"] .kx-wb', { hasText: '–' }).click();
   check('window manager: minimise hides the terminal, panel button restores it', await page.locator('[data-win="term"]').isHidden() && (await page.locator('[data-task="term"]').click(), await page.locator('[data-win="term"]').isVisible()));
   await page.screenshot({ path: `${out}/01-kali-desktop.png` });

@@ -36,7 +36,7 @@
 .tv-pwsh .tv-out::-webkit-scrollbar-thumb { background: #cdcdcd; border: 2px solid #f0f0f0; }
 
 /* Kali QTerminal */
-.tv-kali { background: #1c1f26; color: #e6e6e6; font: 13px/1.3 'Fira Code', 'DejaVu Sans Mono', Consolas, monospace; }
+.tv-kali { background: #23262e; color: #e6e6e6; font: 13px/1.3 'Fira Code', 'DejaVu Sans Mono', Consolas, monospace; }
 .tv-kali .tv-cmdline { align-items: flex-end; }
 .tv-c-kblue { color: #2fb36a; }   /* frame: green for a normal user */
 .tv-c-kuser { color: #3b8eea; }   /* kali㉿kali and $: bold blue */
@@ -45,5 +45,5 @@
 .tv-kali .tv-line.ok { color: #23d18b; }
 .tv-kali .tv-line.warn { color: #f5f543; }
 .tv-kali .tv-line.sys { color: #9aa0a6; }
-.tv-kali .tv-out::-webkit-scrollbar-track { background: #1c1f26; }
+.tv-kali .tv-out::-webkit-scrollbar-track { background: #23262e; }
 .tv-kali .tv-out::-webkit-scrollbar-thumb { background: #3a3f4b; }
