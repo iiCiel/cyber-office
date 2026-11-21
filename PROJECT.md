@@ -1,6 +1,6 @@
 # Project: Cyber Office
 
-> Project file from the Command Center, Nov 11, 2026, 4:48 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
+> Project file from the Command Center, Nov 21, 2026, 3:45 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
 
 ## Goal
 A pixel-art browser game where you live a real day as a junior security analyst: walk the office, read real-looking email, dig through logs, deal with coworkers, and watch your choices play out. Not a quiz and not a wall of text. Built in public as a portfolio piece for internship applications.
@@ -14,35 +14,38 @@ A pixel-art browser game where you live a real day as a junior security analyst:
 D:\Projects\cyber-office
 
 ## Notes (what is done, in progress, next, issues)
-Art decision 2026-11-11: original pixel art stays; Codex HD art is retired. Scope: only the office (floors, walls, props) and the people in it. PC, terminals, tickets, mail and SIEM keep their new look. HD files are kept unused in art-src/codex-hd/; do not wire them back in.
-STATUS (Nov 11): main has everything: PRs #9-#11, restore/old-pixel-art (d835b3f) and feat/coworker-dialogue (PR #13 + Carla external-banner fix) merged into main. MUSIC REMOVED, do not re-add.
+Nov 21: the supervisor's reference-first pass is done, with one PR per area, all based on main and waiting for Soliman to merge:
+- #17 Splunk
+- #18 pfSense
+- #19 CCDC scoreboard
+- #20 Windows/Linux (ADUC, PowerShell, Server Manager, ss)
+- #21 CPTC: Kali Xfce plus a new Burp Suite (src/ui/cptc/burp.js, src/data/cptcBurp1.js), verify script scripts/verify-cptc.mjs, proof in docs/proof/cptc-ref/
 
-DONE in PR #13 (coworker dialogue rewrite):
-- Rewrote src/days/day1-4/talk.js (PHONE_CALL, USB_DROP, MIKE_CONFESSES, THEO_WAF, CARLA_CALL). Only the text changed: choice ids and set.outcome values are the same.
-- Rewrote npcLines in src/days/day1-5/index.js. Priya mentions:
-  - Day 2: INC0004512-4519
-  - Day 3: RITM0004471 and NGM-48288
-  - Day 4: NGM-48336/48341 and INC0004580
-  - Day 5: NGM-48402
-- Priya now mentions the handoff on Days 2-5, so the old NEXT item (3) is done.
-- New tests/dialogue.test.js checks: the trees are wired, the outcomes are unchanged, lines are 180 characters or less, the briefings mention the tickets, and no line repeats within a day.
-- New scripts/shot-dialogue.mjs [url] [outDir] writes 11 shots to docs/proof/dialogue/. It needs the dev server, because it imports src/ modules.
+verify-cptclab now expects 4 panel windows, because Burp is one.
 
-NEXT:
-(1) Check the live site after the main push redeploys.
-(2) pfSense dark theme.
-(3) Server room / CCDC art in the ORIGINAL 16px pixel-art style (not Codex HD).
-(4) Reference images still missing: Server Manager, ADUC, Splunk, CCDC scoreboard.
-(5) Playthroughs of the CCDC scoreboard, red-team waves and big-log search.
+CPTC still open:
+- Burp in Labs 2-4
+- Burp Intercept and Intruder tabs
+- a one-host nmap scan prints the whole range output
 
-GOTCHAS:
-- Use Edit/Write, not bash heredocs, for JS strings that contain quotes.
-- shot-handoff, shot-daylogs and shot-dialogue import /src/ modules, so they fail against the live site with "Failed to fetch dynamically imported module". For the live site, only do a load-and-count-errors check.
-- SocScreen.js isn't imported by tests, so check it with `npx vite build`.
-- Dev server: npx vite --port 5194. Kill it via Get-NetTCPConnection PID.
-- Stage named files only.
+Other open items: pfSense dark theme; CCDC/server room pixel art in the original 16px style; playthroughs of the red-team waves and big-log search.
+
+Gotchas:
+- Dev server: npx vite --port 5202, kill it via Get-NetTCPConnection.
+- The side-by-side script is at %TEMP%\cptcsbs.py (PIL).
 
 ## Recent runs (newest first)
+### Nov 21, 2026: done, supervisor grade B
+- He asked: Fix-up run started by the supervisor. It checked the last run's work itself and found 1 problem: 1. Hide/Show Fields breaks the event list: after a search, hiding the sidebar leaves gaps between events and showing it again makes rows overlap. The run told Soliman to merge without mentioning the Code
+- Did: Hide/Show Fields bug is fixed and pushed to PR #17; merge it when ready. 1. Done: the sidebar toggle (and the narrow-screen Fields button) now re-measures result rows. I checked both screenshots: rows are flush, no gaps or overlaps. 2. Done: shot-siem now checks row geometry after Hide and Show (worst gap 0.2px). Replied on the Codex comment in PR #17. 3. Caveat: the new check also passes on the old code at 1366, so it guards against regressions but doesn't reproduce the original bug. 4. Not done: the pfSense and scoreboard work, since this run was only the fix-up. The pfSense edits in PfSenseApp.js and pfsense.css in the working tree are uncommitted and not mine; I left them alone. Next: open https://github.com/iiCiel/cyber-office/pull/17 and press Merge. Details: commit 9bb2c78 on fix/splunk-reference-match (ls-remote matches). npm test 717/717, vite build OK, shot-siem ALL PASS. 0 jobs went to workers.
+- Where it stood: PR #17 has the Splunk match plus the Hide/Show Fields fix and awaits your merge. The pfSense pass is still in progress.
+- Problems: The new check passes on the old, broken code at 1366, so it does not reproduce the bug. The run stashed the fix to test this and found it passes anyway, but did not strengthen it, for example by using a search that gives varied row heights…; Proof was asked as 'gap above 2px' and 'overlap'. A 0.2px worst result on both old and new code means the test measured nothing of value.; One tool call was blocked (sleep followed by chaining) and wasted a step.; Python was missing, so the first script edit failed; it had to redo it with Edit.
+- Advice for the next run: Before calling a regression test proof, stash the fix and confirm the test fails. If it passes on the old code, change it until it fails, then restore the fix. Use node or the Edit tool for file edits, not python. Print the commit's file list and the ls-remote SHA in the report.
+### Nov 21, 2026: done, supervisor grade B
+- Did: All 4 areas the supervisor asked for are done: 5 PRs (#17-#21) are open and need your review and merge. 1. Done: Splunk (#17), pfSense (#18), CCDC scoreboard (#19) and Windows/Linux (#20), each matched against real screenshots. 2. Done: CPTC is PR #21. The Kali desktop now looks like real Xfce, and there's a new Burp Suite where you send the portal login to Repeater, type a quote and get the real MySQL error that proves the SQL injection. 3. Done: typing nmap with a hostname now works; before, it said "no result". 4. NOT done: Burp is only in Lab 1, its Intercept and Intruder tabs don't work yet, and a one-host nmap scan still prints the whole range. 5. Needs you: look at the side-by-sides and merge. Each PR is based on main, so merge them one at a time. Next: open https://github.com/iiCiel/cyber-office/pull/21 and compare the Burp Repeater picture with the real one. Details: #21 commit 2e09e45 (ls-remote matches). verify-cptc 24/24, verify-cptclab 24/24, cptc-academy 36/36, shot-cptcraw ALL PASS, npm test 717/717, vite build OK.
+- Where it stood: All 4 areas the supervisor asked for are done and in 5 open PRs (#17-#21) waiting for Soliman to merge.
+- Problems: Only one area of many was covered in 15 minutes; Server Manager and ADUC reference images are still missing.; Three worker jobs (Gemini) cost time and returned little; the browser route had to do the actual work.; The final report told Soliman to merge and stopped, while the supervisor says to keep going; the pfSense pass began only after the report, with just reference fetching done.; The work was a polish of an already-close screen (3 small visual fixes) rather than the biggest gaps Soliman complained about (scoreboard, other screens looking AI-made).
+- Advice for the next run: Finish the pfSense pass first: Rules and System Logs references from Netgate docs via the browser, then fix the gaps. Then audit the CCDC scoreboard against Aeolus/ScoreStack and fix what looks AI-made. Open one PR per area; don't stop at reporting a PR. Use the browser, not workers, to find image URLs.
 ### Nov 6, 2026: stopped, supervisor grade D
 - He asked: Fix-up run started by the supervisor. It checked the last run's work itself and found 2 problems: 1. Carla says the fake Northwind email had no external-sender warning, but the game shows a CAUTION external banner on that email. The dialogue contradicts what the player sees and plays down a real war
 - Did: Simplify that import, then write the new screenshot script.
@@ -60,22 +63,7 @@ GOTCHAS:
 - Where it stood: PR #11 (review fixes, real log formats, shift handoff) waits on your merge. The coworker dialogue rewrite and the live-site console check are still open.
 - Problems: Coworker dialogue rewrite was not started, though it was part of the ask.; The 0-console-errors check on the live site was not run. The run stopped at 'needs merge' instead of verifying anything live.; A build-breaking parse error in SocScreen.js (line 20) was found only at 7:38 when `vite build` was run. The tests had been passing while the build was broken.; The npm test output the ask wanted was only partly shown; the visible count came through grep filters.; Heredoc and python-assert edits failed twice (backslashes mangled, assertion error), wasting about 4 calls.; 6 tool errors, and a Day 5 screenshot timeout of 30s early in this window.
 - Advice for the next run: Start with the coworker dialogue rewrite, since it is the one named item still open. Once PR #11 is merged and deployed, run the live-site console check and report the count. Open each proof image after you shoot it and say what you see. Run vite build after every big edit.
-### Nov 6, 2026: done, supervisor grade B
-- He asked: Big visual quality pass. Soliman: "Do really good stuff. Make it look good. Use Codex for image generation. And add more detailed realistic stuff. As close to reality as you can." So: (1) Use the OpenAI Codex CLI (codex-delegate skill / `codex` command) to generate new art assets (office tiles, furn
-- Did: The office now has detailed Codex art and the tickets screen looks like ServiceNow. Merge PR #9 first, then PR #10: https://github.com/iiCiel/cyber-office/pull/10 1. Done: Codex made 33 art pieces in one style: floors, walls, 15 pieces of furniture and 6 animated characters. They're in the office and on the title screen. Before/after pictures are in the PR. 2. Done: the Tickets app now looks like a real ServiceNow incident list and form. Side by side with a real ServiceNow screenshot is in the PR. 3. Done: the phishing email's headers now look real: a Reply-To going to a .ru address, SPF, the sender IP, and a spam score of 4.1, just under the 5.0 cut-off. Each has an "Explain" note. 4. NOT done: new log formats, Splunk screen changes and rewritten coworker dialogue. 5. Needs you: merge PR #9, then #10. Play the game once and tell me if the office looks good. Next: open https://github.com/iiCiel/cyber-office/pull/10, look at the before/after pictures, then merge #9 and #10. Details: commit a7ef497 on visual/realism-pass, pushed (the GitHub copy matches). npm test 534/534. smoke 71 checks PASS. shot-office 6/0/0 errors, shot-tickets 10/0/0, shot-mailheaders 6/0/0. Phone checked in l…
-- Where it stood: PR #9 (CCDC/CPTC work) and PR #10 (HD art, ServiceNow tickets, real email headers, built on top of #9) both wait on your merge.
-- Problems: Skipped half the brief: no new log formats (Event IDs, Sysmon, EDR), no SIEM/Splunk screen changes, no rewritten coworker dialogue, no handoff/escalation workflow.; Inspected the phish headers and judged them 'already realistic', so little real improvement there; only a few lines added.; Tile seams needed a crop workaround and the first office render had heavy seams; only one fix pass was viewed.; Only 23 minutes used, yet items 2 and the rest of the realism list were dropped instead of attempted.; Did not look at real CCDC/SIEM reference screenshots this run; the ServiceNow reference was an older saved image from a prior session.; Did not clearly state to Soliman that Codex image generation worked, beyond the art list.
-- Advice for the next run: Start from PR #10. Do the SIEM and log formats first; that is what Soliman asked for and it was skipped. View a real Splunk or Wazuh screenshot before building the screen. Tile-test new art 3x3 before wiring it in.
-### Nov 6, 2026: done, supervisor grade B
-- He asked: Weekly usage resets at 18:00 UTC, use what's left. Stack on PR #9's branch (fix/pr6-review, not merged). Add a full browser playthrough (verify script) for CCDC company 3, Ridgeview Regional Medical Clinic, and fix whatever it finds. Don't redo finished work.
-- Did: Ridgeview playthrough works and found 1 real bug, now fixed. PR #9 still needs your merge. 1. Done: new script scripts/verify-ridgeview.mjs plays the whole Ridgeview clinic round in a browser. 13/13 checks pass. 2. Done: it fixes 7 findings by typing real commands: SUID find, TLS, Redis, SMB signing, password policy and Defender (both steps). It also opens pfSense and Splunk, ends the round and checks the report. No console or 404 errors. 3. Done: bug found and fixed. On the nurse-station Windows 11 PC the taskbar had no PowerShell or Explorer buttons until another window opened, so you couldn't type any commands there. 4. Needs you: merge PR #9. Next: open https://github.com/iiCiel/cyber-office/pull/9 and press Merge. Details: commit 6609eae on fix/pr6-review. npm test 534/534. Screenshots in docs/proof/ridgeview/.
-- Where it stood: PR #9 holds everything, including the Ridgeview playthrough. It waits on your merge. Server Manager, ADUC, Splunk and scoreboard reference images are still missing.
-- Problems: The run claims it was "pushed to PR #9", yet no push call exists. Soliman may merge without the commit being on the remote.; Report says 7 findings, the final message says 6, and the script has fewer than that fixes. The counts are inconsistent.; The first script versions failed on shell escaping and a strict-mode selector error; this cost a few extra rounds.; The playthrough only drives the fix path for one company. It doesn't cover the live scoreboard, red-team waves, injects or the huge-log search that the hard rules call core. Those weren't asked for this run.; It used `git add -A`, which swept in untracked files without checking what they were.
-- Advice for the next run: Run `git push` and show the remote result before saying pushed. Print exact PASS/FAIL totals and console-error counts in the script's last line. Next, extend playthroughs to the scoreboard, red-team waves and big-log search. Stage only named files, not `git add -A`.
 
 ## Waiting on Soliman
-- The supervisor opened the last Cyber Office run's work and found 4 problems even after the fix-up run.
-- The supervisor opened the last Cyber Office run's work and found 2 problems; a fix-up run is fixing them now.
-- Merge PR #13 (coworker dialogue rewrite)
-- Drop real screenshots of Server Manager, AD Users and Computers, Splunk Search and a CCDC scoreboard into docs/reference/
-- Play the new office and the 5 red-team engagements once; say if they're good enough to show University of Akron
+- Review and merge PRs #17-#21 (one per area)
+- The supervisor opened the last Cyber Office run's work and found 1 problem; a fix-up run is fixing them now.
