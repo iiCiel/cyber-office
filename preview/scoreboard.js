@@ -1,7 +1,8 @@
 // Dev-only preview of the CCDC web apps (never linked from the game).
 import { CCDC_LAB } from '../src/data/ccdcLabScenario.js';
 import { newGame, answerInject, MODES } from '../src/game/ccdcLab.js';
-import { attachEngine, tickTo } from '../src/game/ccdcEngine.js';
+import { attachEngine, tickTo, CHECK_INTERVAL } from '../src/game/ccdcEngine.js';
+import { liveTeamScore } from '../src/game/ccdcTeams.js';
 import { ScoreboardApp } from '../src/ui/ccdc/ScoreboardApp.js';
 import { InjectsApp } from '../src/ui/ccdc/InjectsApp.js';
 import { ChatApp } from '../src/ui/ccdc/ChatApp.js';
@@ -11,7 +12,8 @@ const view = q.get('view') || 'all';
 const start = Number(q.get('t') || 400);
 const state = attachEngine(newGame(CCDC_LAB, { seed: 3, mode: MODES.COMPETITION }));
 let clock = 0;
-const adv = (to) => { while (clock < to) { clock = Math.min(to, clock + 5); tickTo(state, clock); } };
+// Record your score at each round like CcdcLabScene does, so the score-per-round chart has your line.
+const adv = (to) => { while (clock < to) { clock = Math.min(to, clock + 5); tickTo(state, clock); const r = Math.floor(clock / CHECK_INTERVAL); if (r && (state.scoreSamples ||= {})[r] === undefined) state.scoreSamples[r] = liveTeamScore(state); } };
 adv(start);
 window.__state = state; window.__adv = adv;
 

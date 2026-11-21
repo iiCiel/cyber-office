@@ -84,3 +84,15 @@ These three screens are from the public Midwest team packet (2026 Regional, gith
 
 The PAN-OS images are from Palo Alto's public pan.dev documentation repository. No reference exists yet for the NETLAB+ topology page, the ticket form or a Windows login inside NETLAB+.
 
+
+## CCDC scoring engine (Nov 21, 2026)
+
+| File | Shows | Used for |
+|---|---|---|
+| scoringengine-overview.png | Overview: "Round N", timestamp, team x service matrix with green/red cells "10.2.team.host:port" | ScoreboardApp Overview tab |
+| scoringengine-scoreboard.png | Scoreboard: "Points" bar chart + per-round line chart | ScoreboardApp Scoreboard tab |
+| scoringengine-team_services.png | Team services: Place, Score, UP/DOWN labels, % earned, trending ticks | ScoreboardApp Services tab |
+| scoringengine-round_status.png | Round status table | reference only |
+| scoringengine-ssh_service.png | One service's check history | reference only |
+
+Source: the screenshots in the scoringengine/scoringengine docs (MIT), https://raw.githubusercontent.com/scoringengine/scoringengine/master/docs/source/images/. These are the real Bootstrap 3 screens the engine ships with.
