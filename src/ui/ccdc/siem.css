@@ -1,6 +1,6 @@
 /* SIEM search page: Splunk Enterprise "Search & Reporting" look. Everything is scoped under .sx.
    Colours follow Splunk's own light theme (top bar #171d21, app bar #3c444d, body white, text #3c444d,
-   links #006eaa, search button #65a637, timeline bars #5379af); the same values the SOC console uses in screen.css. */
+   links #006eaa, search button #65a637, timeline bars #5cc05c, sampled from docs/reference/splunk-search-timeline.png); the same values the SOC console uses in screen.css. */
 .sx { position: relative; width: 100%; height: 100%; display: flex; flex-direction: column; background: #fff; color: #3c444d; font: 12px/1.4 'Splunk Platform Sans', 'Proxima Nova', Roboto, 'Droid Sans', Helvetica, Arial, sans-serif; overflow: hidden; text-align: left; }
 .sx *, .sx *::before, .sx *::after { box-sizing: border-box; }
 .sx button, .sx input, .sx select { font: inherit; color: inherit; }
@@ -92,8 +92,8 @@
 .sx .sx-tlctl .sx-link { font-size: 11px; }
 .sx .sx-percol { color: #5c6773; font-size: 11px; }
 .sx .sx-bars { display: flex; align-items: flex-end; gap: 1px; height: 54px; border-bottom: 1px solid #b6c0c9; border-left: 1px solid #d6dce2; background: linear-gradient(#e9edf0 1px, transparent 1px) 0 0 / 100% 50%; }
-.sx .sx-bar1 { flex: 1; min-width: 2px; border: 0; padding: 0; background: #5379af; }
-.sx .sx-bar1:hover { background: #3a5f96; }
+.sx .sx-bar1 { flex: 1; min-width: 2px; border: 0; padding: 0; background: #5cc05c; }
+.sx .sx-bar1:hover { background: #3f9f3f; }
 .sx .sx-bar1.sel { background: #f58220; }
 .sx .sx-bar1.z { background: #c3cbd4; }
 .sx .sx-axis { display: flex; justify-content: space-between; font-size: 10px; color: #5c6773; padding-top: 2px; }
@@ -120,7 +120,7 @@
 .sx .sx-fv1 { position: relative; display: flex; gap: 10px; padding: 2px 0 5px; border-bottom: 1px solid #eef1f4; align-items: baseline; }
 .sx .sx-fv1 .sx-val { flex: 1; font: 11px 'Droid Sans Mono', Consolas, monospace; }
 .sx .sx-fvn { width: 52px; text-align: right; }
-.sx .sx-fvb { position: absolute; left: 0; bottom: 1px; height: 2px; background: #5379af; }
+.sx .sx-fvb { position: absolute; left: 0; bottom: 1px; height: 2px; background: #5cc05c; }
 .sx .sx-fcf { margin-top: 8px; display: flex; justify-content: space-between; gap: 8px; align-items: baseline; font-size: 10.5px; }
 
 /* pager, column header, rows */
@@ -203,3 +203,15 @@
 .sx.sx-narrow .sx-appname { font-size: 12px; }
 .sx.sx-tiny .sx-timelbl { max-width: 62px; overflow: hidden; text-overflow: ellipsis; }
 .sx.sx-tiny .sx-go { width: 34px; }
+
+/* Fields sidebar header ("‹ Hide Fields   ☰ All Fields"), hidden strip, and Job toolbar icons (Nov 21, from
+   docs/reference/splunk-search-timeline.png) */
+.sx .sx-ftop { display: flex; justify-content: space-between; align-items: center; padding: 4px 12px 6px; border-bottom: 1px solid #eef1f4; }
+.sx .sx-ftop .sx-link, .sx .sx-fhide { font-size: 12px; background: none; border: 0; padding: 0; color: #3c444d; }
+.sx .sx-ftop .sx-link:hover, .sx .sx-fhide:hover { color: #006eaa; }
+.sx .sx-ftop .sx-link:disabled { color: #b6c0c9; }
+.sx .sx-fields.sx-fhid { width: auto; padding: 6px 12px; min-height: 0; }
+.sx .sx-fext { margin-top: 10px; }
+.sx .sx-jobicons { display: inline-flex; gap: 4px; }
+.sx .sx-ib0 { display: inline-flex; align-items: center; justify-content: center; }
+.sx.sx-narrow .sx-jobicons { display: none; }

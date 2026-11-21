@@ -20,6 +20,17 @@ for (const [tag, vp] of [['1366', { width: 1366, height: 768 }], ['390', { width
   const rendered = await page.evaluate(() => ({ rows: document.querySelectorAll('.sx-row').length, perPage: window.__siem.app.perPage }));
   check(`[${tag}] list is virtualized (rows rendered <= page size)`, rendered.rows > 0 && rendered.rows <= rendered.perPage, JSON.stringify(rendered));
   await page.screenshot({ path: `${out}/events-${tag}.png` });
+  if (tag === '1366') {
+    const hid = await page.evaluate(() => {
+      const q = (s) => document.querySelector(s);
+      q('.sx-ftop .sx-fhide').click();
+      const a = { strip: q('.sx-fields').classList.contains('sx-fhid'), show: q('.sx-fhide')?.textContent, rows: document.querySelectorAll('.sx-fields .sx-fld').length };
+      q('.sx-fhide').click();
+      return { ...a, back: document.querySelectorAll('.sx-fields .sx-fld').length };
+    });
+    check(`[${tag}] Hide Fields collapses the sidebar and Show Fields brings it back`, hid.strip && /Show Fields/.test(hid.show) && hid.rows === 0 && hid.back > 0, JSON.stringify(hid));
+    check(`[${tag}] Job toolbar has share / print / export icons`, await page.locator('.sx-jobicons svg').count() === 3);
+  }
   await search('sourcetype=access_combined POST uri=/wp-login.php status=200 | stats count by src_ip | sort - count | head 10');
   const first = await page.textContent('.sx-srow');
   check(`[${tag}] stats shows attacker on top`, /203\.0\.113\.66/.test(first), first);
