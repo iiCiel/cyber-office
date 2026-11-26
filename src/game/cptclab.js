@@ -60,6 +60,62 @@ function pickRaw(entries, line, rawLine) {
   }
   return null;
 }
+// nmap options whose next token is a value, not a target (so `-oN scan.txt` is not read as a host).
+const NMAP_ARG_OPTS = /^(-p|-o[nxgas]|-il|-e|-g|--script|--script-args|--top-ports|--min-rate|--max-rate|--exclude|--source-port)$/;
+const SINGLE_HOST = /^(\d{1,3}(\.\d{1,3}){3}|[a-z][a-z0-9-]*(\.[a-z0-9-]+)*)$/;
+const RANGE_HOST = /^\d{1,3}(\.\d{1,3}){3}\/\d+$|^\d{1,3}(\.[\d*-]+){3}$/;
+
+/** The targets typed after `nmap`, or null when any of them is a range (then the full sweep output is right). */
+export function nmapTargets(lowered) {
+  const toks = String(lowered).split(' ');
+  const at = toks.findIndex((t) => /(^|\/)nmap$/.test(t));
+  if (at < 0) return null;
+  const out = [];
+  for (let i = at + 1; i < toks.length; i++) {
+    const t = toks[i];
+    if (NMAP_ARG_OPTS.test(t)) { i++; continue; }
+    if (t.startsWith('-')) continue;
+    const range = RANGE_HOST.test(t) && /[/*-]/.test(t);
+    if (range) return null;
+    if (SINGLE_HOST.test(t)) out.push(t);
+  }
+  return out.length ? out : null;
+}
+
+/**
+ * Real nmap only reports the hosts you asked for. Canned output is written for the whole range, so when the player
+ * scans one host (by IP or name) keep just that host's block and rewrite the "Nmap done" line to match.
+ * A host with no block: `downIfMissing` prints nmap's host-down note, otherwise the output is left alone.
+ */
+export function focusNmap(lines, lowered, { downIfMissing = false } = {}) {
+  const want = nmapTargets(lowered);
+  if (!want || !lines.some((l) => /^Nmap scan report for /.test(l))) return lines;
+  const head = []; const blocks = []; const tail = [];
+  let cur = null; let total = 0; let hosts = 0;
+  for (const l of lines) {
+    const rep = /^Nmap scan report for (\S+)(?: \(([^)]+)\))?/.exec(l);
+    const done = /^Nmap done:/.test(l) || /^Service detection performed/.test(l);
+    if (rep) { cur = { names: [rep[1], rep[2]].filter(Boolean).map((s) => s.toLowerCase()), lines: [l] }; blocks.push(cur); continue; }
+    if (done) {
+      cur = null;
+      const m = /\((\d+) hosts? up\) scanned in ([\d.]+) seconds/.exec(l);
+      if (m) { hosts = +m[1]; total = +m[2]; }
+      tail.push(l); continue;
+    }
+    if (cur) cur.lines.push(l); else (blocks.length || tail.length ? tail : head).push(l);
+  }
+  const keep = blocks.filter((b) => want.some((w) => b.names.includes(w)));
+  if (!keep.length && !downIfMissing) return lines;
+  const per = hosts && total ? total / hosts : 8.5;
+  const secs = (Math.max(1, keep.length) * per).toFixed(2);
+  const n = want.length;
+  const doneLine = `Nmap done: ${n} IP address${n === 1 ? '' : 'es'} (${keep.length} host${keep.length === 1 ? '' : 's'} up) scanned in ${keep.length ? secs : '3.04'} seconds`;
+  const body = keep.flatMap((b) => { const ls = [...b.lines]; while (ls.length && ls[ls.length - 1] === '') ls.pop(); return [...ls, '']; });
+  const extra = tail.filter((l) => /^Service detection performed/.test(l) && keep.length);
+  if (!keep.length) return [...head, 'Note: Host seems down. If it is really up, but blocking our ping probes, try -Pn', doneLine];
+  return [...head, ...body, ...extra, doneLine];
+}
+
 // Colour the status markers real tools colour: [+] green, [-] red, [!]/[WARNING] yellow, [*] info.
 function rawLineObj(text) {
   const t = String(text);
@@ -97,7 +153,7 @@ export function runEnum(state, rawLine) {
       const first = !state.discovered[f.id];
       state.discovered[f.id] = true;
       const raw = pickRaw(f.raw || sc.raw?.findings?.[f.id], line, rawLine);
-      const lines = raw ? raw.map(rawLineObj) : (f.reveal || []).map((text) => ({ cls: '', text }));
+      const lines = raw ? focusNmap(raw, line).map(rawLineObj) : focusNmap(f.reveal || [], line).map((text) => ({ cls: '', text }));
       if (first) lines.push({ cls: 'flag', text: `FINDING CONFIRMED → ${f.title}  [added to your report]` });
       else lines.push({ cls: 'note', text: '(already in your report)' });
       return { lines, discovered: f.id };
@@ -107,7 +163,8 @@ export function runEnum(state, rawLine) {
   for (const [ri, r] of (sc.recon || []).entries()) {
     if (matchesAny(r.match, line)) {
       const raw = pickRaw(r.raw || sc.raw?.recon?.[ri], line, rawLine);
-      return { lines: raw ? raw.map(rawLineObj) : (r.output || []).map((text) => ({ cls: '', text })) };
+      const down = { downIfMissing: true };
+      return { lines: raw ? focusNmap(raw, line, down).map(rawLineObj) : focusNmap(r.output || [], line, down).map((text) => ({ cls: '', text })) };
     }
   }
   return { lines: [{ cls: 'err', text: `${line.split(' ')[0]}: no result. Type "help", or "scope" for what is in scope. Recon first (nmap), then enumerate each service.` }] };

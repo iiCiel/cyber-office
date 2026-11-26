@@ -37,6 +37,11 @@ export const MERIDIAN_BURP = {
       req: req('POST', 'portal.meridian.example', '/login', ['Content-Type: application/x-www-form-urlencoded', 'Content-Length: 25', 'Origin: https://portal.meridian.example', 'Referer: https://portal.meridian.example/login', COOKIE], 'user=jdoe&pass=Summer2026'),
       res: res('200 OK', ['Content-Type: text/html; charset=UTF-8', 'X-Powered-By: PHP/7.4.3'], BAD_LOGIN) },
   ],
+  // Open browser (Proxy > Intercept): Firefox signs in to the portal again. With Intercept on, this POST stops in Burp.
+  intercept: [
+    { host: 'https://portal.meridian.example', method: 'POST', url: '/login',
+      req: req('POST', 'portal.meridian.example', '/login', ['Content-Type: application/x-www-form-urlencoded', 'Content-Length: 25', 'Origin: https://portal.meridian.example', 'Referer: https://portal.meridian.example/login', COOKIE], 'user=jdoe&pass=Summer2026') },
+  ],
   /** Answer a Repeater request. hit = what the scene's engagement logic said ({ discovered }). */
   respond(reqText, hit) {
     const [first = ''] = reqText.split('\n');
