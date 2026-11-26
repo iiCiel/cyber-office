@@ -1,6 +1,6 @@
 # Project: Cyber Office
 
-> Project file from the Command Center, Nov 21, 2026, 3:45 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
+> Project file from the Command Center, Nov 26, 2026, 6:28 PM. Paste it into a new project (New project, then "Start from a project file") or into a chat to pick up exactly where this left off.
 
 ## Goal
 A pixel-art browser game where you live a real day as a junior security analyst: walk the office, read real-looking email, dig through logs, deal with coworkers, and watch your choices play out. Not a quiz and not a wall of text. Built in public as a portfolio piece for internship applications.
@@ -14,27 +14,28 @@ A pixel-art browser game where you live a real day as a junior security analyst:
 D:\Projects\cyber-office
 
 ## Notes (what is done, in progress, next, issues)
-Nov 21: the supervisor's reference-first pass is done, with one PR per area, all based on main and waiting for Soliman to merge:
-- #17 Splunk
-- #18 pfSense
-- #19 CCDC scoreboard
-- #20 Windows/Linux (ADUC, PowerShell, Server Manager, ss)
-- #21 CPTC: Kali Xfce plus a new Burp Suite (src/ui/cptc/burp.js, src/data/cptcBurp1.js), verify script scripts/verify-cptc.mjs, proof in docs/proof/cptc-ref/
-
-verify-cptclab now expects 4 panel windows, because Burp is one.
+Nov 26: PR #22 (feat/cptc-burp-intercept, stacked on #21's branch fix/cptc-reference-match) adds:
+- Burp Proxy > Intercept: toggle, Forward/Drop/Open browser, held-request table, editable raw request. Forward and Repeater Send share BurpWindow.exchange(). It uses data.intercept and an optional data.action(req).
+- The nmap one-host fix: nmapTargets/focusNmap in src/game/cptclab.js.
+- tests/cptcnmap.test.js (11 tests).
+- verify-cptc.mjs is now 40 checks.
+PRs #17-#21 still wait for merge; merge #21 before #22.
 
 CPTC still open:
-- Burp in Labs 2-4
-- Burp Intercept and Intruder tabs
-- a one-host nmap scan prints the whole range output
+- Burp in Labs 2-4. The plan for Lab 2 Atlas: src/data/cptcBurp2.js with SPA history, POST /v2/auth/login (member 10042), GET /v2/accounts/10042/statements. action() returns a line only when the account id is not 10042 and there's a bearer token. respond() gives another member's redacted JSON (10044). Wire it with burp: in CPTC_LAB_2.
+- Burp Intruder needs a reference image first.
 
-Other open items: pfSense dark theme; CCDC/server room pixel art in the original 16px style; playthroughs of the red-team waves and big-log search.
+Other open items: pfSense dark theme; CCDC/server-room pixel art in the 16px style; playthroughs of red-team waves and the big-log search.
 
 Gotchas:
-- Dev server: npx vite --port 5202, kill it via Get-NetTCPConnection.
-- The side-by-side script is at %TEMP%\cptcsbs.py (PIL).
+- Start the dev server with the Bash tool in the background (`npx vite --port 5202 --strictPort`). A hidden cmd Start-Process hung.
+- In PowerShell, write commit messages to a file and use `git commit -F`; embedded quotes break here-strings passed to git.
+- Side-by-side: node + playwright page with both images as base64 (python not needed).
 
 ## Recent runs (newest first)
+### Nov 26, 2026: done
+- Did: Burp's Intercept tab now works and the one-host nmap bug is fixed, both in PR #22 for your review. It's stacked on #21, so merge #21 first. 1. Done: Burp Proxy > Intercept now looks like the real one (blue toggle, orange Forward, Drop, held-request table). Turn it on, click Open browser, add a quote to the held login and press Forward. That confirms the SQL injection, and the request lands in HTTP history as Edited with status 500. 2. Done: nmap on one host (by IP or name) prints only that host. An unused IP gets the real "Host seems down" message, and range scans are unchanged. 3. Proof: I restored the old code and 6 of the 11 new tests failed; all 11 pass with the fix. The side-by-side is docs/proof/cptc-ref/sbs-burp-intercept.png. 4. NOT done: Burp Intruder (there's no reference image yet) and Burp in Labs 2-4. 5. Needs you: merge #17-#21 one at a time, then #22. Next: open https://github.com/iiCiel/cyber-office/pull/22 and compare the side-by-side picture. Details: commit d3779cf on feat/cptc-burp-intercept (ls-remote matches). 9 files: burp.js, cptc.css, cptclab.js, cptcBurp1.js, verify-cptc.mjs, tests/cptcnmap.test.js, 3 PNGs. npm test 728/728, vite build OK, verify-cptc 40/…
+- Where it stood: PRs #17-#22 are open and wait for Soliman to merge, #21 before #22. CPTC Burp now has HTTP history, Repeater and Intercept, but only in Lab 1.
 ### Nov 21, 2026: done, supervisor grade B
 - He asked: Fix-up run started by the supervisor. It checked the last run's work itself and found 1 problem: 1. Hide/Show Fields breaks the event list: after a search, hiding the sidebar leaves gaps between events and showing it again makes rows overlap. The run told Soliman to merge without mentioning the Code
 - Did: Hide/Show Fields bug is fixed and pushed to PR #17; merge it when ready. 1. Done: the sidebar toggle (and the narrow-screen Fields button) now re-measures result rows. I checked both screenshots: rows are flush, no gaps or overlaps. 2. Done: shot-siem now checks row geometry after Hide and Show (worst gap 0.2px). Replied on the Codex comment in PR #17. 3. Caveat: the new check also passes on the old code at 1366, so it guards against regressions but doesn't reproduce the original bug. 4. Not done: the pfSense and scoreboard work, since this run was only the fix-up. The pfSense edits in PfSenseApp.js and pfsense.css in the working tree are uncommitted and not mine; I left them alone. Next: open https://github.com/iiCiel/cyber-office/pull/17 and press Merge. Details: commit 9bb2c78 on fix/splunk-reference-match (ls-remote matches). npm test 717/717, vite build OK, shot-siem ALL PASS. 0 jobs went to workers.
@@ -57,13 +58,6 @@ Gotchas:
 - Where it stood: PRs #9-#11 are merged and live with 0 errors. PR #13 (coworker dialogue rewrite) waits on your merge.
 - Problems: The first big Bash heredoc write failed (unexpected EOF) and was redone with the Write tool, a small waste.; The shift-handoff live check script failed (dynamic import of source on the live site) and was swapped for a weaker check.; No sanity check that the new text fits the dialogue box or avoids overflow. The run did say 'Shots show the full lines now', so it fixed one truncation, but it viewed only 4 of 12 shots.; The run closed 3 inbox items from the stated fact that PR #11 is merged. That is reasonable, but the run never checked it beyond Soliman's word and the git log.
 - Advice for the next run: Look at every screenshot you cite before claiming it. Snapshot choice scores from main and test against them. Quote a few new lines in the PR body. Don't merge; Soliman merges.
-### Nov 6, 2026: done, supervisor grade B
-- He asked: Fix-up run started by the supervisor. It checked the last run's work itself and found 4 problems: 1. The Codex review comment on PR #10 was never fixed: ticket list rows can only be clicked. Keyboard players cannot reach or select another ticket, and the game advertises keyboard play ('Keys 1-4 open
-- Did: The PR #10 fixes, the real log formats and the shift handoff are in PR #11 and need your merge. Coworker dialogue is NOT done. 1. Done: tickets work with the keyboard, the phone layout fits, and ServiceNow is matched to real screenshots. Office wall tops and the chair look better. 2. Done: real log formats. Firewall logs are now real pfSense filterlog lines, the EDR alert is real Microsoft Defender alert data, and the ransomware spread shows Sysmon XML. Screenshots are in docs/proof/logs/. 3. Done: Days 2-5 open with an overnight handoff email from the night-shift MDR analyst. Each night he gets one call wrong, and you have to catch it. Screenshots are in docs/proof/handoff/. 4. NOT done: the coworker dialogue rewrite. The 0-console-errors check on the live site waits until you merge. 5. Fixed 2 old Splunk-screen bugs: JSON events spilled out of the results, and a stray "null" showed under the results. Next: open https://github.com/iiCiel/cyber-office/pull/11, look at docs/proof/handoff/day4-handoff.png, and press Merge. Details: commits 1300a02, d1db6d9, dc058de, 8bf9264 on fix/pr10-review (git ls-remote matches 8bf9264). npm test 541/541. vite build OK. shot-handoff 5 passed / 0…
-- Where it stood: PR #11 (review fixes, real log formats, shift handoff) waits on your merge. The coworker dialogue rewrite and the live-site console check are still open.
-- Problems: Coworker dialogue rewrite was not started, though it was part of the ask.; The 0-console-errors check on the live site was not run. The run stopped at 'needs merge' instead of verifying anything live.; A build-breaking parse error in SocScreen.js (line 20) was found only at 7:38 when `vite build` was run. The tests had been passing while the build was broken.; The npm test output the ask wanted was only partly shown; the visible count came through grep filters.; Heredoc and python-assert edits failed twice (backslashes mangled, assertion error), wasting about 4 calls.; 6 tool errors, and a Day 5 screenshot timeout of 30s early in this window.
-- Advice for the next run: Start with the coworker dialogue rewrite, since it is the one named item still open. Once PR #11 is merged and deployed, run the live-site console check and report the count. Open each proof image after you shoot it and say what you see. Run vite build after every big edit.
 
 ## Waiting on Soliman
 - Review and merge PRs #17-#21 (one per area)
-- The supervisor opened the last Cyber Office run's work and found 1 problem; a fix-up run is fixing them now.
