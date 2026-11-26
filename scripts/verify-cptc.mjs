@@ -112,6 +112,25 @@ for (const [tag, viewport] of [['1366', { width: 1366, height: 800 }], ['390', {
   check(`[${tag}] forwarded request lands in HTTP history as #6, Edited, 500`, r6[2] === 'POST' && r6[5] === '✓' && r6[6] === '500', r6.join('|'));
   if (tag === '390') await page.screenshot({ path: `${out}/burp-intercept-history-${tag}.png` });
 
+  // ---- Turning Intercept off releases held requests (fresh game) ----
+  await toDesk(page);
+  if (await ql.isVisible()) await ql.click();
+  else await page.locator('.kx-task', { hasText: 'Burp' }).first().click();
+  await page.waitForSelector('.bp-table', { state: 'visible', timeout: 5000 });
+  await page.locator('.bp-stab[data-ptab="Intercept"]').click();
+  await page.locator('.bp-ictoggle').click();
+  await page.locator('.bp-open').click();
+  await page.waitForSelector('.bp-ictable tbody tr');
+  await page.locator('.bp-icreq .bp-edit').fill((await page.locator('.bp-icreq .bp-edit').inputValue()).replace('user=jdoe', "user=jdoe'"));
+  await page.locator('.bp-ictoggle').click();
+  await page.waitForTimeout(300);
+  check(`[${tag}] Intercept off: Intercept label off and queue emptied`, (await page.locator('.bp-ictoggle').innerText()).includes('Intercept off') && await page.locator('.bp-ictable tbody tr').count() === 0);
+  check(`[${tag}] Intercept off releases the edited request: sql-injection discovered`, await page.evaluate(() => !!window.__game.scene.getScene('CptcLab').state.discovered['sql-injection']));
+  await page.locator('.bp-stab[data-ptab="HTTP history"]').click();
+  await page.waitForSelector('.bp-table tr[data-row="6"]');
+  const r6b = await page.locator('.bp-table tr[data-row="6"] td').allInnerTexts();
+  check(`[${tag}] released request is history #6, POST, Edited, 500`, r6b[2] === 'POST' && r6b[5] === '✓' && r6b[6] === '500', r6b.join('|'));
+
   check(`[${tag}] no page errors`, errors.length === 0, errors.slice(0, 3).join(' | '));
   await page.close();
 }

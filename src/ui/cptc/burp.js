@@ -173,7 +173,18 @@ export class BurpWindow {
     return h('div', { class: 'bp-proxy bp-ic' }, this.proxySub(), bar, table, req);
   }
 
-  toggleIntercept() { this.icOn = !this.icOn; this.status = ''; this.render(); }
+  toggleIntercept() {
+    if (this.icOn) {
+      // Real Burp releases everything it is holding when Intercept goes off.
+      const q = this.held.splice(0);
+      q.forEach((cur, i) => {
+        const req = (i === 0 && this.icta?.value != null) ? this.icta.value : cur.req;
+        const edited = req.replace(/\r/g, '').trim() !== String(cur.orig ?? cur.req).replace(/\r/g, '').trim();
+        this.pass(req, cur.host, edited);
+      });
+    }
+    this.icOn = !this.icOn; this.status = ''; this.render();
+  }
 
   /** Burp's browser loads the target: with Intercept on its requests stop here, otherwise they go straight through. */
   openBrowser() {
