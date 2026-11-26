@@ -80,6 +80,38 @@ for (const [tag, viewport] of [['1366', { width: 1366, height: 800 }], ['390', {
   check(`[${tag}] footer shows bytes | millis`, /Done\s+\d+ bytes \| \d+ millis/.test(await page.locator('.bp-rfoot').innerText()));
   await page.screenshot({ path: `${out}/burp-repeater-${tag}.png` });
 
+  // ---- Burp: Proxy > Intercept (fresh game, so the finding is not confirmed yet) ----
+  await toDesk(page);
+  if (await ql.isVisible()) await ql.click();
+  else await page.locator('.kx-task', { hasText: 'Burp' }).first().click();
+  await page.waitForSelector('.bp-table', { state: 'visible', timeout: 5000 });
+  await page.locator('.bp-stab[data-ptab="Intercept"]').click();
+  await page.waitForSelector('.bp-icbar');
+  check(`[${tag}] Intercept starts off, Forward and Drop disabled`, (await page.locator('.bp-ictoggle').innerText()).includes('Intercept off')
+    && await page.locator('.bp-fwdb').isDisabled() && await page.locator('.bp-drop[data-act="drop"]').isDisabled());
+  await page.locator('.bp-ictoggle').click();
+  check(`[${tag}] toggle turns Intercept on (blue)`, (await page.locator('.bp-ictoggle').innerText()).includes('Intercept on')
+    && await page.locator('.bp-ictoggle').evaluate((b) => getComputedStyle(b).backgroundColor) === 'rgb(43, 103, 168)');
+  await page.locator('.bp-open').click();
+  await page.waitForSelector('.bp-ictable tbody tr');
+  const heldRow = (await page.locator('.bp-ictable tbody tr').first().innerText()).replace(/\s+/g, ' ');
+  check(`[${tag}] Open browser: the portal login POST is held`, /HTTP → Request portal\.meridian\.example POST \/login/.test(heldRow), heldRow);
+  check(`[${tag}] sub-tab shows Intercept (1)`, (await page.locator('.bp-stab[data-ptab="Intercept"]').innerText()) === 'Intercept (1)');
+  check(`[${tag}] held request is editable raw text`, (await page.locator('.bp-icreq .bp-edit').inputValue()).startsWith('POST /login HTTP/1.1'));
+  const icBefore = await page.evaluate(() => !!window.__game.scene.getScene('CptcLab').state.discovered['sql-injection']);
+  await page.locator('.bp-icreq .bp-edit').fill((await page.locator('.bp-icreq .bp-edit').inputValue()).replace('user=jdoe', "user=jdoe'"));
+  if (tag === '1366') await page.screenshot({ path: `${out}/burp-intercept-${tag}.png` });
+  await page.locator('.bp-fwdb').click();
+  await page.waitForTimeout(300);
+  const icAfter = await page.evaluate(() => !!window.__game.scene.getScene('CptcLab').state.discovered['sql-injection']);
+  check(`[${tag}] Forwarding the edited request confirms the SQL injection`, !icBefore && icAfter);
+  check(`[${tag}] queue empties after Forward`, await page.locator('.bp-ictable tbody tr').count() === 0 && await page.locator('.bp-fwdb').isDisabled());
+  await page.locator('.bp-stab[data-ptab="HTTP history"]').click();
+  await page.waitForSelector('.bp-table tr[data-row="6"]');
+  const r6 = await page.locator('.bp-table tr[data-row="6"] td').allInnerTexts();
+  check(`[${tag}] forwarded request lands in HTTP history as #6, Edited, 500`, r6[2] === 'POST' && r6[5] === '✓' && r6[6] === '500', r6.join('|'));
+  if (tag === '390') await page.screenshot({ path: `${out}/burp-intercept-history-${tag}.png` });
+
   check(`[${tag}] no page errors`, errors.length === 0, errors.slice(0, 3).join(' | '));
   await page.close();
 }
